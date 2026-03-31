@@ -1,6 +1,10 @@
+import logging
+from pathlib import Path
 from pydantic_settings import BaseSettings
 from pydantic import field_validator
 from typing import Optional, List
+
+logger = logging.getLogger(__name__)
 
 
 class Config(BaseSettings):
@@ -168,12 +172,16 @@ if config.TELEGRAM_ENABLED and (not config.API_ID or not config.API_HASH):
             missing.append("API_ID (or TELEGRAM_API_ID/TG_API_ID/BOT_API_ID)")
         if not config.API_HASH:
             missing.append("API_HASH (or TELEGRAM_API_HASH/TG_API_HASH/BOT_API_HASH)")
-        raise RuntimeError(
-            "TELEGRAM_ENABLED is true but missing required credentials: "
-            + ", ".join(missing)
-            + ".\n"
-            + "Set these via environment variables or .env file."
+
+        logger.warning(
+            "TELEGRAM_ENABLED is true but missing required credentials: %s. "
+            "Falling back to TELEGRAM_ENABLED=false for now; "
+            "set env variables to enable Telegram mode.",
+            ", ".join(missing),
         )
+
+        # safe fallback: disable Telegram mode when credentials are missing
+        config.TELEGRAM_ENABLED = False
 
 # Ensure session strings are loaded from env directly if empty config
 if config.TELEGRAM_ENABLED and not config.session_strings:
