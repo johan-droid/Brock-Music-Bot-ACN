@@ -28,10 +28,9 @@ RUN pip install --no-cache-dir -U pip && \
 # Copy application code
 COPY . .
 
-# Ensure env files are available inside container for config fallback
-# If these files are not used in your CI/CD, pass values as runtime environment variables instead.
-COPY bot/.env.local /app/bot/.env.local
-COPY .env /app/.env
+# Ensure directories are created (env files should be provided via service variables in production)
+RUN mkdir -p /app/sessions && chmod -R 777 /app/sessions
+
 
 # Create necessary directories
 RUN mkdir -p /var/log/musicbot /tmp/musicbot && \

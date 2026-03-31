@@ -147,36 +147,49 @@ if config.TELEGRAM_ENABLED and (not config.API_ID or not config.API_HASH):
     if not api_id_env or not api_hash_env:
         for candidate in POSSIBLE_ENV_PATHS + [container_local_env]:
             if os.path.exists(candidate):
-                for line in open(candidate, "r", encoding="utf-8"):
-                    if "API_ID" in line and "=" in line and not api_id_env:
-                        k, v = line.split("=", 1)
-                        if k.strip() in ("API_ID", "TELEGRAM_API_ID", "TG_API_ID", "BOT_API_ID"):
-                            api_id_env = v.strip().strip('"').strip("'")
-                    if "API_HASH" in line and "=" in line and not api_hash_env:
-                        k, v = line.split("=", 1)
-                        if k.strip() in ("API_HASH", "TELEGRAM_API_HASH", "TG_API_HASH", "BOT_API_HASH"):
-                            api_hash_env = v.strip().strip('"').strip("'")
+                try:
+                    with open(candidate, "r", encoding="utf-8") as f:
+                        for line in f:
+                            line = line.strip()
+                            if not line or line.startswith("#") or "=" not in line:
+                                continue
+                            k, v = line.split("=", 1)
+                            k, v = k.strip(), v.strip().strip('"').strip("'")
+                            if k in ("API_ID", "TELEGRAM_API_ID", "TG_API_ID", "BOT_API_ID"):
+                                if not api_id_env:
+                                    api_id_env = v
+                            if k in ("API_HASH", "TELEGRAM_API_HASH", "TG_API_HASH", "BOT_API_HASH"):
+                                if not api_hash_env:
+                                    api_hash_env = v
+                except Exception as e:
+                    logger.debug(f"Could not read env file {candidate}: {e}")
 
     if api_id_env and not config.API_ID:
         try:
             config.API_ID = int(api_id_env)
         except ValueError:
-            raise RuntimeError("API_ID must be numeric")
+            logger.error(f"API_ID must be numeric, got: {api_id_env}")
+            config.API_ID = None
 
     if api_hash_env and not config.API_HASH:
-        config.API_HASH = api_hash_env
+        # Check against placeholder values
+        if "your_" in (api_hash_env or "").lower():
+            logger.error("API_HASH contains placeholder value.")
+            config.API_HASH = None
+        else:
+            config.API_HASH = api_hash_env
 
-    if not config.API_ID or not config.API_HASH:
+    if config.TELEGRAM_ENABLED and (not config.API_ID or not config.API_HASH):
         missing = []
         if not config.API_ID:
-            missing.append("API_ID (or TELEGRAM_API_ID/TG_API_ID/BOT_API_ID)")
+            missing.append("API_ID")
         if not config.API_HASH:
-            missing.append("API_HASH (or TELEGRAM_API_HASH/TG_API_HASH/BOT_API_HASH)")
+            missing.append("API_HASH")
 
         logger.warning(
-            "TELEGRAM_ENABLED is true but missing required credentials: %s. "
-            "Falling back to TELEGRAM_ENABLED=false for now; "
-            "set env variables to enable Telegram mode.",
+            "CRITICAL: TELEGRAM_ENABLED is true but missing/invalid credentials: %s. "
+            "Bot will NOT be able to connect to Telegram. "
+            "Please set these in your Railway Dashboard or .env file.",
             ", ".join(missing),
         )
 
