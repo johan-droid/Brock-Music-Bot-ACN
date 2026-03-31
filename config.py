@@ -155,9 +155,8 @@ def synchronize_api_credentials():
             found_hash_val = val
             break
 
-    # 2. Log detections for debugging (using warning to ensure visibility in early logs)
+    # 2. Apply detections
     if found_id_key:
-        logger.warning(f"✔ API_ID detected via environment variable: {found_id_key}")
         try:
             config.API_ID = int(found_id_val)
         except ValueError:
@@ -165,7 +164,6 @@ def synchronize_api_credentials():
             config.API_ID = None
     
     if found_hash_key:
-        logger.warning(f"✔ API_HASH detected via environment variable: {found_hash_key}")
         config.API_HASH = found_hash_val
 
     # 3. Fallback to file reading if still missing (for local dev)
@@ -184,12 +182,10 @@ def synchronize_api_credentials():
                             if not config.API_ID and k in env_keys_id and "your_" not in v.lower():
                                 try:
                                     config.API_ID = int(v)
-                                    logger.warning(f"✔ API_ID found in file: {candidate}")
                                 except: pass
                                 
                             if not config.API_HASH and k in env_keys_hash and "your_" not in v.lower():
                                 config.API_HASH = v
-                                logger.warning(f"✔ API_HASH found in file: {candidate}")
                 except Exception as e:
                     logger.debug(f"Could not read env file {candidate}: {e}")
 
@@ -199,14 +195,10 @@ def synchronize_api_credentials():
         if not config.API_ID: missing.append("API_ID")
         if not config.API_HASH: missing.append("API_HASH")
 
-        # DEBUG: List all environment keys (NOT values!) to see what Railway is providing
-        env_keys = sorted(list(os.environ.keys()))
-        logger.warning(f"DEBUG: Found {len(env_keys)} environment variables. Sorted keys: {', '.join(env_keys)}")
-        
         logger.warning(
             "CRITICAL: TELEGRAM_ENABLED is true but missing/invalid credentials: %s. "
             "Please ensure these are set in your Railway Dashboard Variables exactly. "
-            "Wait for a new deployment after changing variables. Bot will idle until configured.",
+            "Bot will idle until configured.",
             ", ".join(missing),
         )
         # safe fallback - disable bot features while idling
@@ -226,7 +218,6 @@ def synchronize_bot_token():
             if val and "your_" not in val.lower():
                 if not config.BOT_TOKEN or "your_" in config.BOT_TOKEN.lower():
                     config.BOT_TOKEN = val
-                    logger.warning(f"✔ BOT_TOKEN detected via environment variable: {k}")
                     break
 
     # Session strings (direct fallback)
@@ -234,8 +225,8 @@ def synchronize_bot_token():
         val = os.getenv("SESSION_STRING_1")
         if val and "your_" not in val.lower():
             config.SESSION_STRING_1 = val
-            logger.warning("✔ SESSION_STRING_1 detected via environment variable.")
 
 # Run token/session sync
 synchronize_bot_token()
+
 
