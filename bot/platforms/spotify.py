@@ -1,152 +1,144 @@
-"""Spotify integration - metadata fetch with YouTube resolution."""
+"""
+Spotify integration — metadata extraction with YouTube audio resolution.
+The Soul King's Spotify scout! 💀🟢
+"""
 
 import logging
+import asyncio
 from typing import Optional, Dict, Any
-from bot.platforms.youtube import extract_youtube, search_youtube
+from bot.platforms.youtube import youtube
 from config import config
 
 logger = logging.getLogger(__name__)
 
-# Try to import spotipy, fallback to None if not available
+# ─── spotipy dependency ───────────────────────────────────────────────────────
 try:
     import spotipy
     from spotipy.oauth2 import SpotifyClientCredentials
     SPOTIPY_AVAILABLE = True
 except ImportError:
     SPOTIPY_AVAILABLE = False
-    logger.warning("spotipy not installed, Spotify features limited")
+    logger.warning("💀 spotipy not installed! Spotify features will be limited, Yohoho!")
 
 
 class SpotifyExtractor:
-    """Extract Spotify metadata and resolve to YouTube audio."""
-    
+    """Extracts Spotify metadata and resolves to YouTube stream URLs."""
+
     def __init__(self):
         self.sp = None
         if SPOTIPY_AVAILABLE and config.SPOTIFY_CLIENT_ID and config.SPOTIFY_CLIENT_SECRET:
             try:
                 auth = SpotifyClientCredentials(
                     client_id=config.SPOTIFY_CLIENT_ID,
-                    client_secret=config.SPOTIFY_CLIENT_SECRET
+                    client_secret=config.SPOTIFY_CLIENT_SECRET,
                 )
                 self.sp = spotipy.Spotify(auth_manager=auth)
-                logger.info("Spotify client initialized")
+                logger.info("💀 Spotify client initialized!")
             except Exception as e:
-                logger.error(f"Failed to initialize Spotify: {e}")
-    
+                logger.error(f"💀 Failed to initialize Spotify: {e}")
+
     async def extract(self, url: str) -> Optional[Dict[str, Any]]:
-        """Extract track info from Spotify URL and resolve to YouTube audio.
-        
-        Args:
-            url: Spotify track/album/playlist URL
-            
-        Returns:
-            Dict with audio URL and metadata, or None
+        """
+        Extract track info from Spotify URL and resolve to YouTube audio.
         """
         if not self.sp:
-            logger.warning("Spotify client not available")
+            logger.warning("💀 Spotify client not available!")
             return None
-        
+
         try:
-            # Parse URL to get track ID
             track_id = self._extract_track_id(url)
             if not track_id:
+                logger.warning(f"💀 Invalid Spotify URL: {url}")
                 return None
-            
-            # Get track info
-            track = self.sp.track(track_id)
-            
-            # Build search query
+
+            loop = asyncio.get_event_loop()
+            track = await loop.run_in_executor(None, self.sp.track, track_id)
+
             artists = ", ".join([a["name"] for a in track["artists"]])
             title = track["name"]
             search_query = f"{artists} - {title}"
-            
-            # Get thumbnail
+
             thumbnail = None
-            if track["album"]["images"]:
+            if track["album"].get("images"):
                 thumbnail = track["album"]["images"][0]["url"]
-            
-            # Search on YouTube
-            yt_result = await extract_youtube(search_query)
-            
+
+            logger.info(f"💀 Spotify resolving: {search_query}")
+
+            yt_result = await youtube.extract(search_query)
+
             if yt_result:
-                yt_result["title"] = f"{title} - {artists}"
-                yt_result["thumbnail"] = thumbnail or yt_result.get("thumbnail")
-                yt_result["source"] = "spotify"
-                yt_result["spotify_url"] = url
+                yt_result.update({
+                    "title": title,
+                    "uploader": artists,
+                    "thumbnail": thumbnail or yt_result.get("thumbnail"),
+                    "source": "spotify",
+                    "spotify_url": url,
+                })
                 return yt_result
-            
+
             return None
-            
+
         except Exception as e:
-            logger.error(f"Spotify extraction failed: {e}")
+            logger.error(f"💀 Spotify extraction failed: {e}")
             return None
-    
+
     def _extract_track_id(self, url: str) -> Optional[str]:
-        """Extract track ID from Spotify URL."""
+        """Extract track ID from Spotify URL or URI."""
         import re
-        
-        # Handle various Spotify URL formats
         patterns = [
             r"spotify:track:([a-zA-Z0-9]+)",
             r"open\.spotify\.com/track/([a-zA-Z0-9]+)",
             r"spotify\.com/track/([a-zA-Z0-9]+)",
         ]
-        
-        for pattern in patterns:
-            match = re.search(pattern, url)
+        for p in patterns:
+            match = re.search(p, url)
             if match:
                 return match.group(1)
-        
         return None
-    
+
     async def search(self, query: str, limit: int = 5) -> list:
-        """Search Spotify tracks and return results with YouTube resolution.
-        
-        Args:
-            query: Search terms
-            limit: Max results
-            
-        Returns:
-            List of track dicts
-        """
+        """Search Spotify tracks. Falls back to YouTube if Spotify unavailable."""
         if not self.sp:
-            # Fallback to YouTube search
-            return await search_youtube(query, limit)
-        
+            return await youtube.search(query, limit)
+
         try:
-            results = self.sp.search(q=query, type="track", limit=limit)
-            tracks = results.get("tracks", {}).get("items", [])
-            
+            loop = asyncio.get_event_loop()
+            results = await loop.run_in_executor(
+                None,
+                lambda: self.sp.search(q=query, type="track", limit=limit)
+            )
+            items = (results or {}).get("tracks", {}).get("items", [])
+
             formatted = []
-            for track in tracks:
+            for track in items:
                 artists = ", ".join([a["name"] for a in track["artists"]])
-                thumbnail = track["album"]["images"][0]["url"] if track["album"]["images"] else None
-                
+                thumbnail = None
+                if track["album"].get("images"):
+                    thumbnail = track["album"]["images"][0]["url"]
+
                 formatted.append({
                     "title": track["name"],
-                    "artists": artists,
-                    "duration": track["duration_ms"] // 1000,
+                    "uploader": artists,
+                    "duration": int((track.get("duration_ms") or 0) // 1000),
                     "thumbnail": thumbnail,
                     "url": track["external_urls"]["spotify"],
+                    "id": track["id"],
                     "source": "spotify",
                 })
-            
             return formatted
-            
+
         except Exception as e:
-            logger.error(f"Spotify search failed: {e}")
-            return await search_youtube(query, limit)
+            logger.error(f"💀 Spotify search failed: {e}")
+            return await youtube.search(query, limit)
 
 
-# Global extractor
+# Global instance
 spotify = SpotifyExtractor()
 
 
 async def extract_spotify(url: str) -> Optional[Dict[str, Any]]:
-    """Extract from Spotify URL."""
     return await spotify.extract(url)
 
 
 async def search_spotify(query: str, limit: int = 5) -> list:
-    """Search Spotify."""
     return await spotify.search(query, limit)

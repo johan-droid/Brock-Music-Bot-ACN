@@ -8,29 +8,43 @@ __pycache__/
 venv/
 env/
 ENV/
+.venv/
 
-# IDE
+# Node.js
+node_modules/
+
+# IDE & Assistant
 .vscode/
 .idea/
+.gemini/
 *.swp
 *.swo
 
 # Environment variables (NEVER commit)
 .env
+.env.local
+bot/.env.local
 
 # Sessions and sensitive data
 sessions/
 *.session
 *.session-journal
+my_account.session*
 
 # Logs
 logs/
 *.log
+bot_output.log
+bot_startup.log
+startup.log
 
 # Downloaded files
 tmp/
 temp/
 downloads/
+
+# Test codes
+test_*.py
 
 # Cookies
 cookies.txt
@@ -39,8 +53,7 @@ cookies.txt
 mongo-data/
 redis-data/
 
-# Local workspace config
-bot/.env.local
+# Misc
+pytgcalls_dir.txt
+.DS_Store
 
-# Pytest cache
-.pytest_cache/

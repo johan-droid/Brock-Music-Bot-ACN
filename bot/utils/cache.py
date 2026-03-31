@@ -12,14 +12,30 @@ redis_client = None
 sqlite_cache = None
 
 # Cache mode: "redis" or "sqlite"
-CACHE_MODE = "sqlite"  # Default to zero-cost SQLite
+CACHE_MODE = "sqlite"
 
 
 async def init_redis():
     """Initialize Redis connection if configured, otherwise use SQLite."""
     global redis_client, sqlite_cache, CACHE_MODE
     
-    # Try Redis first if configured
+    # Try Upstash Redis first
+    if config.UPSTASH_REDIS_REST_URL and config.UPSTASH_REDIS_REST_TOKEN:
+        try:
+            from upstash_redis.asyncio import Redis as UpstashRedis
+            redis_client = UpstashRedis(
+                url=config.UPSTASH_REDIS_REST_URL,
+                token=config.UPSTASH_REDIS_REST_TOKEN
+            )
+            # Test connection
+            await redis_client.ping()
+            CACHE_MODE = "redis"
+            logger.info("Upstash Redis cache connected")
+            return
+        except Exception as e:
+            logger.warning(f"Upstash Redis connection failed, falling back to local Redis/SQLite: {e}")
+
+    # Try local Redis next if configured
     if config.REDIS_HOST and config.REDIS_HOST != "redis":
         try:
             import redis.asyncio as aioredis
@@ -33,14 +49,14 @@ async def init_redis():
             # Test connection
             await redis_client.ping()
             CACHE_MODE = "redis"
-            logger.info("Redis cache connected")
+            logger.info("Local Redis cache connected")
             return
         except Exception as e:
-            logger.warning(f"Redis connection failed, falling back to SQLite: {e}")
+            logger.warning(f"Local Redis connection failed, falling back to SQLite: {e}")
     
     # Use SQLite fallback
     from bot.utils.sqlite_cache import init_sqlite_cache, sqlite_cache as _sqlite
-    sqlite_path = os.getenv("SQLITE_CACHE_PATH", "./data/cache.db")
+    sqlite_path = config.SQLITE_CACHE_PATH
     init_sqlite_cache(sqlite_path)
     sqlite_cache = _sqlite
     CACHE_MODE = "sqlite"
@@ -50,16 +66,9 @@ async def init_redis():
 class Cache:
     """Unified cache interface - uses Redis if available, else SQLite."""
     
-    def __init__(self):
-        self.mode = "sqlite"
-    
-    async def init(self):
-        """Initialize with appropriate backend."""
-        self.mode = CACHE_MODE
-    
     def _get_backend(self):
         """Get current backend client."""
-        if self.mode == "redis" and redis_client:
+        if CACHE_MODE == "redis" and redis_client:
             return redis_client
         return sqlite_cache
     
@@ -68,7 +77,7 @@ class Cache:
         """Cache admin list for a chat."""
         key = f"admins:{chat_id}"
         
-        if self.mode == "redis" and redis_client:
+        if CACHE_MODE == "redis" and redis_client:
             await redis_client.delete(key)
             if admin_ids:
                 await redis_client.sadd(key, *admin_ids)
@@ -81,7 +90,7 @@ class Cache:
         """Check if user is admin (from cache)."""
         key = f"admins:{chat_id}"
         
-        if self.mode == "redis" and redis_client:
+        if CACHE_MODE == "redis" and redis_client:
             is_member = await redis_client.sismember(key, user_id)
             return bool(is_member)
         else:
@@ -96,7 +105,7 @@ class Cache:
         """Get cached admin list."""
         key = f"admins:{chat_id}"
         
-        if self.mode == "redis" and redis_client:
+        if CACHE_MODE == "redis" and redis_client:
             members = await redis_client.smembers(key)
             return [int(m) for m in members]
         else:
@@ -110,7 +119,7 @@ class Cache:
         """Invalidate admin cache for a chat."""
         key = f"admins:{chat_id}"
         
-        if self.mode == "redis" and redis_client:
+        if CACHE_MODE == "redis" and redis_client:
             await redis_client.delete(key)
         else:
             await sqlite_cache.delete(key)
@@ -120,7 +129,7 @@ class Cache:
         """Cache bot admin status."""
         key = f"bot_admin:{chat_id}"
         
-        if self.mode == "redis" and redis_client:
+        if CACHE_MODE == "redis" and redis_client:
             await redis_client.set(key, "1" if is_admin else "0", ex=ttl)
         else:
             await sqlite_cache.set(key, "1" if is_admin else "0", ex=ttl)
@@ -129,7 +138,7 @@ class Cache:
         """Check cached bot admin status."""
         key = f"bot_admin:{chat_id}"
         
-        if self.mode == "redis" and redis_client:
+        if CACHE_MODE == "redis" and redis_client:
             val = await redis_client.get(key)
             return val == "1"
         else:
@@ -141,7 +150,7 @@ class Cache:
         """Check if user is on cooldown for a command."""
         key = f"cooldown:{user_id}:{command}"
         
-        if self.mode == "redis" and redis_client:
+        if CACHE_MODE == "redis" and redis_client:
             exists = await redis_client.exists(key)
             if exists:
                 return False
@@ -156,10 +165,10 @@ class Cache:
     
     # Maintenance mode
     async def is_maintenance(self) -> bool:
-        """Check if bot is in maintenance mode."""
-        key = "maintenance"
+        """Check if bot is in maintenance mode (persistent)."""
+        key = "maintenance_mode_persistent"
         
-        if self.mode == "redis" and redis_client:
+        if CACHE_MODE == "redis" and redis_client:
             val = await redis_client.get(key)
             return val == "1"
         else:
@@ -167,17 +176,17 @@ class Cache:
             return val == "1"
     
     async def set_maintenance(self, enabled: bool):
-        """Set maintenance mode."""
-        key = "maintenance"
+        """Set maintenance mode (persistent)."""
+        key = "maintenance_mode_persistent"
         
-        if self.mode == "redis" and redis_client:
+        if CACHE_MODE == "redis" and redis_client:
             if enabled:
-                await redis_client.set(key, "1")
+                await redis_client.set(key, "1")  # No TTL = Persistent
             else:
                 await redis_client.delete(key)
         else:
             if enabled:
-                await sqlite_cache.set(key, "1")
+                await sqlite_cache.set(key, "1")  # No TTL = Persistent
             else:
                 await sqlite_cache.delete(key)
     
@@ -186,7 +195,7 @@ class Cache:
         """Cache gban status."""
         key = f"gban_cache:{user_id}"
         
-        if self.mode == "redis" and redis_client:
+        if CACHE_MODE == "redis" and redis_client:
             await redis_client.set(key, "1" if is_banned else "0", ex=ttl)
         else:
             await sqlite_cache.set(key, "1" if is_banned else "0", ex=ttl)
@@ -195,7 +204,7 @@ class Cache:
         """Check cached gban status."""
         key = f"gban_cache:{user_id}"
         
-        if self.mode == "redis" and redis_client:
+        if CACHE_MODE == "redis" and redis_client:
             val = await redis_client.get(key)
             return val == "1"
         else:
@@ -205,57 +214,99 @@ class Cache:
     # Queue operations (delegate to appropriate backend)
     async def lpush(self, key: str, *values: str):
         """List push left."""
-        if self.mode == "redis" and redis_client:
+        if CACHE_MODE == "redis" and redis_client:
             await redis_client.lpush(key, *values)
         else:
             await sqlite_cache.lpush(key, *values)
     
     async def rpush(self, key: str, *values: str):
         """List push right."""
-        if self.mode == "redis" and redis_client:
+        if CACHE_MODE == "redis" and redis_client:
             await redis_client.rpush(key, *values)
         else:
             await sqlite_cache.rpush(key, *values)
     
     async def lpop(self, key: str):
         """List pop left."""
-        if self.mode == "redis" and redis_client:
+        if CACHE_MODE == "redis" and redis_client:
             return await redis_client.lpop(key)
         else:
             return await sqlite_cache.lpop(key)
     
     async def lindex(self, key: str, index: int):
         """List get index."""
-        if self.mode == "redis" and redis_client:
+        if CACHE_MODE == "redis" and redis_client:
             return await redis_client.lindex(key, index)
         else:
             return await sqlite_cache.lindex(key, index)
     
     async def llen(self, key: str) -> int:
         """List length."""
-        if self.mode == "redis" and redis_client:
+        if CACHE_MODE == "redis" and redis_client:
             return await redis_client.llen(key)
         else:
             return await sqlite_cache.llen(key)
     
     async def lrange(self, key: str, start: int, end: int) -> list:
         """List range."""
-        if self.mode == "redis" and redis_client:
+        if CACHE_MODE == "redis" and redis_client:
             return await redis_client.lrange(key, start, end)
         else:
             return await sqlite_cache.lrange(key, start, end)
     
-    async def delete(self, key: str):
+    async def delete(self, key: str) -> None:
         """Delete key."""
-        if self.mode == "redis" and redis_client:
+        if CACHE_MODE == "redis" and redis_client:
             await redis_client.delete(key)
         else:
             await sqlite_cache.delete(key)
+
+    async def get(self, key: str) -> Optional[str]:
+        """Generic get."""
+        if CACHE_MODE == "redis" and redis_client:
+            return await redis_client.get(key)
+        else:
+            return await sqlite_cache.get(key)
+
+    async def set(self, key: str, value: str, ex: int = None) -> None:
+        """Generic set with optional TTL in seconds."""
+        if CACHE_MODE == "redis" and redis_client:
+            if ex:
+                await redis_client.set(key, value, ex=ex)
+            else:
+                await redis_client.set(key, value)
+        else:
+            await sqlite_cache.set(key, value, ex=ex)
+
+    # ── Now Playing message tracking ─────────────────────────────────────────
+
+    async def set_np_message(self, chat_id: int, msg_id: int) -> None:
+        """Store the message ID of the current Now Playing card."""
+        await self.set(f"np_msg:{chat_id}", str(msg_id), ex=86400)  # 24h max
+
+    async def get_np_message(self, chat_id: int) -> Optional[int]:
+        """Retrieve the stored NP message ID."""
+        val = await self.get(f"np_msg:{chat_id}")
+        return int(val) if val else None
+
+    async def clear_np_message(self, chat_id: int) -> None:
+        """Remove the NP message ID from cache."""
+        await self.delete(f"np_msg:{chat_id}")
+
+    # ── YouTube CDN URL cache ─────────────────────────────────────────────────
+
+    async def cache_stream_url(self, video_id: str, data: str, ttl: int = 19800) -> None:
+        """Cache a resolved YouTube CDN stream URL (default TTL: 5.5 hours)."""
+        await self.set(f"yt_stream:{video_id}", data, ex=ttl)
+
+    async def get_cached_stream_url(self, video_id: str) -> Optional[str]:
+        """Retrieve a cached YouTube CDN stream URL."""
+        return await self.get(f"yt_stream:{video_id}")
 
 
 # Global cache instance
 cache = Cache()
 
 async def init_cache():
-    """Initialize cache helper."""
-    await cache.init()
+    """Initialize cache (alias kept for backward compat)."""
+    await init_redis()

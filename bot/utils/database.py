@@ -122,6 +122,12 @@ class MongoDatabase(Database):
             "gbanned_users": gban_count,
         }
 
+    async def get_all_groups(self) -> list:
+        """Return all active groups as list of dicts with '_id' key."""
+        rows = await self.db.groups.find({"is_active": True}, {"_id": 1}).to_list(length=None)
+        return [{"_id": row["_id"]} for row in rows]
+
+
 
 async def init_database():
     """Initialize database - MongoDB, Supabase, or SQLite."""
@@ -130,9 +136,11 @@ async def init_database():
     # Try Supabase first if configured (preferred for migration)
     if config.SUPABASE_URL and config.SUPABASE_KEY:
         try:
-            from bot.utils.supabase_db import init_supabase, supabase_db as _supabase
+            from bot.utils.supabase_db import init_supabase
             init_supabase(config.SUPABASE_URL, config.SUPABASE_KEY)
-            supabase_db = _supabase
+            # Import AFTER init so we get the initialized instance
+            import bot.utils.supabase_db as _supabase_module
+            supabase_db = _supabase_module.supabase_db
             db = supabase_db
             DB_MODE = "supabase"
             logger.info("Supabase connected")
@@ -154,9 +162,11 @@ async def init_database():
             logger.warning(f"MongoDB failed, using SQLite: {e}")
     
     # Use SQLite fallback
-    from bot.utils.sqlite_db import init_sqlite_db, sqlite_db as _sqlite
+    from bot.utils.sqlite_db import init_sqlite_db
     init_sqlite_db(os.getenv("SQLITE_DB_PATH", "./data/bot.db"))
-    sqlite_db = _sqlite
+    # Import AFTER init so we get the initialized instance
+    import bot.utils.sqlite_db as _sqlite_module
+    sqlite_db = _sqlite_module.sqlite_db
     db = sqlite_db
     DB_MODE = "sqlite"
     logger.info("Using SQLite (zero-cost mode)")

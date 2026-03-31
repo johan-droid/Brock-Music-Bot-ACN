@@ -282,12 +282,12 @@ class SupabaseDatabase:
             result = self.client.table("sudo_users").select("*").eq("id", user_id).execute()
             return len(result.data) > 0
         except Exception as e:
-            error_msg = str(e)
-            if "Could not find the table" in error_msg or "PGRST205" in error_msg:
-                logger.warning("Supabase table 'sudo_users' not found. Create it via SQL Editor:")
-                logger.warning("CREATE TABLE sudo_users (id BIGINT PRIMARY KEY, name TEXT, added_by BIGINT, added_at TIMESTAMP DEFAULT NOW());")
+            err = str(e)
+            if "PGRST205" in err or "lookup_failed" in err.lower():
+                # Table missing - only log once or keep it concise
+                logger.warning("Supabase table 'sudo_users' missing. Create it via SQL: CREATE TABLE sudo_users (id BIGINT PRIMARY KEY, name TEXT);")
             else:
-                logger.error(f"Error checking sudo: {e}")
+                logger.debug(f"Sudo check error: {e}")
             return False
     
     # Global bans
@@ -317,12 +317,11 @@ class SupabaseDatabase:
             result = self.client.table("gbanned").select("*").eq("id", user_id).execute()
             return len(result.data) > 0
         except Exception as e:
-            error_msg = str(e)
-            if "Could not find the table" in error_msg or "PGRST205" in error_msg:
-                logger.warning("Supabase table 'gbanned' not found. Create it via SQL Editor:")
-                logger.warning("CREATE TABLE gbanned (id BIGINT PRIMARY KEY, reason TEXT, banned_by BIGINT, banned_at TIMESTAMP DEFAULT NOW());")
+            err = str(e)
+            if "PGRST205" in err or "lookup_failed" in err.lower():
+                logger.warning("Supabase table 'gbanned' missing. Create it via SQL: CREATE TABLE gbanned (id BIGINT PRIMARY KEY, reason TEXT);")
             else:
-                logger.error(f"Error checking gban: {e}")
+                logger.debug(f"Gban check error: {e}")
             return False
     
     # Group bans

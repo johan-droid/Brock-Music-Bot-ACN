@@ -2,7 +2,6 @@
 
 from bot.utils.database import db, init_database, Database
 from bot.utils.cache import redis_client, cache, init_redis, init_cache, Cache
-from bot.utils.ffmpeg import ffmpeg_manager, FFmpegManager, FFmpegPipeline
 from bot.utils.thumbnails import thumb_generator, generate_np_thumbnail, ThumbnailGenerator
 from bot.utils.formatters import (
     format_duration,
@@ -37,10 +36,6 @@ __all__ = [
     "init_redis",
     "init_cache",
     "Cache",
-    # FFmpeg
-    "ffmpeg_manager",
-    "FFmpegManager",
-    "FFmpegPipeline",
     # Thumbnails
     "thumb_generator",
     "generate_np_thumbnail",

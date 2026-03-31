@@ -40,6 +40,16 @@ async def init_userbots() -> List[Client]:
             
             await client.start()
             user_info = await client.get_me()
+            
+            if user_info.is_bot:
+                await client.stop()
+                logger.error(f"Userbot {i} (@{user_info.username or user_info.id}) is a BOT account!")
+                raise RuntimeError(
+                    f"SESSION_STRING_{i} belongs to a Bot (@{user_info.username}). "
+                    "PyTgCalls requires a REAL USER account to join voice chats. "
+                    "Please run 'python generate_session.py' and log in with a phone number."
+                )
+
             logger.info(f"Userbot {i} started: @{user_info.username or user_info.id}")
             userbot_clients.append(client)
             

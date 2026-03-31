@@ -9,7 +9,7 @@ from pyrogram.errors import FloodWait
 from config import config
 from bot.utils.cache import cache
 import bot.utils.database as app_db
-from bot.core.bot import bot_client
+from bot.core import bot as bot_module
 from bot.core.userbot import userbot_clients
 
 logger = logging.getLogger(__name__)
@@ -58,7 +58,9 @@ async def is_vc_participant(chat_id: int, user_id: int) -> bool:
             return False
         
         # Check if user is in the chat via participant list
-        chat = await bot_client.get_chat(chat_id)
+        if not bot_module.bot_client:
+            return False
+        chat = await bot_module.bot_client.get_chat(chat_id)
         if hasattr(chat, 'voice_chat') and chat.voice_chat:
             # Check if user is in voice chat participants
             for participant in chat.voice_chat.participants or []:
@@ -138,13 +140,13 @@ async def is_group_admin(chat_id: int, user_id: int) -> bool:
         return True
     
     # Check if bot_client is initialized
-    if bot_client is None:
+    if not bot_module.bot_client:
         logger.warning("bot_client not initialized, skipping admin check")
         return False
     
     try:
         # Fetch from Telegram
-        member = await bot_client.get_chat_member(chat_id, user_id)
+        member = await bot_module.bot_client.get_chat_member(chat_id, user_id)
         is_admin = member.status in ["administrator", "creator"]
         
         # Update cache
@@ -167,11 +169,11 @@ async def is_admin_cached(chat_id: int, user_id: int) -> bool:
 
 async def check_bot_admin(chat_id: int) -> bool:
     """Check if bot is admin in a group."""
-    if bot_client is None:
+    if not bot_module.bot_client:
         logger.warning("bot_client not initialized, skipping bot admin check")
         return False
     try:
-        member = await bot_client.get_chat_member(chat_id, bot_client.me.id)
+        member = await bot_module.bot_client.get_chat_member(chat_id, bot_module.bot_client.me.id)
         return member.status == "administrator" or member.status == "creator"
     except Exception:
         return False

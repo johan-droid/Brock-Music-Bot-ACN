@@ -250,6 +250,13 @@ class SQLiteDatabase:
             "gbanned_users": gban_count,
         }
 
+    async def get_all_groups(self) -> list:
+        """Return all active groups as a list of dicts with an '_id' key."""
+        conn = self._get_conn()
+        rows = conn.execute("SELECT id FROM groups WHERE is_active = 1").fetchall()
+        return [{"_id": row["id"]} for row in rows]
+
+
 
 # Global instance
 sqlite_db: Optional[SQLiteDatabase] = None

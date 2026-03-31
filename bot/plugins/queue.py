@@ -3,7 +3,7 @@
 import logging
 from pyrogram import Client, filters
 from pyrogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton
-from bot.utils.permissions import require_admin, rate_limit, get_permission_level
+from bot.utils.permissions import require_admin, require_member, rate_limit, get_permission_level
 from bot.utils.formatters import format_queue_list, format_duration, truncate_text
 from bot.core.queue import queue_manager
 
@@ -11,6 +11,7 @@ logger = logging.getLogger(__name__)
 
 
 @Client.on_message(filters.command(["queue", "q"]) & filters.group)
+@require_member
 @rate_limit
 async def queue_cmd(client: Client, message: Message):
     """Show current queue."""
@@ -25,14 +26,13 @@ async def queue_cmd(client: Client, message: Message):
         return
     
     # Build display
-    lines = ["📋 **Playback Queue**", ""]
+    lines = ["💀 **Soul King's Setlist! Yohohoho!**\n"]
     
     # Currently playing
     if current:
         title = truncate_text(current.get("title", "Unknown"), 50)
         duration = format_duration(current.get("duration", 0))
-        lines.append(f"▶ **Now Playing:** {title} `({duration})`")
-        lines.append("")
+        lines.append(f"🎧 **Now Playing:** {title} `({duration})`\n")
     
     # Queue
     if queue:
@@ -60,7 +60,7 @@ async def queue_cmd(client: Client, message: Message):
         ],
         [
             InlineKeyboardButton("⏭ Skip", callback_data="skip"),
-            InlineKeyboardButton("🔄 Refresh", callback_data="queue"),
+            InlineKeyboardButton("🔄 Refresh Format", callback_data="queue"),
         ]
     ])
     
@@ -69,6 +69,7 @@ async def queue_cmd(client: Client, message: Message):
 
 
 @Client.on_message(filters.command(["now", "np", "nowplaying"]) & filters.group)
+@require_member
 @rate_limit
 async def now_cmd(client: Client, message: Message):
     """Show currently playing track."""
@@ -106,24 +107,25 @@ async def now_cmd(client: Client, message: Message):
     status_emoji = "⏸" if status == "paused" else "▶"
     
     text = f"""
-{status_emoji} **Now Playing**
-
-**{current['title']}**
+💀 **YOHOHOHO! The Soul King is playing!**
+{status_emoji} **Now Playing:** {truncate_text(current['title'], 55)}
 
 {bar}
-`{current_str}` / `{total_str}`
+⏱ `{current_str}` / `{total_str}`
+
+<i>"Music is your own experience... though I can't experience much without a brain! Yohohoho!"</i>
     """
     
     # Control buttons
     buttons = InlineKeyboardMarkup([
         [
-            InlineKeyboardButton("⏸ Pause" if status == "playing" else "▶ Resume", 
+            InlineKeyboardButton("⏯ Pause/Resume", 
                                callback_data="pause" if status == "playing" else "resume"),
             InlineKeyboardButton("⏭ Skip", callback_data="skip"),
         ],
         [
             InlineKeyboardButton("🔁 Loop", callback_data="loop"),
-            InlineKeyboardButton("📋 Queue", callback_data="queue"),
+            InlineKeyboardButton("📋 View Queue", callback_data="queue"),
         ]
     ])
     
@@ -137,7 +139,7 @@ async def now_cmd(client: Client, message: Message):
 @require_admin
 @rate_limit
 async def clearqueue_cmd(client: Client, message: Message):
-    """Clear all songs from queue."""
+    """Clear all songs from queue (admin only)."""
     chat_id = message.chat.id
     
     await queue_manager.clear_queue(chat_id)
@@ -149,7 +151,7 @@ async def clearqueue_cmd(client: Client, message: Message):
 @require_admin
 @rate_limit
 async def remove_cmd(client: Client, message: Message):
-    """Remove specific song by position."""
+    """Remove specific song by position (admin only)."""
     chat_id = message.chat.id
     
     if len(message.command) < 2:
@@ -180,7 +182,7 @@ async def remove_cmd(client: Client, message: Message):
 @require_admin
 @rate_limit
 async def shuffle_cmd(client: Client, message: Message):
-    """Shuffle queue randomly."""
+    """Shuffle queue randomly (admin only)."""
     chat_id = message.chat.id
     
     queue = await queue_manager.get_queue(chat_id)
@@ -197,12 +199,12 @@ async def shuffle_cmd(client: Client, message: Message):
 @require_admin
 @rate_limit
 async def loop_cmd(client: Client, message: Message):
-    """Toggle loop mode for current track."""
+    """Toggle loop mode (admin only)."""
     chat_id = message.chat.id
     
     # Get current loop mode
-    from bot.utils.database import db
-    group = await db.get_group(chat_id)
+    import bot.utils.database as app_db
+    group = await app_db.db.get_group(chat_id)
     current_mode = group.get("settings", {}).get("loop_mode", "none")
     
     # Toggle: none -> track -> queue -> none
@@ -210,7 +212,7 @@ async def loop_cmd(client: Client, message: Message):
     new_mode = modes.get(current_mode, "none")
     
     # Update settings
-    await db.update_group(chat_id, {"settings.loop_mode": new_mode})
+    await app_db.db.update_group(chat_id, {"settings.loop_mode": new_mode})
     
     mode_text = {
         "none": "❌ Loop disabled",
@@ -226,7 +228,7 @@ async def loop_cmd(client: Client, message: Message):
 @require_admin
 @rate_limit
 async def move_cmd(client: Client, message: Message):
-    """Move a song from one position to another."""
+    """Move a song (admin only)."""
     chat_id = message.chat.id
     
     if len(message.command) < 3:

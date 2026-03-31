@@ -1,7 +1,7 @@
 """Pyrogram Bot Client initialization."""
 
 import logging
-from pyrogram import Client, filters
+from pyrogram import Client, filters, idle
 from pyrogram.handlers import MessageHandler
 from config import config
 
@@ -30,11 +30,12 @@ async def init_bot():
         api_hash=config.API_HASH,
         bot_token=config.BOT_TOKEN,
         workdir="./sessions",
+        plugins=dict(root="bot/plugins"),
     )
 
     await bot_client.start()
     bot_info = await bot_client.get_me()
     logger.info(f"Bot started: @{bot_info.username}")
 
-    await bot_client.idle()
+    await idle()
     return bot_client

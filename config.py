@@ -1,4 +1,5 @@
 from pydantic_settings import BaseSettings
+from pydantic import field_validator
 from typing import Optional, List
 
 
@@ -15,6 +16,7 @@ class Config(BaseSettings):
     
     # Bot token from @BotFather
     BOT_TOKEN: Optional[str] = None
+    BOT_USERNAME: Optional[str] = None
     
     # Owner user ID
     OWNER_ID: Optional[int] = None
@@ -34,6 +36,10 @@ class Config(BaseSettings):
     REDIS_PORT: int = 6379
     REDIS_PASSWORD: Optional[str] = None
     
+    # Upstash Redis (optional)
+    UPSTASH_REDIS_REST_URL: Optional[str] = None
+    UPSTASH_REDIS_REST_TOKEN: Optional[str] = None
+    
     # SQLite cache path (used when Redis is not available)
     SQLITE_CACHE_PATH: str = "./data/cache.db"
     
@@ -50,7 +56,13 @@ class Config(BaseSettings):
     
     # Log group/channel ID (optional)
     LOG_GROUP_ID: Optional[int] = None
-    
+
+    @field_validator("LOG_GROUP_ID", mode="before")
+    def normalize_log_group_id(cls, v):
+        if v in (None, "", "None"):
+            return None
+        return v
+
     # Bot behavior settings
     MAX_QUEUE_SIZE: int = 100
     DEFAULT_VOLUME: int = 100
@@ -60,21 +72,53 @@ class Config(BaseSettings):
     AUDIO_QUALITY: str = "high"  # standard, high, premium, lossless
     AUDIO_BITRATE: int = 192  # kbps (128-320)
     AUDIO_LOUDNORM: bool = True  # EBU R128 loudness normalization
-    
+
+    # Now Playing card auto-clean (seconds)
+    NP_AUTOCLEAN_DELAY: int = 30       # delete NP card N seconds after track ends / /stop
+    SEARCH_MSG_AUTOCLEAN: int = 8      # delete "Searching..." msg N seconds after reply sent
+    NP_UPDATE_INTERVAL: int = 20       # seconds between progress bar edits (higher = less CPU load)
+
+    # yt-dlp concurrency & caching
+    YTDL_CONCURRENT_LIMIT: int = 3     # max parallel yt-dlp extractions
+    YTDL_CACHE_TTL: int = 19800        # CDN URL cache TTL seconds (5.5h)
+
     @property
     def session_strings(self) -> List[str]:
-        """Return list of valid session strings."""
-        sessions = [self.SESSION_STRING_1]
-        for s in [self.SESSION_STRING_2, self.SESSION_STRING_3, 
-                  self.SESSION_STRING_4, self.SESSION_STRING_5]:
-            if s:
-                sessions.append(s)
-        return sessions
+        """Return list of valid (non-empty) session strings."""
+        raw = [
+            self.SESSION_STRING_1, 
+            self.SESSION_STRING_2, 
+            self.SESSION_STRING_3, 
+            self.SESSION_STRING_4, 
+            self.SESSION_STRING_5
+        ]
+        return [s for s in raw if s and s.strip()]
     
     class Config:
-        env_file = ".env"
+        # Priority: Environment Variables -> .env.local -> .env
+        env_file = ".env", ".env.local"
         env_file_encoding = "utf-8"
+        extra = "ignore"
+        # Make .env file optional for Docker/Cloud environments
+        case_sensitive = False
 
 
 # Global config instance
+# Use .env.local (or bot/.env.local) by default when available for local development credentials.
+import os
+from dotenv import load_dotenv
+
+if os.path.exists("bot/.env.local"):
+    env_path = "bot/.env.local"
+elif os.path.exists(".env.local"):
+    env_path = ".env.local"
+elif os.path.exists(".env"):
+    env_path = ".env"
+else:
+    env_path = None
+
+if env_path:
+    load_dotenv(env_path)
+    Config.Config.env_file = env_path
+
 config = Config()

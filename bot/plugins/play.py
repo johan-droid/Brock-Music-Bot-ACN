@@ -42,6 +42,9 @@ _BROOK_QUOTES = [
     "\"Bink's Sake... the song that sails across the seas of time!\"",
     "\"I may be bones, but my music has flesh and blood! Yohohoho!\"",
     "\"May I see your panties? Yohoho— I mean, enjoy the music!\"",
+    "\"I'm so happy to be alive! Even though I'm already dead! Yohohoho!\"",
+    "\"The Soul King has arrived to grace your ears! Yohohoho!\"",
+    "\"Loneliness is no longer my partner, for I have your music!\"",
 ]
 
 _BROOK_QUOTE_IDX = [0]
@@ -97,7 +100,7 @@ async def play_cmd(client: Client, message: Message):
             from bot.platforms.telegram import TelegramAudioHandler
             track = await TelegramAudioHandler().extract_from_message(reply)
             if track:
-                await _add_track_and_play(message, chat_id, user_id, track)
+                await add_track_and_play(message, chat_id, user_id, track)
                 return
 
     if not query:
@@ -129,13 +132,13 @@ async def play_cmd(client: Client, message: Message):
             if not track:
                 await search_msg.edit("❌ <b>Couldn't extract audio from that URL!</b>\n<i>\"Even I couldn't find treasure there! Yohohoho!\"</i>", parse_mode=ParseMode.HTML)
                 return
-            await _add_track_and_play(message, chat_id, user_id, track, search_msg)
+            await add_track_and_play(message, chat_id, user_id, track, search_msg)
 
         else:
-            # Text search with conflict detection
+            # Text search with conflict detection using unified backend
             result = await conflict_resolver.search_with_conflicts(
                 query,
-                lambda q: yt_module.youtube.search(q, max_results=5),
+                lambda q: music_backend.search(q, limit=5),
                 max_results=5,
             )
 
@@ -153,11 +156,17 @@ async def play_cmd(client: Client, message: Message):
 
             # Single match
             raw = result["selected"]
-            # raw only has metadata — resolve stream URL now
-            track = await asyncio.wait_for(extract_audio(raw.get("url") or raw.get("id", ""), message), timeout=35)
-            if not track:
-                track = raw  # use metadata-only as fallback if already has url
-            await _add_track_and_play(message, chat_id, user_id, track, search_msg)
+            # Convert Track object to dict using the unified helper
+            if isinstance(raw, Track):
+                track = raw.to_dict()
+            else:
+                track = dict(raw)
+
+            # For JioSaavn the stream_url/url is the encrypted URL — do NOT pre-resolve here.
+            # start_playback will call music_backend.get_stream_url with the encrypted URL.
+            # For YouTube/SoundCloud the url is already a real stream URL from search metadata.
+
+            await add_track_and_play(message, chat_id, user_id, track, search_msg)
 
     except asyncio.TimeoutError:
         await search_msg.edit("⏱ <b>Search timed out!</b>\n<i>\"The seas were too vast this time! Try again, Yohoho!\"</i>", parse_mode=ParseMode.HTML)
@@ -200,7 +209,7 @@ async def vplay_cmd(client: Client, message: Message):
             await search_msg.edit("❌ <b>Could not extract video!</b>", parse_mode=ParseMode.HTML)
             return
         track["is_video"] = True
-        await _add_track_and_play(message, chat_id, user_id, track, search_msg)
+        await add_track_and_play(message, chat_id, user_id, track, search_msg)
     except asyncio.TimeoutError:
         await search_msg.edit("⏱ <b>Search timed out!</b>", parse_mode=ParseMode.HTML)
     except Exception as exc:
@@ -210,7 +219,7 @@ async def vplay_cmd(client: Client, message: Message):
 
 # ── Core playback pipeline ────────────────────────────────────────────────────
 
-async def _add_track_and_play(
+async def add_track_and_play(
     message: Message,
     chat_id: int,
     user_id: int,
@@ -221,6 +230,7 @@ async def _add_track_and_play(
     status = await queue_manager.get_status(chat_id)
     is_playing = status in ("playing", "paused")
 
+    # Pass track_id and uploader to queue_manager to ensure reliable stream resolution
     position = await queue_manager.add_to_queue(
         chat_id=chat_id,
         title=track.get("title", "Unknown"),
@@ -229,6 +239,8 @@ async def _add_track_and_play(
         thumb=track.get("thumbnail") or track.get("thumb"),
         requested_by=user_id,
         source=track.get("source", "youtube"),
+        track_id=track.get("id") or track.get("track_id"),
+        uploader=track.get("uploader") or track.get("artist"),
     )
 
     # Auto-delete search msg after SEARCH_MSG_AUTOCLEAN seconds
@@ -289,18 +301,28 @@ async def start_playback(chat_id: int) -> None:
         await queue_manager.set_status(chat_id, "playing")
 
         url = track.get("url", "")
+        # Always try to resolve/refresh stream URL for stability
+        resolved_url = await music_backend.get_stream_url(Track(
+            title=track.get("title", ""),
+            artist=track.get("uploader", ""),
+            duration=track.get("duration", 0),
+            stream_url=url,
+            source=track.get("source", "youtube"),
+            track_id=track.get("id")
+        ))
+        
+        if resolved_url:
+            url = resolved_url
+            
         if not url:
-            logger.error(f"Track has no URL in chat {chat_id}: {track}")
+            logger.error(f"Track has no URL and resolution failed in chat {chat_id}: {track}")
             await queue_manager.set_status(chat_id, "idle")
             return
 
         is_video = track.get("is_video", False)
-        in_call = chat_id in call_manager.active_chats
-
-        if in_call:
-            await call_manager.change_stream(chat_id, url, video=is_video)
-        else:
-            await call_manager.join_call(chat_id, url, video=is_video)
+        
+        # Use consolidated play method
+        await call_manager.play(chat_id, url, video=is_video)
 
         # Start progress tracking
         progress_tracker.start(chat_id, seek=int(track.get("position", 0)))
@@ -354,6 +376,8 @@ async def on_track_end(chat_id: int) -> None:
                 thumb=current.get("thumb"),
                 requested_by=current.get("requested_by"),
                 source=current.get("source", "youtube"),
+                track_id=current.get("id"),
+                uploader=current.get("uploader"),
             )
 
     await start_playback(chat_id)
@@ -384,7 +408,7 @@ async def _send_now_playing(chat_id: int, track: dict) -> None:
 
     duration = int(track.get("duration") or 0)
     title = truncate_text(track.get("title", "Unknown"), 52)
-    uploader = track.get("uploader", "Unknown Artist")
+    uploader = track.get("uploader", track.get("artist", "Unknown Artist"))
     source = _SOURCE_BADGE.get(track.get("source", "youtube"), "🎵")
     bar = progress_tracker.progress_bar(chat_id, duration)
     quote = _next_quote()
@@ -456,7 +480,7 @@ async def _progress_updater(chat_id: int, msg: Message, track: dict) -> None:
     """Background task: edit NP card every NP_UPDATE_INTERVAL seconds."""
     duration = int(track.get("duration") or 0)
     title = truncate_text(track.get("title", "Unknown"), 52)
-    uploader = track.get("uploader", "Unknown Artist")
+    uploader = track.get("uploader", track.get("artist", "Unknown Artist"))
     source = _SOURCE_BADGE.get(track.get("source", "youtube"), "🎵")
     quote = _next_quote()
 
@@ -515,6 +539,73 @@ async def _autoclean_np(chat_id: int, msg_id: int, delay: int) -> None:
 
 _pending_conflicts: dict = {}  # chat_id → {user_id → {tracks, original_msg}}
 
+# Source number emojis for a clean numbered list
+_NUM_EMOJI = ["1️⃣", "2️⃣", "3️⃣", "4️⃣", "5️⃣"]
+_SOURCE_ICON = {
+    "youtube":    "▶️",
+    "jiosaavn":   "🎵",
+    "soundcloud": "☁️",
+    "spotify":    "🟢",
+    "telegram":   "✈️",
+}
+
+
+async def _safe_edit(
+    msg: Message,
+    text: str,
+    reply_markup=None,
+    max_len: int = 4000,
+) -> None:
+    """
+    Edit a message, handling:
+    - Telegram 4096-char message limit (truncated gracefully)
+    - MessageNotModified (silently ignored)
+    - FloodWait (back-off once then retry)
+    - Any other error (logged, not raised)
+    """
+    from pyrogram.errors import MessageNotModified, FloodWait
+    if len(text) > max_len:
+        text = text[: max_len - 4] + "\n…"
+
+    kwargs = {"parse_mode": ParseMode.HTML}
+    if reply_markup is not None:
+        kwargs["reply_markup"] = reply_markup
+
+    for attempt in range(2):
+        try:
+            await msg.edit(text, **kwargs)
+            return
+        except MessageNotModified:
+            return
+        except FloodWait as fw:
+            if attempt == 0:
+                await asyncio.sleep(min(fw.value, 10))
+            else:
+                logger.warning(f"FloodWait on edit: {fw.value}s — giving up")
+                return
+        except Exception as e:
+            logger.warning(f"Message edit failed: {e}")
+            return
+
+
+def _get_track_fields(t) -> dict:
+    """Normalise a Track object or dict into a flat dict of display fields."""
+    if hasattr(t, "title"):
+        return {
+            "title":   t.title,
+            "dur":     t.duration,
+            "sim":     getattr(t, "_similarity", 0.0),
+            "artist":  getattr(t, "artist", getattr(t, "uploader", "Unknown")),
+            "source":  getattr(t, "source", "youtube"),
+        }
+    return {
+        "title":  t.get("title", "?"),
+        "dur":    t.get("duration", 0),
+        "sim":    t.get("_similarity", 0.0),
+        "artist": t.get("uploader") or t.get("artist") or t.get("primary_artists") or "Unknown",
+        "source": t.get("source", "youtube"),
+    }
+
 
 async def _show_conflict_options(
     message: Message,
@@ -523,37 +614,58 @@ async def _show_conflict_options(
     conflicts: list,
     search_msg: Message,
 ) -> None:
-    buttons = []
-    row = []
-    for i, t in enumerate(conflicts[:5], 1):
-        t_title = (t.get("title", "?") or "?")
-        label = (t_title[:18] + "…") if len(t_title) > 18 else t_title
-        row.append(InlineKeyboardButton(f"{i}. {label}", callback_data=f"play_select_{i-1}"))
-        if len(row) == 2:
-            buttons.append(row)
-            row = []
-    if row:
-        buttons.append(row)
-    buttons.append([InlineKeyboardButton("❌ Cancel", callback_data="play_cancel")])
+    """Display a modern, info-rich track-selection menu."""
+    tracks = conflicts[:5]
 
-    text = "💀 <b>Multiple songs found! Pick one, Yohohoho!</b>\n\n"
-    for i, t in enumerate(conflicts[:5], 1):
-        dur = t.get("duration", 0)
-        m, s = divmod(int(dur), 60)
-        sim = t.get("_similarity", 0)
-        star = "⭐ " if sim > 0.9 else ""
-        text += f"{i}. {star}<b>{truncate_text(t.get('title','?'), 45)}</b>\n"
-        text += f"   👤 {t.get('uploader','?')} | ⏱ {m}:{s:02d}\n\n"
+    # ── Buttons (one per row for legibility) ───────────────────────────────
+    # callback_data: "ps:N" (play-select index N) — always < 64 bytes
+    button_rows = []
+    for i, t in enumerate(tracks):
+        f = _get_track_fields(t)
+        icon  = _SOURCE_ICON.get(f["source"], "🎵")
+        label = truncate_text(f["title"], 28)
+        num   = _NUM_EMOJI[i]
+        button_rows.append(
+            [InlineKeyboardButton(f"{num} {icon} {label}", callback_data=f"ps:{i}")]
+        )
+    button_rows.append([InlineKeyboardButton("❌  Cancel", callback_data="play_cancel")])
 
+    # ── Message body ────────────────────────────────────────────────────────
+    requester = message.from_user.first_name if message.from_user else "Someone"
+    header = (
+        f"🎼 <b>Found {len(tracks)} matches!</b>  <i>Pick wisely, {requester}!</i>\n"
+        "━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+    )
+
+    lines = []
+    for i, t in enumerate(tracks):
+        f = _get_track_fields(t)
+        dur_str = format_duration(f["dur"]) if f["dur"] > 0 else "—"
+        src_badge = _SOURCE_BADGE.get(f["source"], "🎵")
+        star = " ⭐" if f["sim"] > 0.85 else ""
+        num  = _NUM_EMOJI[i]
+
+        artist_str = truncate_text(f["artist"], 28)
+        title_str  = truncate_text(f["title"],  42)
+
+        lines.append(
+            f"{num} <b>{title_str}</b>{star}\n"
+            f"    ┣ 👤 {artist_str}\n"
+            f"    ┗ ⏱ {dur_str}  {src_badge}\n"
+        )
+
+    text = header + "\n".join(lines)
+
+    # ── Store pending state ─────────────────────────────────────────────────
     _pending_conflicts[chat_id] = {
         user_id: {
-            "tracks": conflicts[:5],
+            "tracks": tracks,
             "original_msg": search_msg,
             "user_mention": message.from_user.mention if message.from_user else "User",
         }
     }
 
-    await search_msg.edit(text, reply_markup=InlineKeyboardMarkup(buttons), parse_mode=ParseMode.HTML)
+    await _safe_edit(search_msg, text, InlineKeyboardMarkup(button_rows))
 
 
 # ── Export helpers for callbacks.py ──────────────────────────────────────────
@@ -575,15 +687,27 @@ async def resolve_conflict(chat_id: int, user_id: int, index: int, message: Mess
     raw = tracks[index]
     orig_msg = conflict.get("original_msg")
 
-    # Resolve stream URL
-    track = await asyncio.wait_for(
-        extract_audio(raw.get("url") or raw.get("id", ""), None),
-        timeout=35,
-    )
-    if not track:
-        track = raw
+    # Convert Track object to standard dict (preserves encrypted_url in 'url' field)
+    if isinstance(raw, Track):
+        track = raw.to_dict()
+    else:
+        track = dict(raw)
+
+    # For non-JioSaavn sources, try to fill in missing metadata via extract_audio
+    if track.get("source", "youtube") != "jiosaavn" and track.get("duration", 0) == 0:
+        track_input = track.get("url") or track.get("id") or track.get("track_id")
+        if track_input:
+            try:
+                new_data = await asyncio.wait_for(
+                    extract_audio(track_input, None),
+                    timeout=35,
+                )
+                if new_data:
+                    track.update(new_data)
+            except Exception:
+                pass  # Non-critical — playback still works without pre-resolved metadata
 
     # Clean up pending conflict
     _pending_conflicts.get(chat_id, {}).pop(user_id, None)
 
-    await _add_track_and_play(message, chat_id, user_id, track, orig_msg)
+    await add_track_and_play(message, chat_id, user_id, track, orig_msg)

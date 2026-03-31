@@ -47,7 +47,9 @@ class QueueManager:
         duration: int,
         thumb: Optional[str] = None,
         requested_by: Optional[int] = None,
-        source: str = "youtube"
+        source: str = "youtube",
+        track_id: Optional[str] = None,
+        uploader: Optional[str] = None
     ) -> int:
         """Add a song to the queue.
         
@@ -61,6 +63,8 @@ class QueueManager:
             "thumb": thumb,
             "requested_by": requested_by,
             "source": source,
+            "id": track_id,
+            "uploader": uploader,
         }
         
         key = self._queue_key(chat_id)

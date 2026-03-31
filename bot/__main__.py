@@ -5,6 +5,15 @@ A Python-based bot for streaming high-quality audio into Telegram group voice ca
 
 import asyncio
 import logging
+import pyrogram.errors
+
+# Monkey-patch for py-tgcalls compatibility with newer pyrogram versions
+if not hasattr(pyrogram.errors, "GroupcallForbidden"):
+    # Reference: https://github.com/pytgcalls/pytgcalls/issues
+    # Newer pyrogram versions renamed or removed GroupcallForbidden. 
+    # Usually it's mapped to Forbidden or BroadcastForbidden in newer versions.
+    pyrogram.errors.GroupcallForbidden = getattr(pyrogram.errors, "BroadcastForbidden", pyrogram.errors.Forbidden)
+
 from bot.core.bot import init_bot
 from bot.core.userbot import init_userbots
 from bot.core.call import init_calls
@@ -13,6 +22,7 @@ from bot.utils.database import init_database
 from bot.utils.cache import init_redis
 from bot.utils.logger import setup_logging
 from bot.utils.scheduler import start_scheduler
+from bot.core.music_backend import music_backend
 from config import config
 
 
@@ -35,6 +45,10 @@ async def main():
         await init_queue_manager()
         logger.info("Queue manager initialized")
         
+        # Initialize music backend (aiohttp session)
+        await music_backend.init()
+        logger.info("Music backend initialized")
+        
         # Initialize userbots first (needed for calls)
         userbots = await init_userbots()
         logger.info(f"Initialized {len(userbots)} userbot(s)")
@@ -43,6 +57,12 @@ async def main():
             # Initialize py-tgcalls
             await init_calls(userbots)
             logger.info("Call manager initialized")
+
+            # Wire stream-end → queue auto-advance + NP card cleanup
+            from bot.core.call import call_manager
+            from bot.plugins.play import on_track_end
+            call_manager.on_stream_end_handlers.append(on_track_end)
+            logger.info("Stream-end handler registered")
 
             # Start cleanup scheduler
             start_scheduler()
@@ -57,6 +77,10 @@ async def main():
     except Exception as e:
         logger.exception("Failed to start bot")
         raise
+    finally:
+        # Avoid unclosed session warnings
+        await music_backend.close()
+        logger.info("Bot shutdown complete")
 
 
 if __name__ == "__main__":

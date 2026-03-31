@@ -93,18 +93,26 @@ def is_title_conflict(title: str, existing_titles: List[str], threshold: float =
     return False
 
 
-def find_similar_titles(title: str, candidates: List[Dict[str, Any]], threshold: float = 0.75) -> List[Dict[str, Any]]:
-    """Find candidates that are similar to the given title."""
+def find_similar_titles(title: str, candidates: List[Any], threshold: float = 0.75) -> List[Any]:
+    """Find candidates that are similar to the given title (Handles Track objects and Dicts)."""
     similar = []
     for candidate in candidates:
-        candidate_title = candidate.get('title', '')
+        if hasattr(candidate, 'title'):
+            candidate_title = candidate.title
+        else:
+            candidate_title = candidate.get('title', '')
+            
         similarity = calculate_similarity(title, candidate_title)
         if similarity >= threshold:
-            candidate['_similarity'] = similarity
+            # Add similarity to object/dict for sorting
+            if isinstance(candidate, dict):
+                candidate['_similarity'] = similarity
+            else:
+                setattr(candidate, '_similarity', similarity)
             similar.append(candidate)
     
     # Sort by similarity (highest first)
-    similar.sort(key=lambda x: x['_similarity'], reverse=True)
+    similar.sort(key=lambda x: getattr(x, '_similarity', 0) if not isinstance(x, dict) else x.get('_similarity', 0), reverse=True)
     return similar
 
 
@@ -193,13 +201,25 @@ class TitleConflictResolver:
                 'message': '❌ No songs found matching your query.'
             }
         
-        # Remove duplicates by URL
-        seen_urls = set()
+        # Remove duplicates by identity (URL, ID, or Source+Title)
+        seen_identities = set()
         unique_results = []
         for track in all_results:
-            url = track.get('url', '')
-            if url and url not in seen_urls:
-                seen_urls.add(url)
+            # Generate a unique identity for this track
+            identity = None
+            if hasattr(track, 'track_id') and track.track_id:
+                identity = f"{getattr(track, 'source', 'unknown')}:{track.track_id}"
+            elif hasattr(track, 'stream_url') and track.stream_url:
+                identity = track.stream_url
+            elif hasattr(track, 'url') and track.url:
+                identity = track.url
+            elif isinstance(track, dict):
+                identity = track.get('id') or track.get('url') or f"{track.get('source')}:{track.get('title')}"
+            else:
+                identity = f"{getattr(track, 'source', 'unknown')}:{getattr(track, 'title', 'unknown')}"
+            
+            if identity and identity not in seen_identities:
+                seen_identities.add(identity)
                 unique_results.append(track)
         
         if not unique_results:
@@ -213,10 +233,40 @@ class TitleConflictResolver:
         
         # Check for conflicts (similar titles)
         query_normalized = normalize_text(query)
-        conflicts = find_similar_titles(query, unique_results, threshold=0.70)
+        conflicts = find_similar_titles(query, unique_results, threshold=0.75)
         
         if len(conflicts) > 1:
-            # Multiple similar results found
+            # Multi-match Logic:
+            # 1. If the top result is a VERY strong match (> 0.95), pick it.
+            # 2. If the top result is > 0.90 AND much better than the 2nd match, pick it.
+            
+            top_item = conflicts[0]
+            top_sim = getattr(top_item, '_similarity', 0) if not isinstance(top_item, dict) else top_item.get('_similarity', 0)
+            
+            next_item = conflicts[1]
+            next_sim = getattr(next_item, '_similarity', 0) if not isinstance(next_item, dict) else next_item.get('_similarity', 0)
+
+            # Case 1: Near-perfect match
+            if top_sim >= 0.95:
+                return {
+                    'status': 'ok',
+                    'tracks': unique_results[:max_results],
+                    'selected': top_item,
+                    'conflicts': [],
+                    'message': '✅ Found exact match.'
+                }
+            
+            # Case 2: Good match and clearly better than other options
+            if top_sim >= 0.90 and (top_sim - next_sim) >= 0.10:
+                 return {
+                    'status': 'ok',
+                    'tracks': unique_results[:max_results],
+                    'selected': top_item,
+                    'conflicts': [],
+                    'message': '✅ Found confident match.'
+                }
+
+            # Else: It's truly ambiguous, ask the user
             return {
                 'status': 'conflict',
                 'tracks': unique_results[:max_results],
@@ -225,7 +275,7 @@ class TitleConflictResolver:
                 'message': f'🔍 Found {len(conflicts)} songs with similar titles. Please select:'
             }
         
-        # Single clear result
+        # Single clear result or no matches above 0.75
         best_match = conflicts[0] if conflicts else unique_results[0]
         
         return {
@@ -236,20 +286,26 @@ class TitleConflictResolver:
             'message': '✅ Found matching song.'
         }
     
-    def format_conflict_options(self, conflicts: List[Dict]) -> str:
-        """Format conflict options for display."""
+    def format_conflict_options(self, conflicts: List[Any]) -> str:
+        """Format conflict options for display (Handles Track objects and Dicts)."""
         lines = ['🎵 **Multiple matches found. Which one?**\n']
         
         for i, track in enumerate(conflicts[:5], 1):
-            title = track.get('title', 'Unknown')
-            artist = track.get('uploader', track.get('artist', 'Unknown Artist'))
-            duration = track.get('duration', 0)
+            if hasattr(track, 'title'):
+                title = track.title
+                artist = getattr(track, 'artist', getattr(track, 'uploader', 'Unknown'))
+                duration = getattr(track, 'duration', 0)
+                similarity = getattr(track, '_similarity', 0)
+            else:
+                title = track.get('title', 'Unknown')
+                artist = track.get('uploader', track.get('artist', 'Unknown Artist'))
+                duration = track.get('duration', 0)
+                similarity = track.get('_similarity', 0)
             
             # Format duration
             mins, secs = divmod(int(duration), 60)
             duration_str = f"{mins}:{secs:02d}"
             
-            similarity = track.get('_similarity', 0)
             match_indicator = "⭐" if similarity > 0.9 else ""
             
             lines.append(f"{i}. **{title}** {match_indicator}\n   👤 {artist} | ⏱ {duration_str}\n")
