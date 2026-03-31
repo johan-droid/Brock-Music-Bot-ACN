@@ -11,10 +11,11 @@ This guide shows how to deploy the music bot completely free using various cloud
 └─────────────────┘      └─────────────────┘      └─────────────────┘
                                 │
                                 ▼
-                        ┌─────────────────┐
-                        │   SQLite/JSON   │
-                        │   Data Store    │
-                        └─────────────────┘
+                         ┌─────────────────┐
+                         │   SQLite/JSON   │
+                         │   Data Store    │
+                         │ (YT Music / AM) │
+                         └─────────────────┘
 ```
 
 **Changes for zero-cost:**
@@ -217,6 +218,7 @@ Enter your phone number and verification code when prompted.
 ### No audio in voice chat
 - Check userbot session is valid
 - Ensure userbot is admin with "Manage Voice Chats" permission
+- **JioSaavn / CDNs**: The bot uses `-user_agent` and `-referer` flags to bypass 403 Forbidden errors. Ensure your server's IP is not rate-limited.
 - Check FFmpeg is installed: `ffmpeg -version`
 
 ### SQLite locked errors

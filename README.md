@@ -15,10 +15,11 @@ A high-quality music streaming bot for Telegram Video Chats (formerly Voice Chat
 - **FFmpeg audio filters**: Dynamic range compression, high-pass filter, limiter
 
 ### 🎵 Smart Music Discovery
-- **Multi-platform support**: YouTube, Spotify, SoundCloud, JioSaavn, Telegram files
+- **Multi-platform support**: YouTube Music, YouTube, JioSaavn, SoundCloud, Audiomack, Spotify, Telegram files
+- **Optimized Search Waterfall**: Parallel search across all platforms (YT Music > YouTube > JioSaavn > SoundCloud > Audiomack)
 - **Smart title detection**: Handles Cyrillic (Russian) text and similar titles
-- **Conflict resolution**: When multiple songs have similar titles, shows selection options
-- **High-quality extraction**: Prioritizes Opus > AAC 256k+ > MP3 320k > FLAC
+- **Conflict resolution**: Shows selection options when multiple matches are found
+- **High-quality extraction**: Prioritizes 320kbps streams (JioSaavn/YTM) and Opus codecs
 
 ### 👥 Enhanced Permissions
 - **VC participant access**: `/play` now works for Video Chat participants (not just admins)
@@ -171,7 +172,7 @@ Music-Bot/
 ├── bot/
 │   ├── core/           # Bot, Userbot, Video Chat (py-tgcalls)
 │   ├── plugins/        # Command handlers (/play, /pause, etc.)
-│   ├── platforms/      # YouTube, Spotify, SoundCloud extractors
+│   ├── platforms/      # YouTube Music, YouTube, JioSaavn, SoundCloud, Audiomack
 │   └── utils/          # Database, cache, permissions, audio config
 ├── config.py           # Pydantic settings
 ├── requirements.txt    # Python dependencies
@@ -273,6 +274,7 @@ See [DEPLOYMENT.md](DEPLOYMENT.md) for detailed instructions.
 
 ### No audio in Video Chat
 - Ensure userbot is admin with "Manage Video Chats" permission
+- **JioSaavn issues**: The bot uses `-user_agent` and `-referer` flags to bypass CDN blocks. If you still hear silence, ensure your server IP is not globally banned by JioSaavn.
 - Check FFmpeg is installed: `ffmpeg -version`
 - Verify session string is valid
 
