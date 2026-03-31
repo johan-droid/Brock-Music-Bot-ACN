@@ -200,8 +200,8 @@ def synchronize_api_credentials():
         if not config.API_HASH: missing.append("API_HASH")
 
         # DEBUG: List all environment keys (NOT values!) to see what Railway is providing
-        env_keys = list(os.environ.keys())
-        logger.warning(f"DEBUG: Found {len(env_keys)} environment variables. Keys include: {', '.join(env_keys[:30])}")
+        env_keys = sorted(list(os.environ.keys()))
+        logger.warning(f"DEBUG: Found {len(env_keys)} environment variables. Sorted keys: {', '.join(env_keys)}")
         
         logger.warning(
             "CRITICAL: TELEGRAM_ENABLED is true but missing/invalid credentials: %s. "
