@@ -116,21 +116,42 @@ if env_path:
     # keep as fallback; pydantic loads env by name too
     Config.Config.env_file = env_path
 
+# Also prefer absolute /app/bot/.env.local when running in container root
+container_local_env = "/app/bot/.env.local"
+if not env_path and os.path.exists(container_local_env):
+    load_dotenv(container_local_env)
+    Config.Config.env_file = container_local_env
+
 config = Config()
 
 # Additional runtime fallback (in case env file could not be loaded in container)
 if config.TELEGRAM_ENABLED and (not config.API_ID or not config.API_HASH):
-    # Allow alternative env names for compatibility with different deployment setups
     api_id_env = (
         os.getenv("API_ID")
         or os.getenv("TELEGRAM_API_ID")
         or os.getenv("TG_API_ID")
+        or os.getenv("BOT_API_ID")
     )
     api_hash_env = (
         os.getenv("API_HASH")
         or os.getenv("TELEGRAM_API_HASH")
         or os.getenv("TG_API_HASH")
+        or os.getenv("BOT_API_HASH")
     )
+
+    # If pydantic didn't parse credentials, try manual dotenv fallback.
+    if not api_id_env or not api_hash_env:
+        for candidate in POSSIBLE_ENV_PATHS + [container_local_env]:
+            if os.path.exists(candidate):
+                for line in open(candidate, "r", encoding="utf-8"):
+                    if "API_ID" in line and "=" in line and not api_id_env:
+                        k, v = line.split("=", 1)
+                        if k.strip() in ("API_ID", "TELEGRAM_API_ID", "TG_API_ID", "BOT_API_ID"):
+                            api_id_env = v.strip().strip('"').strip("'")
+                    if "API_HASH" in line and "=" in line and not api_hash_env:
+                        k, v = line.split("=", 1)
+                        if k.strip() in ("API_HASH", "TELEGRAM_API_HASH", "TG_API_HASH", "BOT_API_HASH"):
+                            api_hash_env = v.strip().strip('"').strip("'")
 
     if api_id_env and not config.API_ID:
         try:
@@ -144,13 +165,13 @@ if config.TELEGRAM_ENABLED and (not config.API_ID or not config.API_HASH):
     if not config.API_ID or not config.API_HASH:
         missing = []
         if not config.API_ID:
-            missing.append("API_ID (or TELEGRAM_API_ID/TG_API_ID)")
+            missing.append("API_ID (or TELEGRAM_API_ID/TG_API_ID/BOT_API_ID)")
         if not config.API_HASH:
-            missing.append("API_HASH (or TELEGRAM_API_HASH/TG_API_HASH)")
+            missing.append("API_HASH (or TELEGRAM_API_HASH/TG_API_HASH/BOT_API_HASH)")
         raise RuntimeError(
             "TELEGRAM_ENABLED is true but missing required credentials: "
             + ", ".join(missing)
-            + ".\n" 
+            + ".\n"
             + "Set these via environment variables or .env file."
         )
 
