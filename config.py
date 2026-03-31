@@ -128,23 +128,48 @@ if not env_path and os.path.exists(container_local_env):
 
 config = Config()
 
-# Additional runtime fallback (in case env file could not be loaded in container)
-if config.TELEGRAM_ENABLED and (not config.API_ID or not config.API_HASH):
-    api_id_env = (
-        os.getenv("API_ID")
-        or os.getenv("TELEGRAM_API_ID")
-        or os.getenv("TG_API_ID")
-        or os.getenv("BOT_API_ID")
-    )
-    api_hash_env = (
-        os.getenv("API_HASH")
-        or os.getenv("TELEGRAM_API_HASH")
-        or os.getenv("TG_API_HASH")
-        or os.getenv("BOT_API_HASH")
-    )
+# Robust API credential synchronization for production environments
+def synchronize_api_credentials():
+    """Ensure API credentials are correctly prioritized from environment variables."""
+    global config
+    
+    # 1. Environment variable search (Highest Priority)
+    env_keys_id = ["API_ID", "TELEGRAM_API_ID", "TG_API_ID", "BOT_API_ID", "APP_ID"]
+    env_keys_hash = ["API_HASH", "TELEGRAM_API_HASH", "TG_API_HASH", "BOT_API_HASH", "APP_HASH"]
+    
+    found_id_key = None
+    found_id_val = None
+    for k in env_keys_id:
+        val = os.getenv(k)
+        if val and "your_" not in val.lower():
+            found_id_key = k
+            found_id_val = val
+            break
+            
+    found_hash_key = None
+    found_hash_val = None
+    for k in env_keys_hash:
+        val = os.getenv(k)
+        if val and "your_" not in val.lower():
+            found_hash_key = k
+            found_hash_val = val
+            break
 
-    # If pydantic didn't parse credentials, try manual dotenv fallback.
-    if not api_id_env or not api_hash_env:
+    # 2. Log detections for debugging
+    if found_id_key:
+        logger.info(f"Detected API_ID via environment variable: {found_id_key}")
+        try:
+            config.API_ID = int(found_id_val)
+        except ValueError:
+            logger.error(f"Environment variable {found_id_key} must be numeric, got: {found_id_val}")
+            config.API_ID = None
+    
+    if found_hash_key:
+        logger.info(f"Detected API_HASH via environment variable: {found_hash_key}")
+        config.API_HASH = found_hash_val
+
+    # 3. Fallback to file reading if still missing (for local dev)
+    if not config.API_ID or not config.API_HASH:
         for candidate in POSSIBLE_ENV_PATHS + [container_local_env]:
             if os.path.exists(candidate):
                 try:
@@ -155,50 +180,43 @@ if config.TELEGRAM_ENABLED and (not config.API_ID or not config.API_HASH):
                                 continue
                             k, v = line.split("=", 1)
                             k, v = k.strip(), v.strip().strip('"').strip("'")
-                            if k in ("API_ID", "TELEGRAM_API_ID", "TG_API_ID", "BOT_API_ID", "APP_ID"):
-                                if not api_id_env or "your_" in api_id_env.lower():
-                                    api_id_env = v
-                            if k in ("API_HASH", "TELEGRAM_API_HASH", "TG_API_HASH", "BOT_API_HASH", "APP_HASH"):
-                                if not api_hash_env or "your_" in api_hash_env.lower():
-                                    api_hash_env = v
+                            
+                            if not config.API_ID and k in env_keys_id and "your_" not in v.lower():
+                                try:
+                                    config.API_ID = int(v)
+                                    logger.info(f"Found API_ID in file {candidate}")
+                                except: pass
+                                
+                            if not config.API_HASH and k in env_keys_hash and "your_" not in v.lower():
+                                config.API_HASH = v
+                                logger.info(f"Found API_HASH in file {candidate}")
                 except Exception as e:
                     logger.debug(f"Could not read env file {candidate}: {e}")
 
-    if api_id_env and not config.API_ID:
-        try:
-            config.API_ID = int(api_id_env)
-        except ValueError:
-            logger.error(f"API_ID must be numeric, got: {api_id_env}")
-            config.API_ID = None
-
-    if api_hash_env and not config.API_HASH:
-        # Check against placeholder values
-        if "your_" in (api_hash_env or "").lower():
-            logger.error("API_HASH contains placeholder value.")
-            config.API_HASH = None
-        else:
-            config.API_HASH = api_hash_env
-
+    # 4. Final Validation & Graceful Fallback
     if config.TELEGRAM_ENABLED and (not config.API_ID or not config.API_HASH):
         missing = []
-        if not config.API_ID:
-            missing.append("API_ID")
-        if not config.API_HASH:
-            missing.append("API_HASH")
+        if not config.API_ID: missing.append("API_ID")
+        if not config.API_HASH: missing.append("API_HASH")
 
         logger.warning(
             "CRITICAL: TELEGRAM_ENABLED is true but missing/invalid credentials: %s. "
-            "Bot will NOT be able to connect to Telegram. "
-            "Please ensure API_ID and API_HASH are set in your Railway Dashboard or .env file.",
+            "Please ensure these are set in your Railway Dashboard Variables exactly. "
+            "Bot will idle until configured.",
             ", ".join(missing),
         )
-
-        # safe fallback: disable Telegram mode when credentials are missing
+        # safe fallback - disable bot features while idling
         config.TELEGRAM_ENABLED = False
+
+# Run synchronization
+synchronize_api_credentials()
+
 
 # Ensure session strings are loaded from env directly if empty config
 if config.TELEGRAM_ENABLED and not config.session_strings:
-    config.SESSION_STRING_1 = config.SESSION_STRING_1 or os.getenv("SESSION_STRING_1")
+    val = os.getenv("SESSION_STRING_1")
+    if val and "your_" not in val.lower():
+        config.SESSION_STRING_1 = val
     config.SESSION_STRING_2 = config.SESSION_STRING_2 or os.getenv("SESSION_STRING_2")
     config.SESSION_STRING_3 = config.SESSION_STRING_3 or os.getenv("SESSION_STRING_3")
     config.SESSION_STRING_4 = config.SESSION_STRING_4 or os.getenv("SESSION_STRING_4")
