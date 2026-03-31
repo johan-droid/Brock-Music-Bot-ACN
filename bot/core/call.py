@@ -299,15 +299,19 @@ class CallManager:
             )
             video_flags = MediaStream.Flags.AUTO_DETECT
 
-        ffmpeg_params = ""
+        # FFmpeg Input Options: placed before the input URL
+        ffmpeg_params = "-reconnect 1 -reconnect_at_eof 1 -reconnect_streamed 1 -reconnect_delay_max 5 "
+        
         if headers:
-            h_str = ""
-            for k, v in headers.items():
-                h_str += f"{k}: {v}\r\n"
-            ffmpeg_params += f"-headers '{h_str}' "
+            ua = headers.get("User-Agent")
+            if ua:
+                ffmpeg_params += f'-user_agent "{ua}" '
+            referer = headers.get("Referer")
+            if referer:
+                ffmpeg_params += f'-referer "{referer}" '
 
         if seek and seek > 0:
-            ffmpeg_params += f"-ss {seek}"
+            ffmpeg_params += f"-ss {seek} "
 
         kwargs = {
             "media_path": stream_url,

@@ -94,10 +94,10 @@ class MusicBackend:
 
         # Run all searches in parallel for maximum efficiency
         tasks = [
-            self.jiosaavn.search(query, limit),
-            self.youtube.search(query, limit),
-            self.soundcloud.search(query, limit),
             self.ytmusic.search(query, limit),
+            self.youtube.search(query, limit),
+            self.jiosaavn.search(query, limit),
+            self.soundcloud.search(query, limit),
             self.audiomack.search(query, limit)
         ]
         
@@ -105,60 +105,9 @@ class MusicBackend:
         
         tracks = []
         
-        # 1. Process JioSaavn results
+        # 1. Process YT Music results (Primary High-Quality Source)
         if not isinstance(results[0], Exception):
-            js_results = results[0]
-            for result in js_results:
-                track = Track(
-                    title=result.get("title", "Unknown"),
-                    artist=result.get("uploader", "Unknown"),
-                    duration=result.get("duration", 0),
-                    stream_url=result.get("url", ""),
-                    thumbnail=result.get("thumbnail"),
-                    source="jiosaavn",
-                    track_id=result.get("id")
-                )
-                tracks.append(track)
-            logger.info(f"JioSaavn found {len(js_results)} tracks")
-            
-        # 2. Process YouTube results
-        if not isinstance(results[1], Exception):
-            yt_results = results[1]
-            for result in yt_results:
-                track = Track(
-                    title=result.get("title", "Unknown"),
-                    artist=result.get("uploader", "Unknown"),
-                    duration=result.get("duration", 0),
-                    stream_url=result.get("url", ""),
-                    thumbnail=result.get("thumbnail"),
-                    source="youtube",
-                    track_id=result.get("id")
-                )
-                # Avoid duplicates
-                if not any(t.title.lower() == track.title.lower() for t in tracks):
-                    tracks.append(track)
-            logger.info(f"YouTube found {len(yt_results)} tracks")
-
-        # 3. Process SoundCloud results
-        if not isinstance(results[2], Exception) and len(tracks) < limit * 2:
-            sc_results = results[2]
-            for result in sc_results:
-                track = Track(
-                    title=result.get("title", "Unknown"),
-                    artist=result.get("artist", "Unknown"),
-                    duration=result.get("duration", 0),
-                    stream_url=result.get("stream_url", ""),
-                    thumbnail=result.get("thumbnail"),
-                    source="soundcloud",
-                    track_id=result.get("id")
-                )
-                if not any(t.title.lower() == track.title.lower() for t in tracks):
-                    tracks.append(track)
-            logger.info(f"SoundCloud found {len(sc_results)} tracks")
-
-        # 4. Process YT Music results
-        if not isinstance(results[3], Exception):
-            ytm_results = results[3]
+            ytm_results = results[0]
             for result in ytm_results:
                 track = Track(
                     title=result.get("title", "Unknown"),
@@ -172,6 +121,57 @@ class MusicBackend:
                 if not any(t.title.lower() == track.title.lower() for t in tracks):
                     tracks.append(track)
             logger.info(f"YT Music found {len(ytm_results)} tracks")
+
+        # 2. Process YouTube results
+        if not isinstance(results[1], Exception):
+            yt_results = results[1]
+            for result in yt_results:
+                track = Track(
+                    title=result.get("title", "Unknown"),
+                    artist=result.get("uploader", "Unknown"),
+                    duration=result.get("duration", 0),
+                    stream_url=result.get("url", ""),
+                    thumbnail=result.get("thumbnail"),
+                    source="youtube",
+                    track_id=result.get("id")
+                )
+                if not any(t.title.lower() == track.title.lower() for t in tracks):
+                    tracks.append(track)
+            logger.info(f"YouTube found {len(yt_results)} tracks")
+
+        # 3. Process JioSaavn results
+        if not isinstance(results[2], Exception):
+            js_results = results[2]
+            for result in js_results:
+                track = Track(
+                    title=result.get("title", "Unknown"),
+                    artist=result.get("uploader", "Unknown Artist"),
+                    duration=result.get("duration", 0),
+                    stream_url=result.get("url", ""),
+                    thumbnail=result.get("thumbnail"),
+                    source="jiosaavn",
+                    track_id=result.get("id")
+                )
+                if not any(t.title.lower() == track.title.lower() for t in tracks):
+                    tracks.append(track)
+            logger.info(f"JioSaavn found {len(js_results)} tracks")
+
+        # 4. Process SoundCloud results
+        if not isinstance(results[3], Exception):
+            sc_results = results[3]
+            for result in sc_results:
+                track = Track(
+                    title=result.get("title", "Unknown"),
+                    artist=result.get("artist", "Unknown"),
+                    duration=result.get("duration", 0),
+                    stream_url=result.get("stream_url", ""),
+                    thumbnail=result.get("thumbnail"),
+                    source="soundcloud",
+                    track_id=result.get("id")
+                )
+                if not any(t.title.lower() == track.title.lower() for t in tracks):
+                    tracks.append(track)
+            logger.info(f"SoundCloud found {len(sc_results)} tracks")
 
         # 5. Process Audiomack results
         if not isinstance(results[4], Exception):

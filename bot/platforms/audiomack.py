@@ -79,7 +79,7 @@ class AudiomackExtractor:
             "quiet": True,
             "playlist_items": f"1-{limit}",
         }
-        search_url = f"https://audiomack.com/search?q={query}"
+        search_query = f"ytsearch{limit}:audiomack {query}"
         
         results = []
         try:
