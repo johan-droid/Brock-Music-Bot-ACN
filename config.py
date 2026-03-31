@@ -155,17 +155,17 @@ def synchronize_api_credentials():
             found_hash_val = val
             break
 
-    # 2. Log detections for debugging
+    # 2. Log detections for debugging (using warning to ensure visibility in early logs)
     if found_id_key:
-        logger.info(f"Detected API_ID via environment variable: {found_id_key}")
+        logger.warning(f"✔ API_ID detected via environment variable: {found_id_key}")
         try:
             config.API_ID = int(found_id_val)
         except ValueError:
-            logger.error(f"Environment variable {found_id_key} must be numeric, got: {found_id_val}")
+            logger.error(f"❌ API_ID variable '{found_id_key}' must be numeric, got: {found_id_val}")
             config.API_ID = None
     
     if found_hash_key:
-        logger.info(f"Detected API_HASH via environment variable: {found_hash_key}")
+        logger.warning(f"✔ API_HASH detected via environment variable: {found_hash_key}")
         config.API_HASH = found_hash_val
 
     # 3. Fallback to file reading if still missing (for local dev)
@@ -184,12 +184,12 @@ def synchronize_api_credentials():
                             if not config.API_ID and k in env_keys_id and "your_" not in v.lower():
                                 try:
                                     config.API_ID = int(v)
-                                    logger.info(f"Found API_ID in file {candidate}")
+                                    logger.warning(f"✔ API_ID found in file: {candidate}")
                                 except: pass
                                 
                             if not config.API_HASH and k in env_keys_hash and "your_" not in v.lower():
                                 config.API_HASH = v
-                                logger.info(f"Found API_HASH in file {candidate}")
+                                logger.warning(f"✔ API_HASH found in file: {candidate}")
                 except Exception as e:
                     logger.debug(f"Could not read env file {candidate}: {e}")
 
@@ -199,10 +199,14 @@ def synchronize_api_credentials():
         if not config.API_ID: missing.append("API_ID")
         if not config.API_HASH: missing.append("API_HASH")
 
+        # DEBUG: List all environment keys (NOT values!) to see what Railway is providing
+        env_keys = list(os.environ.keys())
+        logger.warning(f"DEBUG: Found {len(env_keys)} environment variables. Keys include: {', '.join(env_keys[:30])}")
+        
         logger.warning(
             "CRITICAL: TELEGRAM_ENABLED is true but missing/invalid credentials: %s. "
             "Please ensure these are set in your Railway Dashboard Variables exactly. "
-            "Bot will idle until configured.",
+            "Wait for a new deployment after changing variables. Bot will idle until configured.",
             ", ".join(missing),
         )
         # safe fallback - disable bot features while idling
@@ -212,13 +216,26 @@ def synchronize_api_credentials():
 synchronize_api_credentials()
 
 
-# Ensure session strings are loaded from env directly if empty config
-if config.TELEGRAM_ENABLED and not config.session_strings:
-    val = os.getenv("SESSION_STRING_1")
-    if val and "your_" not in val.lower():
-        config.SESSION_STRING_1 = val
-    config.SESSION_STRING_2 = config.SESSION_STRING_2 or os.getenv("SESSION_STRING_2")
-    config.SESSION_STRING_3 = config.SESSION_STRING_3 or os.getenv("SESSION_STRING_3")
-    config.SESSION_STRING_4 = config.SESSION_STRING_4 or os.getenv("SESSION_STRING_4")
-    config.SESSION_STRING_5 = config.SESSION_STRING_5 or os.getenv("SESSION_STRING_5")
+# Ensure BOT_TOKEN and session strings are loaded from env directly if empty config
+def synchronize_bot_token():
+    global config
+    if config.TELEGRAM_ENABLED:
+        token_keys = ["BOT_TOKEN", "TELEGRAM_BOT_TOKEN", "TG_BOT_TOKEN", "BOT_API_TOKEN"]
+        for k in token_keys:
+            val = os.getenv(k)
+            if val and "your_" not in val.lower():
+                if not config.BOT_TOKEN or "your_" in config.BOT_TOKEN.lower():
+                    config.BOT_TOKEN = val
+                    logger.warning(f"✔ BOT_TOKEN detected via environment variable: {k}")
+                    break
+
+    # Session strings (direct fallback)
+    if config.TELEGRAM_ENABLED and not config.session_strings:
+        val = os.getenv("SESSION_STRING_1")
+        if val and "your_" not in val.lower():
+            config.SESSION_STRING_1 = val
+            logger.warning("✔ SESSION_STRING_1 detected via environment variable.")
+
+# Run token/session sync
+synchronize_bot_token()
 
