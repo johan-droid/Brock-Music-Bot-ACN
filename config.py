@@ -155,11 +155,11 @@ if config.TELEGRAM_ENABLED and (not config.API_ID or not config.API_HASH):
                                 continue
                             k, v = line.split("=", 1)
                             k, v = k.strip(), v.strip().strip('"').strip("'")
-                            if k in ("API_ID", "TELEGRAM_API_ID", "TG_API_ID", "BOT_API_ID"):
-                                if not api_id_env:
+                            if k in ("API_ID", "TELEGRAM_API_ID", "TG_API_ID", "BOT_API_ID", "APP_ID"):
+                                if not api_id_env or "your_" in api_id_env.lower():
                                     api_id_env = v
-                            if k in ("API_HASH", "TELEGRAM_API_HASH", "TG_API_HASH", "BOT_API_HASH"):
-                                if not api_hash_env:
+                            if k in ("API_HASH", "TELEGRAM_API_HASH", "TG_API_HASH", "BOT_API_HASH", "APP_HASH"):
+                                if not api_hash_env or "your_" in api_hash_env.lower():
                                     api_hash_env = v
                 except Exception as e:
                     logger.debug(f"Could not read env file {candidate}: {e}")
@@ -189,7 +189,7 @@ if config.TELEGRAM_ENABLED and (not config.API_ID or not config.API_HASH):
         logger.warning(
             "CRITICAL: TELEGRAM_ENABLED is true but missing/invalid credentials: %s. "
             "Bot will NOT be able to connect to Telegram. "
-            "Please set these in your Railway Dashboard or .env file.",
+            "Please ensure API_ID and API_HASH are set in your Railway Dashboard or .env file.",
             ", ".join(missing),
         )
 

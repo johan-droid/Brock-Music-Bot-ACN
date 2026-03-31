@@ -72,7 +72,11 @@ async def main():
             bot = await init_bot()
             logger.info("Bot started successfully")
         else:
-            logger.info("TELEGRAM_ENABLED is false; skipping calls and bot startup")
+            logger.info("TELEGRAM_ENABLED is false; skipping calls and bot startup.")
+            logger.warning("Bot is idling. Please set credentials in Railway Variables to enable Telegram mode.")
+            # Keep the container alive so the user can see the logs and fix variables
+            while True:
+                await asyncio.sleep(3600)
         
     except Exception as e:
         logger.exception("Failed to start bot")
