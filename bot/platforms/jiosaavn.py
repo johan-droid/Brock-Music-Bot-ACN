@@ -144,6 +144,9 @@ class JioSaavnExtractor:
             auth_url = data.get("auth_url")
             if auth_url:
                 logger.info("JioSaavn stream URL decoded via generateAuthToken")
+                # Ensure the URL is absolute and use 320kbps if possible
+                if ".jiosaavn.com" in auth_url or "cdn-songs" in auth_url:
+                   return auth_url.replace("_96.", "_320.").replace("_160.", "_320.")
                 return auth_url
         return None
 
@@ -230,17 +233,30 @@ class JioSaavnExtractor:
         songs = (data or {}).get("songs", []) if data else []
         if songs:
             song = songs[0]
+            artist = (
+                song.get("primary_artists")
+                or _first_artist(song.get("more_info", {}).get("artistMap", {}).get("primary_artists", []))
+                or song.get("singers")
+                or "Unknown Artist"
+            )
             return {
                 "url": stream_url,
                 "title": html.unescape(song.get("song") or song.get("title") or "Unknown"),
-                "uploader": html.unescape(song.get("primary_artists") or "Unknown Artist"),
+                "uploader": html.unescape(str(artist)),
                 "duration": int(song.get("duration") or 0),
                 "thumbnail": (song.get("image") or "").replace("150x150", "500x500"),
                 "id": song_id,
                 "source": "jiosaavn",
             }
 
-        return {"url": stream_url, "title": "Unknown", "uploader": "Unknown", "duration": 0, "source": "jiosaavn", "id": song_id}
+        return {
+            "url": stream_url,
+            "title": "Unknown",
+            "uploader": "Unknown Artist",
+            "duration": 0,
+            "source": "jiosaavn",
+            "id": song_id
+        }
 
 
 # ─── Helpers ─────────────────────────────────────────────────────────────────

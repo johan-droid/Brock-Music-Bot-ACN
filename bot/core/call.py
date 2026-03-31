@@ -91,6 +91,7 @@ class CallManager:
         userbot_idx: int = 0,
         seek: Optional[int] = None,
         force_join: bool = False,
+        headers: Optional[Dict[str, str]] = None,
     ) -> None:
         """
         Start playback in a chat. Handles both initial join and stream switches.
@@ -107,7 +108,7 @@ class CallManager:
         if not call:
             raise RuntimeError(f"No call instance for userbot {userbot_idx}")
 
-        stream = self._build_stream(stream_url, video=video, seek=seek)
+        stream = self._build_stream(stream_url, video=video, seek=seek, headers=headers)
         
         # Check if we're already active in this chat
         is_active = chat_id in self.active_chats and not force_join
@@ -270,8 +271,12 @@ class CallManager:
             return self.calls.get(idx)
         return None
 
-    @staticmethod
-    def _build_stream(stream_url: str, video: bool = False, seek: Optional[int] = None) -> MediaStream:
+    def _build_stream(
+        stream_url: str, 
+        video: bool = False, 
+        seek: Optional[int] = None,
+        headers: Optional[Dict[str, str]] = None
+    ) -> MediaStream:
         """
         Build a MediaStream for py-tgcalls using config parameters.
         """
@@ -294,14 +299,20 @@ class CallManager:
             video_flags = MediaStream.Flags.AUTO_DETECT
 
         ffmpeg_params = ""
+        if headers:
+            h_str = ""
+            for k, v in headers.items():
+                h_str += f"{k}: {v}\r\n"
+            ffmpeg_params += f"-headers '{h_str}' "
+
         if seek and seek > 0:
-            ffmpeg_params = f"-ss {seek}"
+            ffmpeg_params += f"-ss {seek}"
 
         kwargs = {
             "media_path": stream_url,
             "audio_parameters": audio_cfg,
             "video_flags": video_flags,
-            "ffmpeg_parameters": ffmpeg_params if ffmpeg_params else None,
+            "ffmpeg_parameters": ffmpeg_params.strip() if ffmpeg_params else None,
         }
         if video_cfg:
             kwargs["video_parameters"] = video_cfg

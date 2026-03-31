@@ -321,8 +321,20 @@ async def start_playback(chat_id: int) -> None:
 
         is_video = track.get("is_video", False)
         
+        # Prepare headers for certain sources (e.g. JioSaavn needs UA/Referer for CDN)
+        headers = None
+        if track.get("source") == "jiosaavn":
+            headers = {
+                "User-Agent": (
+                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                    "AppleWebKit/537.36 (KHTML, like Gecko) "
+                    "Chrome/120.0.0.0 Safari/537.36"
+                ),
+                "Referer": "https://www.jiosaavn.com/",
+            }
+
         # Use consolidated play method
-        await call_manager.play(chat_id, url, video=is_video)
+        await call_manager.play(chat_id, url, video=is_video, headers=headers)
 
         # Start progress tracking
         progress_tracker.start(chat_id, seek=int(track.get("position", 0)))
