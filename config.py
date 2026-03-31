@@ -120,17 +120,39 @@ config = Config()
 
 # Additional runtime fallback (in case env file could not be loaded in container)
 if config.TELEGRAM_ENABLED and (not config.API_ID or not config.API_HASH):
-    api_id_env = os.getenv("API_ID")
-    api_hash_env = os.getenv("API_HASH")
+    # Allow alternative env names for compatibility with different deployment setups
+    api_id_env = (
+        os.getenv("API_ID")
+        or os.getenv("TELEGRAM_API_ID")
+        or os.getenv("TG_API_ID")
+    )
+    api_hash_env = (
+        os.getenv("API_HASH")
+        or os.getenv("TELEGRAM_API_HASH")
+        or os.getenv("TG_API_HASH")
+    )
 
-    if api_id_env:
+    if api_id_env and not config.API_ID:
         try:
             config.API_ID = int(api_id_env)
         except ValueError:
             raise RuntimeError("API_ID must be numeric")
 
-    if api_hash_env:
+    if api_hash_env and not config.API_HASH:
         config.API_HASH = api_hash_env
+
+    if not config.API_ID or not config.API_HASH:
+        missing = []
+        if not config.API_ID:
+            missing.append("API_ID (or TELEGRAM_API_ID/TG_API_ID)")
+        if not config.API_HASH:
+            missing.append("API_HASH (or TELEGRAM_API_HASH/TG_API_HASH)")
+        raise RuntimeError(
+            "TELEGRAM_ENABLED is true but missing required credentials: "
+            + ", ".join(missing)
+            + ".\n" 
+            + "Set these via environment variables or .env file."
+        )
 
 # Ensure session strings are loaded from env directly if empty config
 if config.TELEGRAM_ENABLED and not config.session_strings:

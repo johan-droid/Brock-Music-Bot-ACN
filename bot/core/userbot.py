@@ -22,7 +22,12 @@ async def init_userbots() -> List[Client]:
         return []
 
     if not config.API_ID or not config.API_HASH:
-        raise RuntimeError("API_ID and API_HASH are required when TELEGRAM_ENABLED is true")
+        raise RuntimeError(
+            "TELEGRAM_ENABLED is true, but API_ID/API_HASH is unset. "
+            f"Current values: API_ID set={bool(config.API_ID)}, API_HASH set={bool(config.API_HASH)}. "
+            "Please set API_ID/API_HASH in environment (API_ID/TELEGRAM_API_ID/TG_API_ID, "
+            "API_HASH/TELEGRAM_API_HASH/TG_API_HASH) and restart."
+        )
 
     sessions = config.session_strings
     if not sessions:
