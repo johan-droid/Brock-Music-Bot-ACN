@@ -13,6 +13,8 @@ from bot.platforms.youtube import youtube
 from bot.platforms.spotify import spotify
 from bot.platforms.soundcloud import soundcloud
 from bot.platforms.jiosaavn import jiosaavn
+from bot.platforms.ytmusic import ytmusic
+from bot.platforms.audiomack import audiomack
 from bot.platforms.telegram import TelegramAudioHandler
 
 logger = logging.getLogger(__name__)
@@ -33,6 +35,12 @@ URL_PATTERNS = {
     "jiosaavn": [
         r"(?:https?://)?(?:www\.)?(?:jiosaavn|saavn)\.com",
         r"(?:https?://)?open\.jiosaavn\.com",
+    ],
+    "ytmusic": [
+        r"(?:https?://)?music\.youtube\.com",
+    ],
+    "audiomack": [
+        r"(?:https?://)?(?:www\.)?audiomack\.com",
     ],
 }
 
@@ -85,6 +93,12 @@ async def extract_audio(query: str, message: Message = None) -> Optional[Dict[st
             elif platform == "jiosaavn":
                 return await jiosaavn.extract(query)
             
+            elif platform == "ytmusic":
+                return await ytmusic.extract(query)
+            
+            elif platform == "audiomack":
+                return await audiomack.extract(query)
+            
             else:
                 # ── SOURCE WATERFALL ──────────────────────────────────────────
                 # If a generic search, try YouTube first
@@ -99,9 +113,19 @@ async def extract_audio(query: str, message: Message = None) -> Optional[Dict[st
                 result = await soundcloud.extract(query)
                 if result: return result
                 
-                # JioSaavn (Last resort for audio)
-                logger.debug(f"💀 SC failed, trying JioSaavn waterfall for: {query}")
+                # JioSaavn
+                logger.debug(f"SC failed, trying JioSaavn waterfall for: {query}")
                 result = await jiosaavn.extract(query)
+                if result: return result
+
+                # YT Music (High Quality fallback)
+                logger.debug(f"JioSaavn failed, trying YT Music waterfall for: {query}")
+                result = await ytmusic.extract(query)
+                if result: return result
+                
+                # Audiomack (Reliability fallback)
+                logger.debug(f"YTM failed, trying Audiomack waterfall for: {query}")
+                result = await audiomack.extract(query)
                 if result: return result
                 
                 return None
@@ -135,6 +159,12 @@ async def search_tracks(query: str, platform: str = "auto", limit: int = 5) -> l
         
         elif platform == "soundcloud":
             return await soundcloud.search(query, limit)
+        
+        elif platform == "ytmusic":
+            return await ytmusic.search(query, limit)
+        
+        elif platform == "audiomack":
+            return await audiomack.search(query, limit)
         
         else:
             return await youtube.search(query, limit)

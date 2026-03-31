@@ -16,7 +16,7 @@ class Track:
     duration: int  # seconds
     stream_url: str
     thumbnail: Optional[str] = None
-    source: str = "unknown"  # jiosaavn, youtube, soundcloud
+    source: str = "unknown"  # jiosaavn, youtube, soundcloud, ytmusic, audiomack
     track_id: Optional[str] = None
 
     def get(self, key: str, default: Any = None) -> Any:
@@ -68,8 +68,13 @@ class MusicBackend:
             # YouTube and SoundCloud extractors are already in bot/platforms/
             from bot.platforms.youtube import youtube
             from bot.platforms.soundcloud import soundcloud
+            from bot.platforms.ytmusic import ytmusic
+            from bot.platforms.audiomack import audiomack
+            
             self.youtube = youtube
             self.soundcloud = soundcloud
+            self.ytmusic = ytmusic
+            self.audiomack = audiomack
             logger.info("MusicBackend persistent session initialized")
 
     async def close(self):
@@ -91,7 +96,9 @@ class MusicBackend:
         tasks = [
             self.jiosaavn.search(query, limit),
             self.youtube.search(query, limit),
-            self.soundcloud.search(query, limit)
+            self.soundcloud.search(query, limit),
+            self.ytmusic.search(query, limit),
+            self.audiomack.search(query, limit)
         ]
         
         results = await asyncio.gather(*tasks, return_exceptions=True)
@@ -100,8 +107,19 @@ class MusicBackend:
         
         # 1. Process JioSaavn results
         if not isinstance(results[0], Exception):
-            tracks.extend(results[0])
-            logger.info(f"JioSaavn found {len(results[0])} tracks")
+            js_results = results[0]
+            for result in js_results:
+                track = Track(
+                    title=result.get("title", "Unknown"),
+                    artist=result.get("uploader", "Unknown"),
+                    duration=result.get("duration", 0),
+                    stream_url=result.get("url", ""),
+                    thumbnail=result.get("thumbnail"),
+                    source="jiosaavn",
+                    track_id=result.get("id")
+                )
+                tracks.append(track)
+            logger.info(f"JioSaavn found {len(js_results)} tracks")
             
         # 2. Process YouTube results
         if not isinstance(results[1], Exception):
@@ -137,6 +155,40 @@ class MusicBackend:
                 if not any(t.title.lower() == track.title.lower() for t in tracks):
                     tracks.append(track)
             logger.info(f"SoundCloud found {len(sc_results)} tracks")
+
+        # 4. Process YT Music results
+        if not isinstance(results[3], Exception):
+            ytm_results = results[3]
+            for result in ytm_results:
+                track = Track(
+                    title=result.get("title", "Unknown"),
+                    artist=result.get("uploader", "Unknown Artist"),
+                    duration=result.get("duration", 0),
+                    stream_url=result.get("url", ""),
+                    thumbnail=result.get("thumbnail"),
+                    source="ytmusic",
+                    track_id=result.get("id")
+                )
+                if not any(t.title.lower() == track.title.lower() for t in tracks):
+                    tracks.append(track)
+            logger.info(f"YT Music found {len(ytm_results)} tracks")
+
+        # 5. Process Audiomack results
+        if not isinstance(results[4], Exception):
+            am_results = results[4]
+            for result in am_results:
+                track = Track(
+                    title=result.get("title", "Unknown"),
+                    artist=result.get("uploader", "Unknown Artist"),
+                    duration=result.get("duration", 0),
+                    stream_url=result.get("url", ""),
+                    thumbnail=result.get("thumbnail"),
+                    source="audiomack",
+                    track_id=result.get("id")
+                )
+                if not any(t.title.lower() == track.title.lower() for t in tracks):
+                    tracks.append(track)
+            logger.info(f"Audiomack found {len(am_results)} tracks")
         
         return tracks[:limit]
     
@@ -159,6 +211,14 @@ class MusicBackend:
             return result.get("url") if result else None
         elif track.source == "soundcloud":
             return track.stream_url if track.stream_url else None
+        elif track.source == "ytmusic":
+            tid = track.track_id or track.get("id") or track.stream_url
+            result = await self.ytmusic.extract(tid)
+            return result.get("url") if result else None
+        elif track.source == "audiomack":
+            tid = track.track_id or track.get("id") or track.stream_url
+            result = await self.audiomack.extract(tid)
+            return result.get("url") if result else None
         return None
 
 

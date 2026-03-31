@@ -62,6 +62,8 @@ _SOURCE_BADGE = {
     "spotify": "🟢 Spotify",
     "soundcloud": "☁️ SoundCloud",
     "jiosaavn": "🎵 JioSaavn",
+    "ytmusic": "🎵 YT Music",
+    "audiomack": "🎵 Audiomack",
     "telegram": "✈️ Telegram",
     "radio": "🔴 LIVE Radio",
 }
