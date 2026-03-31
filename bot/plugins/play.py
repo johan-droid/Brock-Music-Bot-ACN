@@ -196,7 +196,7 @@ async def vplay_cmd(client: Client, message: Message):
         track = await TelegramAudioHandler().extract_from_message(message.reply_to_message)
         if track:
             track["is_video"] = True
-            await _add_track_and_play(message, chat_id, user_id, track)
+            await add_track_and_play(message, chat_id, user_id, track)
             return
 
     if not query:

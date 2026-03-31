@@ -2,8 +2,11 @@ import asyncio
 import logging
 import aiohttp
 import html
-from typing import Optional, Dict, Any, List
+from typing import Optional, Dict, Any, List, TYPE_CHECKING
 from dataclasses import dataclass, asdict
+
+if TYPE_CHECKING:
+    from bot.platforms.jiosaavn import JioSaavnExtractor
 
 logger = logging.getLogger(__name__)
 

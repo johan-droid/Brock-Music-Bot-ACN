@@ -84,7 +84,7 @@ class AudiomackExtractor:
         results = []
         try:
             with yt_dlp.YoutubeDL(opts) as ydl:
-                info = ydl.extract_info(search_url, download=False)
+                info = ydl.extract_info(search_query, download=False)
                 for entry in (info or {}).get("entries", []):
                     if not entry: continue
                     results.append({
