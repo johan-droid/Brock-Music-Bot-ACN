@@ -271,6 +271,7 @@ class CallManager:
             return self.calls.get(idx)
         return None
 
+    @staticmethod
     def _build_stream(
         stream_url: str, 
         video: bool = False, 
