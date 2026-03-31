@@ -108,17 +108,35 @@ class Config(BaseSettings):
 import os
 from dotenv import load_dotenv
 
-if os.path.exists("bot/.env.local"):
-    env_path = "bot/.env.local"
-elif os.path.exists(".env.local"):
-    env_path = ".env.local"
-elif os.path.exists(".env"):
-    env_path = ".env"
-else:
-    env_path = None
+POSSIBLE_ENV_PATHS = ["bot/.env.local", ".env.local", ".env"]
+env_path = next((p for p in POSSIBLE_ENV_PATHS if os.path.exists(p)), None)
 
 if env_path:
     load_dotenv(env_path)
+    # keep as fallback; pydantic loads env by name too
     Config.Config.env_file = env_path
 
 config = Config()
+
+# Additional runtime fallback (in case env file could not be loaded in container)
+if config.TELEGRAM_ENABLED and (not config.API_ID or not config.API_HASH):
+    api_id_env = os.getenv("API_ID")
+    api_hash_env = os.getenv("API_HASH")
+
+    if api_id_env:
+        try:
+            config.API_ID = int(api_id_env)
+        except ValueError:
+            raise RuntimeError("API_ID must be numeric")
+
+    if api_hash_env:
+        config.API_HASH = api_hash_env
+
+# Ensure session strings are loaded from env directly if empty config
+if config.TELEGRAM_ENABLED and not config.session_strings:
+    config.SESSION_STRING_1 = config.SESSION_STRING_1 or os.getenv("SESSION_STRING_1")
+    config.SESSION_STRING_2 = config.SESSION_STRING_2 or os.getenv("SESSION_STRING_2")
+    config.SESSION_STRING_3 = config.SESSION_STRING_3 or os.getenv("SESSION_STRING_3")
+    config.SESSION_STRING_4 = config.SESSION_STRING_4 or os.getenv("SESSION_STRING_4")
+    config.SESSION_STRING_5 = config.SESSION_STRING_5 or os.getenv("SESSION_STRING_5")
+
