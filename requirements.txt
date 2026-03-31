@@ -1,6 +1,8 @@
 # Production Dependencies for Brook Music Bot
 pyrogram==2.0.106
-py-tgcalls>=2.4.0
+py-tgcalls==2.2.11
+# PyPI currently provides up to 2.2.11 (2.4.0 is unavailable/yanked in the current index)
+# Please adjust when upstream releases a compliant version.
 tgcrypto==1.2.5
 yt-dlp==2024.12.6
 pydantic==2.10.4
