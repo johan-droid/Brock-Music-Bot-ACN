@@ -24,8 +24,27 @@ _COOKIES_PATH = "./cookies.txt"
 class YTMusicExtractor:
     """YouTube Music specific extractor."""
 
+    @staticmethod
+    def _normalize_query(query: str) -> str:
+        """Normalize YT Music URLs into yt-dlp friendly YouTube watch URLs."""
+        if not query:
+            return query
+
+        # Repair malformed URLs like .../watchv=VIDEO_ID
+        if "music.youtube.com/watchv=" in query:
+            query = query.replace("music.youtube.com/watchv=", "music.youtube.com/watch?v=")
+
+        # Prefer canonical youtube watch URL for extraction stability.
+        m = re.search(r"(?:music\.youtube\.com/watch\?v=|youtube\.com/watch\?v=|youtu\.be/)([A-Za-z0-9_-]{11})", query)
+        if m:
+            return f"https://www.youtube.com/watch?v={m.group(1)}"
+
+        return query
+
     def _extract_sync(self, query: str) -> Optional[Dict[str, Any]]:
         """Run yt-dlp synchronously in a thread pool."""
+        query = self._normalize_query(query)
+
         opts = {
             "format": _FORMAT,
             "quiet": True,

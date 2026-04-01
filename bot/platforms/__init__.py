@@ -56,8 +56,15 @@ def detect_platform(query: str) -> str:
 
 
 def _sanitize_query(query: str) -> str:
-    """Basic input sanitization to prevent accidental shell-like issues."""
-    return re.sub(r'[;&|`$(){}[\]<>*?]', '', query).strip()
+    """Normalize user input without breaking valid URLs.
+
+    NOTE: URLs require characters like '?', '&', '='. Do not strip them.
+    """
+    if not query:
+        return ""
+    # Remove only control characters; keep URL/query delimiters intact.
+    query = re.sub(r"[\x00-\x1f\x7f]", "", query)
+    return query.strip()
 
 
 async def extract_audio(query: str, message: Message = None) -> Optional[Dict[str, Any]]:

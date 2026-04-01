@@ -47,6 +47,8 @@ class CallManager:
         self.chat_locks: Dict[int, asyncio.Lock] = {}
         # External handlers called when a stream ends
         self.on_stream_end_handlers: List[Callable] = []
+        # chat_id -> monotonic timestamp of last VC auto-start attempt
+        self.last_vc_start_attempt: Dict[int, float] = {}
 
     # ─── Initialization ───────────────────────────────────────────────────────
 
@@ -95,6 +97,13 @@ class CallManager:
         if not getattr(config, "AUTO_START_VC", True):
             return False
 
+        # Guard against repeated CreateGroupCall calls that can disrupt existing participants.
+        now = asyncio.get_event_loop().time()
+        last_try = self.last_vc_start_attempt.get(chat_id, 0.0)
+        if (now - last_try) < 10.0:
+            logger.info(f"Skipping duplicate auto-start VC attempt in {chat_id} (cooldown)")
+            return True
+
         client = self.userbots[userbot_idx]
         try:
             from pyrogram.raw.functions.phone import CreateGroupCall
@@ -108,11 +117,13 @@ class CallManager:
                     title=title,
                 )
             )
+            self.last_vc_start_attempt[chat_id] = now
             logger.info(f"Auto-started voice chat in {chat_id}")
             return True
         except Exception as exc:
             err = str(exc).lower()
             if "groupcall already" in err or "already" in err:
+                self.last_vc_start_attempt[chat_id] = now
                 logger.info(f"Voice chat already active in {chat_id}, continuing")
                 return True
             logger.warning(f"Auto-start voice chat failed in {chat_id}: {exc}")
@@ -265,15 +276,42 @@ class CallManager:
                         except Exception as e:
                             logger.debug(f"Pre-play get_chat on userbot #{idx + 1} failed: {e}")
 
-                        await self._start_voice_chat(chat_id, idx)
-                        logger.info(
-                            f"Attempting VC playback join in {chat_id} via userbot #{idx + 1} "
-                            f"(timeout={timeout_s}s)"
-                        )
-                        await asyncio.wait_for(call.play(chat_id, stream), timeout=timeout_s)
-                        self.active_chats[chat_id] = idx
-                        logger.info(f"Started playback in {chat_id} (video={video}) via userbot #{idx + 1}")
-                        return
+                        # GROUPCALL_INVALID / NO_ACTIVE can happen due propagation lag.
+                        join_err: Optional[Exception] = None
+                        auto_started_for_this_join = False
+                        for attempt in range(3):
+                            if attempt > 0:
+                                await asyncio.sleep(1.5 * attempt)
+
+                            logger.info(
+                                f"Attempting VC playback join in {chat_id} via userbot #{idx + 1} "
+                                f"(attempt={attempt + 1}/3, timeout={timeout_s}s)"
+                            )
+                            try:
+                                await asyncio.wait_for(call.play(chat_id, stream), timeout=timeout_s)
+                                self.active_chats[chat_id] = idx
+                                logger.info(f"Started playback in {chat_id} (video={video}) via userbot #{idx + 1}")
+                                return
+                            except Exception as inner_exc:
+                                join_err = inner_exc
+                                inner_str = str(inner_exc).lower()
+                                if (
+                                    "groupcall_invalid" in inner_str
+                                    or "group call invalid" in inner_str
+                                    or "no active group call" in inner_str
+                                ):
+                                    if not auto_started_for_this_join:
+                                        await self._start_voice_chat(chat_id, idx)
+                                        auto_started_for_this_join = True
+                                    logger.warning(
+                                        f"Join precondition not ready in {chat_id} via userbot #{idx + 1}; "
+                                        f"retrying after short delay (attempt {attempt + 1}/3)"
+                                    )
+                                    continue
+                                raise
+
+                        if join_err is not None:
+                            raise join_err
                     except Exception as join_exc:
                         last_exc = join_exc
                         logger.warning(
@@ -355,6 +393,13 @@ class CallManager:
                     raise RuntimeError(
                         "No active Voice Chat was found and auto-start failed. "
                         "Please grant the assistant 'Manage Video Chats' permission or start VC manually, then /play again."
+                    )
+
+                if "groupcall_invalid" in exc_str or "group call invalid" in exc_str:
+                    raise RuntimeError(
+                        "❌ Voice chat join failed (GROUPCALL_INVALID).\n"
+                        "Telegram has not finalized the group call state yet or the voice chat is unstable.\n"
+                        "Please wait 3-5 seconds and try /play again, or restart the group voice chat."
                     )
 
                 logger.error(f"Playback failed in {chat_id}: {exc}")
