@@ -92,6 +92,9 @@ class Config(BaseSettings):
     YTDL_CONCURRENT_LIMIT: int = 3     # max parallel yt-dlp extractions
     YTDL_CACHE_TTL: int = 19800        # CDN URL cache TTL seconds (5.5h)
 
+    # Voice Chat control timeout (seconds) to avoid silent py-tgcalls hangs
+    VC_PLAY_TIMEOUT: int = 20
+
     @property
     def session_strings(self) -> List[str]:
         """Return list of valid (non-empty) session strings."""

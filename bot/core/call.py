@@ -116,6 +116,7 @@ class CallManager:
             raise RuntimeError(f"No call instance for userbot {userbot_idx}")
 
         stream = self._build_stream(stream_url, video=video, seek=seek, headers=headers)
+        timeout_s = max(5, int(getattr(config, "VC_PLAY_TIMEOUT", 20) or 20))
         
         # Check if we're already active in this chat
         is_active = chat_id in self.active_chats and not force_join
@@ -123,12 +124,17 @@ class CallManager:
         try:
             if is_active:
                 try:
-                    await call.change_stream(chat_id, stream)
+                    logger.info(f"Attempting stream change in {chat_id} (timeout={timeout_s}s)")
+                    await asyncio.wait_for(call.change_stream(chat_id, stream), timeout=timeout_s)
                     logger.info(f"Changed stream in {chat_id}")
                     return
                 except NotInCallError:
                     # Inconsistent state, fallback to play()
                     logger.warning(f"Inconsistent call state for {chat_id}, rejoining...")
+                except asyncio.TimeoutError:
+                    raise RuntimeError(
+                        "Voice Chat stream change timed out. Please ensure the assistant is in the VC and try /play again."
+                    )
             
             # Peer Resolution Pre-check:
             # Pyrogram clients need to "see" a chat (be in their SQLite cache) before 
@@ -141,16 +147,27 @@ class CallManager:
                 logger.debug(f"Pre-play get_chat on userbot failed: {e}")
                 # We don't raise here yet; call.play might still work or give a better error 
             
-            await call.play(chat_id, stream)
+            logger.info(f"Attempting VC playback join in {chat_id} (timeout={timeout_s}s)")
+            await asyncio.wait_for(call.play(chat_id, stream), timeout=timeout_s)
             self.active_chats[chat_id] = userbot_idx
             logger.info(f"Started playback in {chat_id} (video={video})")
 
         except Exception as exc:
             # Handle 'Already Joined' scenario which can happen with PyTgCalls
             exc_str = str(exc).lower()
+
+            if isinstance(exc, asyncio.TimeoutError):
+                raise RuntimeError(
+                    "Voice Chat join/play timed out. Verify an active VC exists and the assistant has permission to speak."
+                )
             
             if "already joined" in exc_str or "already_joined" in exc_str:
-                await call.change_stream(chat_id, stream)
+                try:
+                    await asyncio.wait_for(call.change_stream(chat_id, stream), timeout=timeout_s)
+                except asyncio.TimeoutError:
+                    raise RuntimeError(
+                        "Voice Chat stream switch timed out. Please restart VC and try again."
+                    )
                 self.active_chats[chat_id] = userbot_idx
                 return
 
