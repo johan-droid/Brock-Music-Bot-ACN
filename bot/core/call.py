@@ -10,6 +10,7 @@ DO NOT run a separate FFmpeg subprocess — it is redundant and causes instabili
 
 import asyncio
 import logging
+import random
 from typing import Dict, Optional, Callable, List
 
 from pytgcalls import PyTgCalls
@@ -85,6 +86,34 @@ class CallManager:
         elif hasattr(update, "__class__") and "LeftCall" in type(update).__name__:
             logger.info(f"Left VC in chat {chat_id}")
             self.active_chats.pop(chat_id, None)
+
+    async def _start_voice_chat(self, chat_id: int, userbot_idx: int) -> bool:
+        """Attempt to create/start a voice chat via userbot raw API."""
+        if not getattr(config, "AUTO_START_VC", True):
+            return False
+
+        client = self.userbots[userbot_idx]
+        try:
+            from pyrogram.raw.functions.phone import CreateGroupCall
+
+            peer = await client.resolve_peer(chat_id)
+            title = (getattr(config, "AUTO_START_VC_TITLE", "Music Bot Live") or "Music Bot Live").strip()
+            await client.invoke(
+                CreateGroupCall(
+                    peer=peer,
+                    random_id=random.randint(1, 2_147_483_647),
+                    title=title,
+                )
+            )
+            logger.info(f"Auto-started voice chat in {chat_id}")
+            return True
+        except Exception as exc:
+            err = str(exc).lower()
+            if "groupcall already" in err or "already" in err:
+                logger.info(f"Voice chat already active in {chat_id}, continuing")
+                return True
+            logger.warning(f"Auto-start voice chat failed in {chat_id}: {exc}")
+            return False
 
     # ─── Playback control ─────────────────────────────────────────────────────
 
@@ -186,9 +215,21 @@ class CallManager:
                 )
 
             if "no active group call" in exc_str or isinstance(exc, NoActiveGroupCall):
+                started = await self._start_voice_chat(chat_id, userbot_idx)
+                if started:
+                    try:
+                        await asyncio.sleep(1.2)
+                        logger.info(f"Retrying VC playback join in {chat_id} after auto-start")
+                        await asyncio.wait_for(call.play(chat_id, stream), timeout=timeout_s)
+                        self.active_chats[chat_id] = userbot_idx
+                        logger.info(f"Started playback in {chat_id} after auto VC start (video={video})")
+                        return
+                    except Exception as retry_exc:
+                        logger.error(f"VC retry failed in {chat_id}: {retry_exc}")
+
                 raise RuntimeError(
-                    "No Voice Chat is active in this group! "
-                    "Please start a Voice Chat first, then use /play again."
+                    "No active Voice Chat was found and auto-start failed. "
+                    "Please grant the assistant 'Manage Video Chats' permission or start VC manually, then /play again."
                 )
             
             logger.error(f"Playback failed in {chat_id}: {exc}")

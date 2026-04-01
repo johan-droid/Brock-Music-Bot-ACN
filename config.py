@@ -94,6 +94,8 @@ class Config(BaseSettings):
 
     # Voice Chat control timeout (seconds) to avoid silent py-tgcalls hangs
     VC_PLAY_TIMEOUT: int = 20
+    AUTO_START_VC: bool = True
+    AUTO_START_VC_TITLE: str = "Music Bot Live"
 
     @property
     def session_strings(self) -> List[str]:
