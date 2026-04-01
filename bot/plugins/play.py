@@ -464,6 +464,65 @@ async def start_playback(chat_id: int) -> None:
         await queue_manager.set_status(chat_id, "idle")
 
 
+async def cleanup_vc_session(chat_id: int, send_message: bool = False) -> None:
+    """
+    Full cleanup when VC stops - wipes queue, resets trackers, clears pending conflicts.
+    Call this when /stop is used or when VC is forcefully ended.
+    """
+    logger.info(f"Starting full VC cleanup for chat {chat_id}")
+    
+    # Cancel any active tasks
+    _cancel_task(_progress_tasks, chat_id)
+    _cancel_task(_autoclean_tasks, chat_id)
+    
+    # Clear all queues
+    try:
+        await queue_manager.clear_queue(chat_id)
+        await queue_manager.set_status(chat_id, "idle")
+        logger.info(f"Queue cleared for chat {chat_id}")
+    except Exception as e:
+        logger.error(f"Failed to clear queue for {chat_id}: {e}")
+    
+    # Reset progress tracker
+    try:
+        progress_tracker.stop(chat_id)
+        logger.info(f"Progress tracker reset for chat {chat_id}")
+    except Exception as e:
+        logger.error(f"Failed to reset progress tracker for {chat_id}: {e}")
+    
+    # Clear pending conflicts for this chat
+    global _pending_conflicts
+    if chat_id in _pending_conflicts:
+        del _pending_conflicts[chat_id]
+        logger.info(f"Pending conflicts cleared for chat {chat_id}")
+    
+    # Clear NP message from cache
+    try:
+        await cache.clear_np_message(chat_id)
+        logger.info(f"NP message cache cleared for chat {chat_id}")
+    except Exception as e:
+        logger.error(f"Failed to clear NP cache for {chat_id}: {e}")
+    
+    # Leave the voice call
+    try:
+        await call_manager.leave_call(chat_id)
+        logger.info(f"Left VC for chat {chat_id}")
+    except Exception as e:
+        logger.debug(f"Leave call (cleanup) for {chat_id}: {e}")
+    
+    logger.info(f"Full VC cleanup completed for chat {chat_id}")
+    
+    if send_message and bot_module.bot_client:
+        try:
+            await bot_module.bot_client.send_message(
+                chat_id,
+                "🧹 **Session cleaned!** All queues wiped and ready for a new concert! Yohoho! 🎸",
+                parse_mode=ParseMode.MARKDOWN
+            )
+        except Exception:
+            pass
+
+
 async def on_track_end(chat_id: int) -> None:
     """Called when a track finishes. Handles loop mode and auto-advance."""
     logger.info(f"Track ended in {chat_id}")

@@ -111,48 +111,37 @@ async def skip_cmd(client: Client, message: Message):
         await message.reply("💀 Even a skeleton stumbles sometimes! Skip failed.")
 
 
-@Client.on_message(filters.command(["stop", "end"]) & filters.group)
+@Client.on_message(filters.command(["stop", "end", "cleanup"]) & filters.group)
 @require_admin
 @rate_limit
 async def stop_cmd(client: Client, message: Message):
-    """Stop playback and clear queue (admin only)."""
+    """Stop playback, clear queue, and cleanup session (admin only)."""
     chat_id = message.chat.id
     
     status = await queue_manager.get_status(chat_id)
     if status == "idle":
-        # Just clear queue if idle
-        await queue_manager.clear_queue(chat_id)
-        await message.reply("🗑️ **Queue cleared!** The Soul King's setlist is now empty, Yohoho!")
+        # Just run cleanup if idle
+        from bot.plugins.play import cleanup_vc_session
+        await cleanup_vc_session(chat_id, send_message=False)
+        await message.reply(
+            "🧹 <b>Session cleaned!</b> All queues wiped and ready for a new concert! Yohoho! 🎸",
+            parse_mode="html"
+        )
         return
     
     try:
-        await call_manager.leave_call(chat_id)
-        await queue_manager.clear_queue(chat_id)
-        progress_tracker.stop(chat_id)
-
-        # Trigger NP card auto-clean
-        np_msg_id = await cache.get_np_message(chat_id)
-        if np_msg_id:
-            import asyncio
-            async def _nuke_np():
-                import asyncio as _a
-                await _a.sleep(config.NP_AUTOCLEAN_DELAY)
-                try:
-                    if bot_module.bot_client:
-                        await bot_module.bot_client.delete_messages(chat_id, np_msg_id)
-                except Exception:
-                    pass
-                await cache.clear_np_message(chat_id)
-            asyncio.create_task(_nuke_np())
+        # Full cleanup - stop everything and wipe queues
+        from bot.plugins.play import cleanup_vc_session
+        await cleanup_vc_session(chat_id, send_message=False)
 
         await message.reply(
             "⏹ <b>Stopped!</b> The Soul King bows and exits the stage! Yohoho!\n"
-            "<i>🗑️ Queue has been cleared.</i>",
+            "<i>🧹 All queues cleared - fresh session ready!</i>",
             parse_mode="html"
         )
-        logger.info(f"Stopped playback in chat {chat_id}")
+        logger.info(f"Stopped and cleaned up playback in chat {chat_id}")
     except Exception as e:
-        logger.error(f"Stop failed: {e}")
+        logger.error(f"Stop/cleanup failed: {e}")
         await message.reply("💀 Even Brook can't stop the music right now! Try again.")
 
 
