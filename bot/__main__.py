@@ -50,8 +50,21 @@ async def main():
         logger.info("Music backend initialized")
         
         # Initialize userbots first (needed for calls)
-        userbots = await init_userbots()
-        logger.info(f"Initialized {len(userbots)} userbot(s)")
+        try:
+            userbots = await init_userbots()
+            logger.info(f"Initialized {len(userbots)} userbot(s)")
+        except Exception as exc:
+            # If the session key is duplicated elsewhere, keep the container alive
+            # so logs stay visible and avoid crash loops. Operator must rotate the
+            # SESSION_STRING or stop the conflicting instance.
+            if "AUTH_KEY_DUPLICATED" in str(exc).upper():
+                logger.error(
+                    "Auth key duplicated. Bot will idle until SESSION_STRING_* is rotated "
+                    "or the other instance is stopped."
+                )
+                while True:
+                    await asyncio.sleep(3600)
+            raise
 
         if config.TELEGRAM_ENABLED:
             # Initialize py-tgcalls
