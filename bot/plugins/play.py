@@ -557,9 +557,13 @@ async def _send_now_playing(chat_id: int, track: dict) -> None:
         if thumb_data:
             if not bot_module.bot_client:
                 raise RuntimeError("bot client is not initialized")
+            # Wrap bytes in BytesIO for Pyrogram
+            from io import BytesIO
+            photo_file = BytesIO(thumb_data)
+            photo_file.name = "now_playing.png"
             msg = await bot_module.bot_client.send_photo(
                 chat_id=chat_id,
-                photo=thumb_data,
+                photo=photo_file,
                 caption=text,
                 reply_markup=buttons,
                 parse_mode=ParseMode.HTML,
