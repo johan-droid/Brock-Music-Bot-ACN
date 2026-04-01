@@ -345,6 +345,10 @@ async def handle_replay(client: Client, callback: CallbackQuery, chat_id: int):
 
 async def handle_previous(client: Client, callback: CallbackQuery, chat_id: int):
     """Play previously completed track if possible."""
+    if not config.ENABLE_PREVIOUS_TRACK:
+        await callback.answer("⏮️ Previous track feature is disabled by admin.", show_alert=True)
+        return
+
     prev = await queue_manager.get_previous(chat_id)
     if not prev:
         await callback.answer("⏮️ No previous track in history yet.", show_alert=True)
@@ -365,6 +369,10 @@ async def handle_previous(client: Client, callback: CallbackQuery, chat_id: int)
 
 async def handle_export_queue(client: Client, callback: CallbackQuery, chat_id: int):
     """Export queue to a text file for sharing."""
+    if not config.ENABLE_QUEUE_EXPORT:
+        await callback.answer("📤 Queue export is disabled by admin.", show_alert=True)
+        return
+
     queue = await queue_manager.get_queue(chat_id)
     if not queue:
         await callback.answer("Queue is empty", show_alert=True)

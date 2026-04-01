@@ -113,6 +113,12 @@ class Config(BaseSettings):
     # Per-assistant active VC cap. 0 means unlimited.
     ASSISTANT_MAX_ACTIVE_CHATS: int = 0
 
+    # Optional feature flags
+    ENABLE_PREVIOUS_TRACK: bool = True
+    ENABLE_VC_DEBUG: bool = True
+    ENABLE_QUEUE_EXPORT: bool = True
+    ENABLE_AUTO_RETRY_USERBOT_AUTH: bool = True
+
     @property
     def session_strings(self) -> List[str]:
         """Return list of valid (non-empty) session strings."""
@@ -140,12 +146,16 @@ class Config(BaseSettings):
         entries: List[Dict[str, str]] = []
 
         # Load from env_file for large values that may be skipped from os.environ on Windows.
-        env_values: Dict[str, str] = {}
+        from collections.abc import Mapping
+
+        env_values: Mapping[str, str] = {}
         env_file = getattr(self.Config, "env_file", None)
         if env_file:
             try:
                 from dotenv import dotenv_values
-                env_values = dotenv_values(env_file) or {}
+                loaded = dotenv_values(env_file) or {}
+                # mypy types as Mapping[str, str | None]; normalize to dict[str, str]
+                env_values = {k: v for k, v in loaded.items() if v is not None}
             except Exception:
                 env_values = {}
 
@@ -222,7 +232,8 @@ if env_path:
             continue
         os.environ.setdefault(key, value)
 
-    Config.Config.env_file = env_path
+    # Set target env file path with runtime assignment (type may vary from tuple default)
+    setattr(Config.Config, "env_file", env_path)
 
 # Also prefer absolute /app/bot/.env.local when running in container root
 container_local_env = "/app/bot/.env.local"
@@ -241,7 +252,9 @@ if not env_path and os.path.exists(container_local_env):
             continue
         os.environ.setdefault(key, value)
 
-    Config.Config.env_file = container_local_env
+    # We rely on os.environ overrides instead of forcing Config.Config.env_file typing mismatch.
+    # (env_file is a strict tuple of filenames in pydantic Settings, so assign only in class definition.)
+    pass
 
 config = Config()
 
@@ -273,7 +286,7 @@ def synchronize_api_credentials():
             break
 
     # 2. Apply detections
-    if found_id_key:
+    if found_id_key and found_id_val is not None:
         try:
             config.API_ID = int(found_id_val)
         except ValueError:
@@ -295,13 +308,14 @@ def synchronize_api_credentials():
                                 continue
                             k, v = line.split("=", 1)
                             k, v = k.strip(), v.strip().strip('"').strip("'")
-                            
-                            if not config.API_ID and k in env_keys_id and "your_" not in v.lower():
+
+                            if not config.API_ID and v and k in env_keys_id and "your_" not in v.lower():
                                 try:
                                     config.API_ID = int(v)
-                                except: pass
+                                except ValueError:
+                                    pass
                                 
-                            if not config.API_HASH and k in env_keys_hash and "your_" not in v.lower():
+                            if not config.API_HASH and v and k in env_keys_hash and "your_" not in v.lower():
                                 config.API_HASH = v
                 except Exception as e:
                     logger.debug(f"Could not read env file {candidate}: {e}")
