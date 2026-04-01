@@ -1,7 +1,9 @@
 """Userbot Client(s) initialization for voice chat streaming."""
 
 import logging
+from pathlib import Path
 from typing import List
+import pyrogram.errors
 from pyrogram import Client
 from config import config
 
@@ -60,10 +62,38 @@ async def init_userbots() -> List[Client]:
             userbot_clients.append(client)
             
         except Exception as e:
+            # Clean up partial startup if possible
+            try:
+                await client.stop()
+            except Exception:
+                pass
+
+            session_file = Path("./sessions") / f"userbot_{i}.session"
+            if isinstance(e, pyrogram.errors.AuthKeyDuplicated) or "AUTH_KEY_DUPLICATED" in str(e).upper():
+                logger.error(
+                    "Failed to start userbot %d due to AUTH_KEY_DUPLICATED. "
+                    "This means the same user session is used in another process/device. "
+                    "Stop other instances or re-generate SESSION_STRING_%d via generate_session.py. "
+                    "For local cleanup, delete %s if present and restart.",
+                    i,
+                    i,
+                    session_file,
+                )
+                if session_file.exists():
+                    try:
+                        session_file.unlink()
+                        logger.info("Removed stale session file %s", session_file)
+                    except Exception as exc:
+                        logger.warning("Could not remove stale session file %s: %s", session_file, exc)
+
             logger.error(f"Failed to start userbot {i}: {e}")
             if i == 1:
                 # First userbot is required
-                raise RuntimeError(f"Required userbot 1 failed to start: {e}")
+                raise RuntimeError(
+                    "Required userbot 1 failed to start: "
+                    "ensure SESSION_STRING_1 is a valid logged-in user session and not used elsewhere. "
+                    "Use generate_session.py to re-create it, then restart.",
+                    ) from e
     
     if not userbot_clients:
         raise RuntimeError("No userbots could be started")
