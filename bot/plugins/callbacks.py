@@ -2,7 +2,7 @@
 
 import logging
 from pyrogram import Client
-from pyrogram.types import CallbackQuery
+from pyrogram.types import CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
 from bot.utils.permissions import get_permission_level
 from bot.core.queue import queue_manager
 from bot.core.call import call_manager
@@ -48,6 +48,12 @@ async def callback_handler(client: Client, callback: CallbackQuery):
         "shuffle": handle_shuffle,
         "clearqueue": handle_clearqueue,
         "loop": handle_loop,
+        "vol_up": handle_vol_up,
+        "vol_down": handle_vol_down,
+        "more_options": handle_more_options,
+        "replay": handle_replay,
+        "previous": handle_previous,
+        "export_queue": handle_export_queue,
         "brok_info": handle_brok_info,
         "help": handle_help_info,
         "help_menu": handle_help_info,
@@ -182,12 +188,9 @@ async def handle_clearqueue(client: Client, callback: CallbackQuery, chat_id: in
         await callback.answer("Queue already empty!", show_alert=True)
         return
 
-    # Only clear queue, keep playing current
-    key = f"vc:queue:{chat_id}"
-    from bot.utils.cache import redis_client
-    await redis_client.delete(key)
+    await queue_manager.clear_queue(chat_id)
 
-    await callback.answer(f"🗑️ Cleared {queue_len} songs from the setlist! Yohoho!")
+    await callback.answer(f"🗑️ Cleared {queue_len} songs from the setlist! Yohoho!", show_alert=False)
 
 
 async def handle_loop(client: Client, callback: CallbackQuery, chat_id: int):
@@ -202,8 +205,17 @@ async def handle_loop(client: Client, callback: CallbackQuery, chat_id: int):
 
     await app_db.db.update_group(chat_id, {"settings.loop_mode": new_mode})
 
-    mode_text = {"none": "🔄 Loop OFF", "track": "🔂 Looping Track! Yohoho!", "queue": "🔁 Looping Queue! Yohohoho!"}
-    await callback.answer(mode_text[new_mode])
+    mode_text = {
+        "none": "🔄 Loop OFF",
+        "track": "🔂 Looping Track! Yohoho!",
+        "queue": "🔁 Looping Queue! Yohohoho!"
+    }
+
+    await callback.answer(mode_text[new_mode], show_alert=False)
+    try:
+        await callback.message.edit_reply_markup(reply_markup=callback.message.reply_markup)
+    except Exception:
+        pass
 
 
 async def handle_brok_info(client: Client, callback: CallbackQuery, chat_id: int):
@@ -247,7 +259,94 @@ async def handle_status_check(client: Client, callback: CallbackQuery, chat_id: 
     else:
         text = f"▶️ Now Playing: {current.get('title', 'Unknown')[:40]} 🎸"
 
-    await callback.answer(text, show_alert=True)
+    await callback.answer(text, show_alert=False)
+
+
+async def handle_vol_up(client: Client, callback: CallbackQuery, chat_id: int):
+    """Handle volume up callback."""
+    current = await queue_manager.get_current(chat_id)
+    if not current:
+        await callback.answer("Nothing is playing", show_alert=True)
+        return
+
+    now_vol = await call_manager._call_for(chat_id)
+    # cannot reliably read current volume from pyrogram, just set 10% up from 100 (max 200)
+    try:
+        # fallback to 100 if not available
+        new_vol = min(200, 100 + 10)
+        await call_manager.set_volume(chat_id, new_vol)
+        await callback.answer(f"🔊 Volume +10% ({new_vol}%)", show_alert=False)
+    except Exception as e:
+        logger.error(f"Volume up failed: {e}")
+        await callback.answer("Failed to adjust volume", show_alert=True)
+
+
+async def handle_vol_down(client: Client, callback: CallbackQuery, chat_id: int):
+    """Handle volume down callback."""
+    current = await queue_manager.get_current(chat_id)
+    if not current:
+        await callback.answer("Nothing is playing", show_alert=True)
+        return
+
+    try:
+        new_vol = max(1, 100 - 10)
+        await call_manager.set_volume(chat_id, new_vol)
+        await callback.answer(f"🔉 Volume -10% ({new_vol}%)", show_alert=False)
+    except Exception as e:
+        logger.error(f"Volume down failed: {e}")
+        await callback.answer("Failed to adjust volume", show_alert=True)
+
+
+async def handle_more_options(client: Client, callback: CallbackQuery, chat_id: int):
+    """Handle more options callback."""
+    keyboard = InlineKeyboardMarkup([
+        [InlineKeyboardButton("🎶 Replay", callback_data="replay"), InlineKeyboardButton("↩️ Previous", callback_data="previous")],
+        [InlineKeyboardButton("📤 Export Queue", callback_data="export_queue"), InlineKeyboardButton("🔁 Loop", callback_data="loop")],
+    ])
+    try:
+        await callback.message.edit_reply_markup(reply_markup=keyboard)
+    except Exception:
+        pass
+    await callback.answer("More options shown", show_alert=False)
+
+
+async def handle_replay(client: Client, callback: CallbackQuery, chat_id: int):
+    """Replay current track from beginning."""
+    current = await queue_manager.get_current(chat_id)
+    if not current:
+        await callback.answer("No track to replay", show_alert=True)
+        return
+
+    from bot.plugins.play import start_playback
+    await call_manager.leave_call(chat_id)
+    await start_playback(chat_id, seek=0)
+    await callback.answer("🔁 Replay started", show_alert=False)
+
+
+async def handle_previous(client: Client, callback: CallbackQuery, chat_id: int):
+    """Play previously completed track if possible."""
+    # no structured history yet in queue manager, so fallback to do nothing.
+    await callback.answer("⏮️ Previous track feature not implemented yet (coming).", show_alert=True)
+
+
+async def handle_export_queue(client: Client, callback: CallbackQuery, chat_id: int):
+    """Export queue to a text file for sharing."""
+    queue = await queue_manager.get_queue(chat_id)
+    if not queue:
+        await callback.answer("Queue is empty", show_alert=True)
+        return
+
+    lines = [f"{i+1}. {t.get('title', 'Unknown')} ({t.get('duration',0)}s)" for i,t in enumerate(queue)]
+    text = "\n".join(lines[:200])
+    if len(lines) > 200:
+        text += f"\n... (+{len(lines)-200} more)"
+
+    try:
+        await bot_module.bot_client.send_message(chat_id, f"📤 Queue export:\n{text}")
+        await callback.answer("Queue exported", show_alert=False)
+    except Exception as e:
+        logger.error(f"export_queue failed: {e}")
+        await callback.answer("Export failed", show_alert=True)
 
 
 async def handle_play_select(client: Client, callback: CallbackQuery, chat_id: int, user_id: int, data: str):

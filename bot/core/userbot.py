@@ -144,16 +144,17 @@ async def init_userbots() -> List[Client]:
                         logger.warning("Could not remove stale session file %s: %s", session_file, exc)
 
             logger.error(f"Failed to start userbot {i}: {e}")
-            if i == 1:
-                # First userbot is required
-                raise RuntimeError(
-                    "Required userbot 1 failed to start: "
-                    f"ensure {auth_label} is a valid logged-in user session and not used elsewhere. "
-                    "Use generate_session.py to re-create it, then restart.",
-                    ) from e
+            # Do NOT immediately fail the entire startup if one userbot fails.
+            # We can operate with remaining valid assistants; at least one userbot is required.
+            # AUTH_KEY_DUPLICATED should be reported, but we attempt to continue.
+            continue
     
     if not userbot_clients:
-        raise RuntimeError("No userbots could be started")
+        raise RuntimeError(
+            "No userbots could be started. "
+            "Validate your SESSION_FILE_PATH_*/SESSION_FILE_B64_*/SESSION_STRING_* values and make sure at least one userbot session is logged in and not duplicated. "
+            "Use generate_session.py to re-create a working userbot session."
+        )
     
     return userbot_clients
 

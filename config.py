@@ -139,10 +139,33 @@ class Config(BaseSettings):
         """Return ordered userbot auth entries with file-first precedence."""
         entries: List[Dict[str, str]] = []
 
+        # Load from env_file for large values that may be skipped from os.environ on Windows.
+        env_values: Dict[str, str] = {}
+        env_file = getattr(self.Config, "env_file", None)
+        if env_file:
+            try:
+                from dotenv import dotenv_values
+                env_values = dotenv_values(env_file) or {}
+            except Exception:
+                env_values = {}
+
         for idx in range(1, 6):
             file_path = self._clean_optional(getattr(self, f"SESSION_FILE_PATH_{idx}", None))
             file_b64 = self._clean_optional(getattr(self, f"SESSION_FILE_B64_{idx}", None))
             session_str = self._clean_optional(getattr(self, f"SESSION_STRING_{idx}", None))
+
+            if not file_path and not file_b64 and not session_str:
+                env_file_path = self._clean_optional(env_values.get(f"SESSION_FILE_PATH_{idx}"))
+                if env_file_path:
+                    file_path = env_file_path
+
+                env_file_b64 = self._clean_optional(env_values.get(f"SESSION_FILE_B64_{idx}"))
+                if env_file_b64:
+                    file_b64 = env_file_b64
+
+                env_session_string = self._clean_optional(env_values.get(f"SESSION_STRING_{idx}"))
+                if env_session_string:
+                    session_str = env_session_string
 
             if file_path:
                 entries.append({
@@ -177,20 +200,47 @@ class Config(BaseSettings):
 # Global config instance
 # Use .env.local (or bot/.env.local) by default when available for local development credentials.
 import os
-from dotenv import load_dotenv
+from dotenv import dotenv_values
 
 POSSIBLE_ENV_PATHS = ["bot/.env.local", ".env.local", ".env"]
 env_path = next((p for p in POSSIBLE_ENV_PATHS if os.path.exists(p)), None)
 
 if env_path:
-    load_dotenv(env_path)
-    # keep as fallback; pydantic loads env by name too
+    # Do not push super-long values (like SESSION_FILE_B64) into OS environment on Windows
+    # where there is a hard limit of 32767 characters per variable.
+    env_values = dotenv_values(env_path)
+    for key, value in env_values.items():
+        if value is None:
+            continue
+        if len(value) > 32767:
+            logger.warning(
+                "Skipping env var %s from %s because its value is too large for the OS env (len=%d)",
+                key,
+                env_path,
+                len(value),
+            )
+            continue
+        os.environ.setdefault(key, value)
+
     Config.Config.env_file = env_path
 
 # Also prefer absolute /app/bot/.env.local when running in container root
 container_local_env = "/app/bot/.env.local"
 if not env_path and os.path.exists(container_local_env):
-    load_dotenv(container_local_env)
+    env_values = dotenv_values(container_local_env)
+    for key, value in env_values.items():
+        if value is None:
+            continue
+        if len(value) > 32767:
+            logger.warning(
+                "Skipping env var %s from %s because its value is too large for the OS env (len=%d)",
+                key,
+                container_local_env,
+                len(value),
+            )
+            continue
+        os.environ.setdefault(key, value)
+
     Config.Config.env_file = container_local_env
 
 config = Config()
