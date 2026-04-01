@@ -243,7 +243,13 @@ class MusicBackend:
 
         if source == "soundcloud":
             if track.stream_url:
-                return {"url": track.stream_url, "source": "soundcloud", "headers": None}
+                result = await self.soundcloud.extract(track.stream_url)
+                if result and result.get("url"):
+                    return {
+                        "url": result["url"],
+                        "source": "soundcloud",
+                        "headers": None,
+                    }
             return await self._resolve_fallback_payload(track)
 
         if source == "audiomack":

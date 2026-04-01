@@ -34,13 +34,17 @@ class SoundCloudExtractor:
             logger.error(f"SoundCloud extraction failed: {e}")
             return None
 
-    def _extract_sync(self, url: str) -> Optional[Dict[str, Any]]:
+    def _extract_sync(self, query: str) -> Optional[Dict[str, Any]]:
         """Synchronous extraction via yt-dlp."""
         import yt_dlp
 
+        # Support both direct SoundCloud URLs and generic search queries.
+        if not any(query.startswith(p) for p in ("http://", "https://", "soundcloud", "snd.sc")):
+            query = f"scsearch1:{query}"
+
         try:
             with yt_dlp.YoutubeDL(self._YDL_OPTS_BASE) as ydl:
-                info = ydl.extract_info(url, download=False)
+                info = ydl.extract_info(query, download=False)
 
                 audio_url = None
                 if "url" in info:

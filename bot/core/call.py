@@ -368,24 +368,56 @@ class CallManager:
                     return
 
                 if "peer id invalid" in exc_str or "id not found" in exc_str or "peer_id_invalid" in exc_str:
-                    # Try to diagnose member visibility for the selected assistant.
+                    # Try to diagnose member visibility and permissions for the selected assistant.
                     note = ""
+                    stronger_note = ""
                     try:
                         userbot = self.userbots[selected_idx]
                         member = await userbot.get_chat_member(chat_id, userbot.me.id)
+                        chat = await userbot.get_chat(chat_id)
+
                         if member and member.status in ["member", "administrator", "creator"]:
-                            note = "Your assistant account is present in the group, but may not have permission to access voice chat or the group is a channel-type chat."
+                            note = (
+                                "Assistant is in group (status: {0}) and can see chat (type: {1}). "
+                                "The error may be due to a temporary Telegram API/peer cache mismatch, group type restrictions, "
+                                "or voice chat state being invalid."
+                            ).format(member.status, getattr(chat, "type", "unknown"))
+
+                            # If we have the rights to do so, attempt a small recovery path
+                            # to re-establish group call presence.
+                            try:
+                                started = await self._start_voice_chat(chat_id, selected_idx)
+                                if started:
+                                    stronger_note = (
+                                        "Auto-started voice chat during recovery; please retry /play now. "
+                                        "If this persists, do /userbotjoin and then /play."
+                                    )
+                                else:
+                                    stronger_note = (
+                                        "Could not auto-start voice chat during recovery. "
+                                        "Ensure userbot is admin with Manage Voice Chats and retry."
+                                    )
+                            except Exception as exc2:
+                                logger.debug(f"Recovery auto-start failed: {exc2}")
+                                stronger_note = "Recovery attempt failed; please check userbot rights and group membership."
+
                         else:
-                            note = "Your assistant account is not in the group. Add it as member/admin and retry."
+                            note = "Your assistant account is not in the group or is not recognized as member/admin yet."
+
                     except Exception as e:
                         logger.debug(f"Peer-id check failed: {e}")
                         note = "Your assistant account may not be in the group, or there may be chat privacy restrictions."
+
+                    final_note = note
+                    if stronger_note:
+                        final_note += " " + stronger_note
 
                     raise RuntimeError(
                         "❌ PEER ERROR: The Assistant account cannot see this chat!\n"
                         "Please make sure you have added your Assistant account (@Justahuman6996) "
                         "to this group as a Member or Admin, then try again.\n"
-                        f"Details: {note}"
+                        "Additional checks: group must allow voice chats, userbot must be in the group, and group must not be a broadcast-only (channel).\n"
+                        f"Details: {final_note}"
                     )
 
                 if "bot_method_invalid" in exc_str or "bot method invalid" in exc_str:

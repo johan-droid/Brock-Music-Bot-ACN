@@ -563,10 +563,13 @@ def _np_buttons() -> InlineKeyboardMarkup:
             InlineKeyboardButton("🔴 Stop", callback_data="stop"),     # Red stop
         ],
         [
-            InlineKeyboardButton("� Loop", callback_data="loop"),      # Purple
+            InlineKeyboardButton("🟣 Loop", callback_data="loop"),      # Purple
             InlineKeyboardButton("🔀 Shuffle", callback_data="shuffle"),  # White/Shuffle
             InlineKeyboardButton("📋 Queue", callback_data="queue"),      # Cyan/Blue
             InlineKeyboardButton("🔊 Vol+", callback_data="vol_up"),     # Speaker
+        ],
+        [
+            InlineKeyboardButton("➕ More", callback_data="more_options"),  # More options
         ],
     ])
 
