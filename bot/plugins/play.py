@@ -313,17 +313,8 @@ async def add_track_and_play(
             uploader=track.get("uploader") or track.get("artist"),
         )
 
-    # Auto-delete search msg after SEARCH_MSG_AUTOCLEAN seconds
-    async def _cleanup_search():
-        await asyncio.sleep(config.SEARCH_MSG_AUTOCLEAN)
-        try:
-            if search_msg:
-                await search_msg.delete()
-        except Exception:
-            pass
-
-    if search_msg:
-        asyncio.create_task(_cleanup_search())
+    # Note: Search selection message is NOT auto-deleted - users can take as long as they need
+    # The message will only be deleted when they select a track or click cancel
 
     if is_playing:
         # Show queue-added card
@@ -491,7 +482,6 @@ async def cleanup_vc_session(chat_id: int, send_message: bool = False) -> None:
         logger.error(f"Failed to reset progress tracker for {chat_id}: {e}")
     
     # Clear pending conflicts for this chat
-    global _pending_conflicts
     if chat_id in _pending_conflicts:
         del _pending_conflicts[chat_id]
         logger.info(f"Pending conflicts cleared for chat {chat_id}")
