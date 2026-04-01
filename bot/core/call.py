@@ -308,10 +308,24 @@ class CallManager:
                     return
 
                 if "peer id invalid" in exc_str or "id not found" in exc_str or "peer_id_invalid" in exc_str:
+                    # Try to diagnose member visibility for the selected assistant.
+                    note = ""
+                    try:
+                        userbot = self.userbots[selected_idx]
+                        member = await userbot.get_chat_member(chat_id, userbot.me.id)
+                        if member and member.status in ["member", "administrator", "creator"]:
+                            note = "Your assistant account is present in the group, but may not have permission to access voice chat or the group is a channel-type chat."
+                        else:
+                            note = "Your assistant account is not in the group. Add it as member/admin and retry."
+                    except Exception as e:
+                        logger.debug(f"Peer-id check failed: {e}")
+                        note = "Your assistant account may not be in the group, or there may be chat privacy restrictions."
+
                     raise RuntimeError(
                         "❌ PEER ERROR: The Assistant account cannot see this chat!\n"
                         "Please make sure you have added your Assistant account (@Justahuman6996) "
-                        "to this group as a Member or Admin, then try again."
+                        "to this group as a Member or Admin, then try again.\n"
+                        f"Details: {note}"
                     )
 
                 if "bot_method_invalid" in exc_str or "bot method invalid" in exc_str:
