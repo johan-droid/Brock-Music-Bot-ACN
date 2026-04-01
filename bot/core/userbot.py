@@ -4,9 +4,9 @@ import base64
 import binascii
 import logging
 from pathlib import Path
-from typing import Dict, List, Tuple
+from typing import Any, Dict, List, Tuple
 import pyrogram.errors
-from pyrogram import Client
+from pyrogram.client import Client
 from config import config
 
 logger = logging.getLogger(__name__)
@@ -39,7 +39,7 @@ def _build_client_from_auth(index: int, auth: Dict[str, str]) -> Tuple[Client, P
     client_name = f"userbot_{index}"
     session_file = Path("./sessions") / f"{client_name}.session"
     workdir = session_file.parent
-    kwargs: Dict[str, str] = {}
+    kwargs: Dict[str, Any] = {}
 
     if mode == "string":
         kwargs["session_string"] = auth["value"]
@@ -57,10 +57,18 @@ def _build_client_from_auth(index: int, auth: Dict[str, str]) -> Tuple[Client, P
     else:
         raise RuntimeError(f"Unsupported userbot auth mode: {mode}")
 
+    api_id = config.API_ID
+    api_hash = config.API_HASH
+
+    if api_id is None or api_hash is None:
+        raise RuntimeError(
+            "TELEGRAM_ENABLED is true but API_ID/API_HASH is unset (unexpected in _build_client_from_auth)."
+        )
+
     client = Client(
         client_name,
-        api_id=config.API_ID,
-        api_hash=config.API_HASH,
+        api_id=api_id,
+        api_hash=api_hash,
         workdir=str(workdir),
         **kwargs,
     )
@@ -93,6 +101,7 @@ async def init_userbots() -> List[Client]:
         )
 
     userbot_clients.clear()
+    auth_key_duplicated_count = 0
 
     for i, auth in enumerate(auth_entries, 1):
         client: Client | None = None
@@ -125,7 +134,9 @@ async def init_userbots() -> List[Client]:
             except Exception:
                 pass
 
-            if isinstance(e, pyrogram.errors.AuthKeyDuplicated) or "AUTH_KEY_DUPLICATED" in str(e).upper():
+            is_duplicated = isinstance(e, pyrogram.errors.AuthKeyDuplicated) or "AUTH_KEY_DUPLICATED" in str(e).upper()
+            if is_duplicated:
+                auth_key_duplicated_count += 1
                 logger.error(
                     "Failed to start userbot %d due to AUTH_KEY_DUPLICATED. "
                     "This means the same user session is used in another process/device. "
@@ -144,12 +155,16 @@ async def init_userbots() -> List[Client]:
                         logger.warning("Could not remove stale session file %s: %s", session_file, exc)
 
             logger.error(f"Failed to start userbot {i}: {e}")
-            # Do NOT immediately fail the entire startup if one userbot fails.
-            # We can operate with remaining valid assistants; at least one userbot is required.
-            # AUTH_KEY_DUPLICATED should be reported, but we attempt to continue.
             continue
     
     if not userbot_clients:
+        if auth_key_duplicated_count > 0:
+            raise RuntimeError(
+                "No userbots could be started due AUTH_KEY_DUPLICATED. "
+                "This usually means the same session is active elsewhere. "
+                "Stop the other instances or rotate SESSION_* and restart."
+            )
+
         raise RuntimeError(
             "No userbots could be started. "
             "Validate your SESSION_FILE_PATH_*/SESSION_FILE_B64_*/SESSION_STRING_* values and make sure at least one userbot session is logged in and not duplicated. "
