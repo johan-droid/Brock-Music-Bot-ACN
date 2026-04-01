@@ -14,7 +14,7 @@ if not hasattr(pyrogram.errors, "GroupcallForbidden"):
     # Usually it's mapped to Forbidden or BroadcastForbidden in newer versions.
     pyrogram.errors.GroupcallForbidden = getattr(pyrogram.errors, "BroadcastForbidden", pyrogram.errors.Forbidden)
 
-from bot.core.bot import init_bot
+from bot.core.bot import init_bot, start_health_server
 from bot.core.userbot import init_userbots
 from bot.core.call import init_calls
 from bot.core.queue import init_queue_manager
@@ -52,6 +52,9 @@ async def main():
     setup_logging()
     logger = logging.getLogger(__name__)
     logger.info("Starting Music Bot...")
+
+    # Start health server first so platform health checks pass during boot.
+    await start_health_server()
     
     try:
         # Initialize database connections
@@ -75,8 +78,8 @@ async def main():
             logger.info(f"Initialized {len(userbots)} userbot(s)")
         except Exception as exc:
             # If the session key is duplicated elsewhere, keep the container alive
-            # so logs stay visible and avoid crash loops. Operator must rotate the
-            # SESSION_STRING or stop the conflicting instance.
+            # so health checks stay green and logs remain visible. Operator must
+            # rotate the SESSION_STRING or stop the conflicting instance.
             if _is_auth_key_duplicated(exc):
                 logger.error(
                     "Auth key duplicated. Bot will idle until SESSION_STRING_* is rotated "

@@ -2,6 +2,7 @@
 
 import logging
 import asyncio
+import os
 from aiohttp import web
 from pyrogram import Client, filters, idle
 from pyrogram.handlers import MessageHandler
@@ -11,6 +12,7 @@ logger = logging.getLogger(__name__)
 
 # Global bot client instance
 bot_client = None
+_health_runner = None
 
 # Health check server for Railway
 async def health_check(request):
@@ -19,15 +21,22 @@ async def health_check(request):
 
 async def start_health_server():
     """Start health check server on port 8080."""
+    global _health_runner
+
+    if _health_runner is not None:
+        return _health_runner
+
     app = web.Application()
     app.router.add_get("/", health_check)
     app.router.add_get("/health", health_check)
     
     runner = web.AppRunner(app)
     await runner.setup()
-    site = web.TCPSite(runner, "0.0.0.0", 8080)
+    port = int(os.getenv("PORT", "8080"))
+    site = web.TCPSite(runner, "0.0.0.0", port)
     await site.start()
-    logger.info("Health check server started on port 8080")
+    logger.info("Health check server started on port %s", port)
+    _health_runner = runner
     return runner
 
 
