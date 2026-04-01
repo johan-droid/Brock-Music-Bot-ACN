@@ -20,7 +20,7 @@ from pyrogram.errors import MessageNotModified, MessageDeleteForbidden
 from bot.utils.permissions import rate_limit, require_member, require_admin, get_permission_level
 from bot.utils.formatters import format_duration, truncate_text
 from bot.utils.thumbnails import generate_np_thumbnail
-from bot.utils.title_detector import conflict_resolver, normalize_text
+from bot.utils.title_detector import conflict_resolver, normalize_text, calculate_similarity
 from bot.utils.progress_tracker import progress_tracker
 from bot.utils.cache import cache
 from bot.platforms import extract_audio
@@ -74,11 +74,46 @@ _progress_tasks: dict = {}
 # chat_id → asyncio.Task for NP card auto-deletion
 _autoclean_tasks: dict = {}
 
+_SOURCE_PRIORITY = {
+    "ytmusic": 0,
+    "youtube": 1,
+    "jiosaavn": 2,
+    "soundcloud": 3,
+    "audiomack": 4,
+    "spotify": 5,
+    "telegram": 6,
+}
+
 
 def _cancel_task(task_dict: dict, chat_id: int) -> None:
     task = task_dict.pop(chat_id, None)
     if task and not task.done():
         task.cancel()
+
+
+def _rank_candidates_for_selection(query: str, candidates: list) -> list:
+    """Rank tracks for /play selection with YouTube Music priority first."""
+    scored = []
+    for cand in candidates:
+        if hasattr(cand, "title"):
+            title = getattr(cand, "title", "") or ""
+            source = (getattr(cand, "source", "unknown") or "unknown").lower()
+            sim = calculate_similarity(query, title)
+            setattr(cand, "_similarity", sim)
+        else:
+            title = cand.get("title", "") or ""
+            source = (cand.get("source", "unknown") or "unknown").lower()
+            sim = calculate_similarity(query, title)
+            cand["_similarity"] = sim
+
+        scored.append((
+            _SOURCE_PRIORITY.get(source, 99),
+            -sim,
+            cand,
+        ))
+
+    scored.sort(key=lambda x: (x[0], x[1]))
+    return [item[2] for item in scored]
 
 
 # ── /play ─────────────────────────────────────────────────────────────────────
@@ -140,8 +175,8 @@ async def play_cmd(client: Client, message: Message):
             # Text search with conflict detection using unified backend
             result = await conflict_resolver.search_with_conflicts(
                 query,
-                lambda q: music_backend.search(q, limit=5),
-                max_results=5,
+                lambda q: music_backend.search(q, limit=20),
+                max_results=20,
             )
 
             if result["status"] == "not_found":
@@ -152,23 +187,26 @@ async def play_cmd(client: Client, message: Message):
                 )
                 return
 
-            if result["status"] == "conflict":
-                await _show_conflict_options(message, chat_id, user_id, result["conflicts"], search_msg)
+            # Always show a selectable menu for text queries, ranked with YT Music priority.
+            candidates = result.get("tracks") or result.get("conflicts") or []
+            ranked_candidates = _rank_candidates_for_selection(query, candidates)
+            if ranked_candidates:
+                await _show_conflict_options(message, chat_id, user_id, ranked_candidates, search_msg)
                 return
 
-            # Single match
-            raw = result["selected"]
-            # Convert Track object to dict using the unified helper
-            if isinstance(raw, Track):
-                track = raw.to_dict()
-            else:
-                track = dict(raw)
+            # Fallback if ranking produced nothing (should be rare)
+            raw = result.get("selected")
+            if raw:
+                track = raw.to_dict() if isinstance(raw, Track) else dict(raw)
+                await add_track_and_play(message, chat_id, user_id, track, search_msg)
+                return
 
-            # For JioSaavn the stream_url/url is the encrypted URL — do NOT pre-resolve here.
-            # start_playback will call music_backend.get_stream_url with the encrypted URL.
-            # For YouTube/SoundCloud the url is already a real stream URL from search metadata.
-
-            await add_track_and_play(message, chat_id, user_id, track, search_msg)
+            await search_msg.edit(
+                "💀 <b>No songs found!</b>\n"
+                "<i>\"The seas are empty of that melody... Yohohoho!\"</i>",
+                parse_mode=ParseMode.HTML,
+            )
+            return
 
     except asyncio.TimeoutError:
         await search_msg.edit("⏱ <b>Search timed out!</b>\n<i>\"The seas were too vast this time! Try again, Yohoho!\"</i>", parse_mode=ParseMode.HTML)
@@ -474,7 +512,7 @@ async def _send_now_playing(chat_id: int, track: dict) -> None:
 
     q_size = await queue_manager.get_queue_length(chat_id)
 
-    text = _build_np_text(title, uploader, source, bar, duration, q_size, quote)
+    text = _build_np_text(title, uploader, source, bar, 0, duration, q_size, quote)
     buttons = _np_buttons()
 
     try:
@@ -521,8 +559,9 @@ async def _send_now_playing(chat_id: int, track: dict) -> None:
         logger.error(f"send_now_playing failed in {chat_id}: {exc}")
 
 
-def _build_np_text(title, uploader, source, bar, duration, q_remaining, quote) -> str:
+def _build_np_text(title, uploader, source, bar, elapsed, duration, q_remaining, quote) -> str:
     dur_str = format_duration(duration) if duration > 0 else "LIVE"
+    elapsed_str = format_duration(max(0, int(elapsed))) if duration > 0 else "LIVE"
     queue_info = f"📋 <b>Up next:</b> {q_remaining} track(s) in queue" if q_remaining > 0 else "📋 <b>Queue:</b> This is the last track"
 
     return (
@@ -530,6 +569,7 @@ def _build_np_text(title, uploader, source, bar, duration, q_remaining, quote) -
         f"🎸 <b>{title}</b>\n"
         f"👤 {uploader}  ·  {source}\n\n"
         f"<code>{bar}</code>\n\n"
+        f"⏱ <b>Live:</b> <code>{elapsed_str}</code> / <code>{dur_str}</code>\n\n"
         f"{queue_info}\n\n"
         f"<i>{quote}</i>"
     )
@@ -543,7 +583,7 @@ async def _progress_updater(chat_id: int, msg: Message, track: dict) -> None:
     source = _SOURCE_BADGE.get(track.get("source", "youtube"), "🎵")
     quote = _next_quote()
 
-    interval = max(10, config.NP_UPDATE_INTERVAL)
+    interval = max(3, int(getattr(config, "NP_UPDATE_INTERVAL", 5) or 5))
 
     try:
         while True:
@@ -554,9 +594,10 @@ async def _progress_updater(chat_id: int, msg: Message, track: dict) -> None:
             if status not in ("playing", "paused"):
                 break
 
+            elapsed = int(progress_tracker.elapsed(chat_id))
             bar = progress_tracker.progress_bar(chat_id, duration)
             q_size = await queue_manager.get_queue_length(chat_id)
-            text = _build_np_text(title, uploader, source, bar, duration, q_size, quote)
+            text = _build_np_text(title, uploader, source, bar, elapsed, duration, q_size, quote)
 
             try:
                 await msg.edit_caption(text, reply_markup=_np_buttons(), parse_mode=ParseMode.HTML)
@@ -567,7 +608,9 @@ async def _progress_updater(chat_id: int, msg: Message, track: dict) -> None:
                 try:
                     await msg.edit_text(text, reply_markup=_np_buttons(), parse_mode=ParseMode.HTML)
                 except Exception:
-                    break  # Message probably deleted
+                    # Keep updater alive on transient edit failures.
+                    await asyncio.sleep(1)
+                    continue
 
     except asyncio.CancelledError:
         pass
@@ -587,11 +630,21 @@ async def _autoclean_msg(msg: Message, delay: int) -> None:
 async def _autoclean_np(chat_id: int, msg_id: int, delay: int) -> None:
     """Delete the NP card after `delay` seconds, then clear cache."""
     await asyncio.sleep(delay)
+
+    # Never delete the currently active NP card while music is still playing.
+    current_np_msg = await cache.get_np_message(chat_id)
+    status = await queue_manager.get_status(chat_id)
+    if current_np_msg == msg_id and status in ("playing", "paused"):
+        return
+
     try:
         await bot_client.delete_messages(chat_id, msg_id)
     except Exception:
         pass
-    await cache.clear_np_message(chat_id)
+
+    # Clear cache only if it still points to the same message id.
+    if (await cache.get_np_message(chat_id)) == msg_id:
+        await cache.clear_np_message(chat_id)
 
 
 # ── Conflict resolution UI ────────────────────────────────────────────────────
@@ -602,6 +655,7 @@ _pending_conflicts: dict = {}  # chat_id → {user_id → {tracks, original_msg}
 _NUM_EMOJI = ["1️⃣", "2️⃣", "3️⃣", "4️⃣", "5️⃣"]
 _SOURCE_ICON = {
     "youtube":    "▶️",
+    "ytmusic":    "🎼",
     "jiosaavn":   "🎵",
     "soundcloud": "☁️",
     "spotify":    "🟢",
@@ -716,12 +770,10 @@ async def _show_conflict_options(
     text = header + "\n".join(lines)
 
     # ── Store pending state ─────────────────────────────────────────────────
-    _pending_conflicts[chat_id] = {
-        user_id: {
-            "tracks": tracks,
-            "original_msg": search_msg,
-            "user_mention": message.from_user.mention if message.from_user else "User",
-        }
+    _pending_conflicts.setdefault(chat_id, {})[user_id] = {
+        "tracks": tracks,
+        "original_msg": search_msg,
+        "user_mention": message.from_user.mention if message.from_user else "User",
     }
 
     await _safe_edit(search_msg, text, InlineKeyboardMarkup(button_rows))

@@ -86,7 +86,7 @@ class Config(BaseSettings):
     # Now Playing card auto-clean (seconds)
     NP_AUTOCLEAN_DELAY: int = 30       # delete NP card N seconds after track ends / /stop
     SEARCH_MSG_AUTOCLEAN: int = 8      # delete "Searching..." msg N seconds after reply sent
-    NP_UPDATE_INTERVAL: int = 20       # seconds between progress bar edits (higher = less CPU load)
+    NP_UPDATE_INTERVAL: int = 5        # seconds between progress bar edits for live tracking
 
     # yt-dlp concurrency & caching
     YTDL_CONCURRENT_LIMIT: int = 3     # max parallel yt-dlp extractions
