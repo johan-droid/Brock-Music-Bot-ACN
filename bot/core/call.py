@@ -66,32 +66,27 @@ class CallManager:
 
     async def _dispatch_update(self, userbot_idx: int, update):
         """Route py-tgcalls updates to the correct internal handler."""
-        try:
-            from pytgcalls.types.stream import StreamEnded, StreamAudioEnded, StreamVideoEnded
-        except Exception:
-            # pytgcalls 2.x compatibility may expose only StreamEnded and StreamVideoEnded
-            from pytgcalls.types.stream import StreamEnded, StreamVideoEnded
-            StreamAudioEnded = StreamEnded
-
-        from pytgcalls.types import Update
-
         chat_id = getattr(update, "chat_id", None)
         if chat_id is None:
             return
 
-        if isinstance(update, (StreamEnded, StreamAudioEnded, StreamVideoEnded)):
+        update_name = type(update).__name__
+
+        # py-tgcalls changed stream-end class exports across versions.
+        # Use class-name matching instead of importing optional symbols.
+        if update_name in {"StreamEnded", "StreamAudioEnded", "StreamVideoEnded"}:
             logger.info(f"Stream ended in chat {chat_id} (userbot {userbot_idx + 1})")
             await self._on_stream_end(chat_id)
 
-        elif hasattr(update, "__class__") and "KickedFromGroupCall" in type(update).__name__:
+        elif "KickedFromGroupCall" in update_name:
             logger.warning(f"Kicked from VC in chat {chat_id}")
             await self._on_kicked(chat_id)
 
-        elif hasattr(update, "__class__") and "ClosedVoiceChat" in type(update).__name__:
+        elif "ClosedVoiceChat" in update_name:
             logger.info(f"Voice chat closed in chat {chat_id}")
             await self._on_closed(chat_id)
 
-        elif hasattr(update, "__class__") and "LeftCall" in type(update).__name__:
+        elif "LeftCall" in update_name:
             logger.info(f"Left VC in chat {chat_id}")
             self.active_chats.pop(chat_id, None)
 

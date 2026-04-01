@@ -232,6 +232,15 @@ async def add_track_and_play(
     status = await queue_manager.get_status(chat_id)
     is_playing = status in ("playing", "paused")
 
+    # Recover from stale state after process restarts/crashes:
+    # queue status may persist as playing while no active VC call exists in memory.
+    if is_playing and chat_id not in call_manager.active_chats:
+        logger.warning(
+            f"Stale playback state detected in chat {chat_id}: status={status} without active VC; resetting to idle"
+        )
+        await queue_manager.set_status(chat_id, "idle")
+        is_playing = False
+
     # Pass track_id and uploader to queue_manager to ensure reliable stream resolution
     position = await queue_manager.add_to_queue(
         chat_id=chat_id,
