@@ -156,9 +156,10 @@ async def is_group_admin(chat_id: int, user_id: int) -> bool:
                 current_admins.append(user_id)
                 await cache.cache_admins(chat_id, current_admins)
         
+        logger.info(f"Admin check for user {user_id} in chat {chat_id}: {is_admin} (status: {member.status})")
         return is_admin
     except Exception as e:
-        logger.error(f"Error checking admin status: {e}")
+        logger.error(f"Error checking admin status for user {user_id} in chat {chat_id}: {e}")
         return False
 
 

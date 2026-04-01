@@ -93,8 +93,10 @@ def _cancel_task(task_dict: dict, chat_id: int) -> None:
 
 def _rank_candidates_for_selection(query: str, candidates: list) -> list:
     """Rank tracks for /play selection with YouTube Music priority first."""
+    # Make a copy to avoid modifying the original list order during sorting
+    candidates_copy = list(candidates)
     scored = []
-    for cand in candidates:
+    for cand in candidates_copy:
         if hasattr(cand, "title"):
             title = getattr(cand, "title", "") or ""
             source = (getattr(cand, "source", "unknown") or "unknown").lower()
@@ -113,7 +115,13 @@ def _rank_candidates_for_selection(query: str, candidates: list) -> list:
         ))
 
     scored.sort(key=lambda x: (x[0], x[1]))
-    return [item[2] for item in scored]
+    result = [item[2] for item in scored]
+    logger.info(f"Ranked {len(result)} candidates for query '{query[:30]}...'")
+    for i, track in enumerate(result[:5]):
+        title = getattr(track, 'title', track.get('title', 'Unknown')) if hasattr(track, 'title') else track.get('title', 'Unknown')
+        source = getattr(track, 'source', track.get('source', 'unknown')) if hasattr(track, 'source') else track.get('source', 'unknown')
+        logger.info(f"  {i+1}. {title[:40]} [{source}]")
+    return result
 
 
 # ── /play ─────────────────────────────────────────────────────────────────────
@@ -837,18 +845,26 @@ async def resolve_conflict(chat_id: int, user_id: int, index: int, message: Mess
                 break
 
     if not conflict:
+        logger.warning(f"No conflict found for chat {chat_id}, user {user_id}, token {token}")
         return
 
     # Ensure only the requester can act on their menu
     if conflict.get("user_id") not in (None, user_id):
+        logger.warning(f"User {user_id} tried to act on conflict for user {conflict.get('user_id')}")
         return
 
     tracks = conflict.get("tracks", [])
     if index >= len(tracks):
+        logger.error(f"Invalid track index {index} for {len(tracks)} tracks in chat {chat_id}")
         return
 
     raw = tracks[index]
     orig_msg = conflict.get("original_msg")
+    
+    # Debug: Log the selected track
+    sel_title = raw.title if hasattr(raw, 'title') else raw.get('title', 'Unknown')
+    sel_source = raw.source if hasattr(raw, 'source') else raw.get('source', 'unknown')
+    logger.info(f"User {user_id} selected track {index}: {sel_title[:50]} [{sel_source}]")
 
     # Convert Track object to standard dict (preserves encrypted_url in 'url' field)
     if isinstance(raw, Track):
