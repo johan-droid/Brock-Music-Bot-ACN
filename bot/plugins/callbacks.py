@@ -52,11 +52,17 @@ async def callback_handler(client: Client, callback: CallbackQuery):
 
     handler = handlers.get(data)
     if handler:
-        # Playback callbacks — open to all non-banned members (level >= 1)
-        if data in ["pause", "resume", "skip", "stop", "shuffle", "clearqueue", "loop"]:
-            if level < 1:
-                await callback.answer("⛔ You are banned from using this bot!", show_alert=True)
-                return
+        # Match callback authority with command authority.
+        admin_actions = {"skip", "stop", "shuffle", "clearqueue", "loop"}
+        member_actions = {"pause", "resume", "queue"}
+
+        if data in admin_actions and level < 3:
+            await callback.answer("⛔ Admins only for this action.", show_alert=True)
+            return
+
+        if data in member_actions and level < 1:
+            await callback.answer("⛔ You are banned from using this bot!", show_alert=True)
+            return
 
         await handler(client, callback, chat_id)
     else:
@@ -209,14 +215,11 @@ async def handle_brok_info(client: Client, callback: CallbackQuery, chat_id: int
 async def handle_help_info(client: Client, callback: CallbackQuery, chat_id: int):
     """Handle help callback prompt by editing the message."""
     text = (
-        "💀 <b>Soul King's Guide to the Grand Line</b> 🎸\n\n"
-        "📜 <b>Commands:</b>\n"
-        "• <code>/play &lt;query&gt;</code> - Start the music\n"
-        "• <code>/pause</code> / <code>/resume</code> - Control the flow\n"
-        "• <code>/skip</code> - Next island's melody\n"
-        "• <code>/stop</code> - End the concert\n"
-        "• <code>/queue</code> - See the setlist\n\n"
-        "<i>\"Music connects us all, Yohohoho!\"</i>"
+        "🍁 <b>Commands &amp; Authority List</b>\n\n"
+        "<b>👥 Members:</b> /play, /queue (/q), /pause, /resume, /seek, /replay, /now (/np), /volume\n"
+        "<b>🛡 Admins:</b> /vplay, /clearqueue, /skip, /stop, /remove, /shuffle, /loop\n"
+        "<b>👑 Owner/Sudo:</b> /addsudo, /delsudo, /sudolist, /gban, /ungban, /block, /unblock, /stats, /broadcast, /restart, /maintenance\n\n"
+        "<i>Authority is strictly role-based.</i>"
     )
     from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
     back_button = InlineKeyboardMarkup([[InlineKeyboardButton("⬅️ Back", callback_data="status_check")]])

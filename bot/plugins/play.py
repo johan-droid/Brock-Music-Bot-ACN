@@ -298,6 +298,12 @@ async def start_playback(chat_id: int) -> None:
         track = await queue_manager.get_next(chat_id)
         if not track:
             await queue_manager.set_status(chat_id, "idle")
+            # If no more tracks are queued, auto-leave VC to keep the call assistant clean.
+            try:
+                await call_manager.leave_call(chat_id)
+                logger.info(f"Auto-left VC for chat {chat_id} after queue drained")
+            except Exception as exc:
+                logger.debug(f"Auto-leave VC failed for chat {chat_id}: {exc}")
             return
 
         await queue_manager.set_status(chat_id, "playing")

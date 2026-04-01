@@ -66,7 +66,13 @@ class CallManager:
 
     async def _dispatch_update(self, userbot_idx: int, update):
         """Route py-tgcalls updates to the correct internal handler."""
-        from pytgcalls.types.stream import StreamEnded, StreamAudioEnded, StreamVideoEnded
+        try:
+            from pytgcalls.types.stream import StreamEnded, StreamAudioEnded, StreamVideoEnded
+        except Exception:
+            # pytgcalls 2.x compatibility may expose only StreamEnded and StreamVideoEnded
+            from pytgcalls.types.stream import StreamEnded, StreamVideoEnded
+            StreamAudioEnded = StreamEnded
+
         from pytgcalls.types import Update
 
         chat_id = getattr(update, "chat_id", None)

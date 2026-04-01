@@ -13,37 +13,39 @@ from config import config
 async def help_cmd(client: Client, message: Message):
     """Handle /help command - open to everyone."""
 
-    text = """
-💀 **YOHOHOHO! The Soul King Presents...**
-
-> *"Even without flesh, my music has SOUL!"*
-— **Brook, Living Skeleton & Gentleman**
-
-⚔️ **CAPTAIN'S ORDERS** *(Owner Only)*
-`👑 /addsudo` — Promote to First Mate
-`🚫 /delsudo` — Walk the plank
-`📢 /broadcast` — Message all crews
-`🔄 /restart` — Restart the ship
-
-🦴 **CREW COMMANDS** *(All Mates Welcome)*
-`🎵 /play [song]` — Request a tune, Yohoho!
-`⏸ /pause` — Pause the soul
-`▶️ /resume` — Resume the rhythm
-`⏭ /skip` — Next melody
-`⏹ /stop` — Silence the violin
-`🔊 /volume` — Crank it to 11!
-
-� **THE SETLIST** *(Queue Control)*
-`� /queue` — View the playlist
-`🔀 /shuffle` — Mix the tracks
-`� /loop` — Repeat the magic
-`�️ /clearqueue` — Clear the stage
-
-� **SUPPORTED SOURCES**
-YouTube • Spotify • SoundCloud • JioSaavn
-
-💀 *"May your soul always find good music!"*
-    """
+    text = (
+        "🍁 Commands & Authority List\n\n"
+        "👥 Members Command\n"
+        "🎸 /play [song/URL] — Play a song or add to queue\n"
+        "🎬 /vplay [video/URL] — Play a YouTube video (Admin)\n"
+        "📋 /queue or /q — View the current setlist\n"
+        "⏯ /pause — Pause the Soul King's performance\n"
+        "▶️ /resume — Resume the performance\n"
+        "⏩ /seek [seconds] — Jump to a position in the track\n"
+        "🔁 /replay — Restart the current song from scratch\n"
+        "🎧 /now or /np — See what's playing right now\n"
+        "🔊 /volume [1-200] — Adjust volume (default: 100%)\n\n"
+        "🛡 Admins Command\n"
+        "🗑️ /clearqueue — Clear all upcoming songs\n"
+        "⏭ /skip — Skip to the next track\n"
+        "⏹ /stop — Stop everything & clear the setlist\n"
+        "❌ /remove [pos] — Remove a song from the setlist\n"
+        "🔀 /shuffle — Shuffle the setlist randomly\n"
+        "🔂 /loop [track/queue/none] — Set loop mode\n\n"
+        "👑 Owner/Sudo Commands\n"
+        "👑 /addsudo [user] — Grant sudo access\n"
+        "🚫 /delsudo [user] — Revoke sudo access\n"
+        "📜 /sudolist — List all sudo users\n"
+        "📛 /gban [user] — Global ban a user\n"
+        "✅ /ungban [user] — Remove a global ban\n"
+        "🔒 /block [user] — Block user from using the bot in this group\n"
+        "🔓 /unblock [user] — Unblock user in this group\n"
+        "📊 /stats — Full bot statistics\n"
+        "📢 /broadcast [msg] — Broadcast to all groups\n"
+        "🔄 /restart — Restart the bot\n"
+        "🛠️ /maintenance [on/off] — Toggle maintenance mode\n\n"
+        "💀 Authority is strictly enforced by role."
+    )
 
     buttons = InlineKeyboardMarkup([
         [

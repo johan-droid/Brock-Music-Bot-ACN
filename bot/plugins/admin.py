@@ -1,8 +1,8 @@
 """
 Admin commands — deeply integrated, group + private, with proper access warnings.
 Commands:
-  Owner only:   /addsudo, /delsudo, /sudolist, /broadcast, /restart, /maintenance
-  Sudo+:        /gban, /ungban, /block, /unblock, /stats
+    Owner/Sudo: /addsudo, /delsudo, /sudolist, /broadcast, /restart, /maintenance,
+                            /gban, /ungban, /block, /unblock, /stats
 """
 
 import logging
@@ -16,7 +16,7 @@ from pyrogram.errors import FloodWait, UserNotParticipant, PeerIdInvalid, BadReq
 
 from config import config
 from bot.utils.permissions import (
-    require_owner, require_sudo, get_permission_level,
+    require_sudo, get_permission_level,
     is_owner, is_sudo, is_gbanned,
 )
 from bot.utils.cache import cache
@@ -73,19 +73,19 @@ async def _resolve_target(message: Message, client: Client) -> tuple[int | None,
 
 
 # ─────────────────────────────────────────────
-# /addsudo — Owner only, group + private
+# /addsudo — Owner/Sudo, group + private
 # ─────────────────────────────────────────────
 
 @Client.on_message(filters.command("addsudo") & (filters.group | filters.private))
-@require_owner
+@require_sudo
 async def addsudo_cmd(client: Client, message: Message):
-    """Grant sudo privileges to a user (owner only)."""
+    """Grant sudo privileges to a user (owner/sudo)."""
     caller = message.from_user.id if message.from_user else None
     if not caller:
         return
 
-    if not await is_owner(caller):
-        await message.reply(_OWNER_WARN)
+    if not await is_sudo(caller):
+        await message.reply(_SUDO_WARN)
         return
 
     if len(message.command) < 2 and not message.reply_to_message:
@@ -119,19 +119,19 @@ async def addsudo_cmd(client: Client, message: Message):
 
 
 # ─────────────────────────────────────────────
-# /delsudo — Owner only, group + private
+# /delsudo — Owner/Sudo, group + private
 # ─────────────────────────────────────────────
 
 @Client.on_message(filters.command("delsudo") & (filters.group | filters.private))
-@require_owner
+@require_sudo
 async def delsudo_cmd(client: Client, message: Message):
-    """Revoke sudo privileges (owner only)."""
+    """Revoke sudo privileges (owner/sudo)."""
     caller = message.from_user.id if message.from_user else None
     if not caller:
         return
 
-    if not await is_owner(caller):
-        await message.reply(_OWNER_WARN)
+    if not await is_sudo(caller):
+        await message.reply(_SUDO_WARN)
         return
 
     if len(message.command) < 2 and not message.reply_to_message:
@@ -162,13 +162,13 @@ async def delsudo_cmd(client: Client, message: Message):
 
 
 # ─────────────────────────────────────────────
-# /sudolist — Sudo+, group + private
+# /sudolist — Owner/Sudo, group + private
 # ─────────────────────────────────────────────
 
 @Client.on_message(filters.command("sudolist") & (filters.group | filters.private))
-@require_owner
+@require_sudo
 async def sudolist_cmd(client: Client, message: Message):
-    """List all sudo users (owner only)."""
+    """List all sudo users (owner/sudo)."""
     caller = message.from_user.id if message.from_user else None
     if not caller:
         return
@@ -436,19 +436,19 @@ async def stats_cmd(client: Client, message: Message):
 
 
 # ─────────────────────────────────────────────
-# /broadcast — Owner only, group + private
+# /broadcast — Owner/Sudo, group + private
 # ─────────────────────────────────────────────
 
 @Client.on_message(filters.command("broadcast") & (filters.group | filters.private))
-@require_owner
+@require_sudo
 async def broadcast_cmd(client: Client, message: Message):
-    """Broadcast a message (owner only)."""
+    """Broadcast a message (owner/sudo)."""
     caller = message.from_user.id if message.from_user else None
     if not caller:
         return
 
-    if not await is_owner(caller):
-        await message.reply(_OWNER_WARN)
+    if not await is_sudo(caller):
+        await message.reply(_SUDO_WARN)
         return
 
     if len(message.command) < 2 and not message.reply_to_message:
@@ -504,19 +504,19 @@ async def broadcast_cmd(client: Client, message: Message):
 
 
 # ─────────────────────────────────────────────
-# /restart — Owner only, group + private
+# /restart — Owner/Sudo, group + private
 # ─────────────────────────────────────────────
 
 @Client.on_message(filters.command("restart") & (filters.group | filters.private))
-@require_owner
+@require_sudo
 async def restart_cmd(client: Client, message: Message):
-    """Restart bot (owner only)."""
+    """Restart bot (owner/sudo)."""
     caller = message.from_user.id if message.from_user else None
     if not caller:
         return
 
-    if not await is_owner(caller):
-        await message.reply(_OWNER_WARN)
+    if not await is_sudo(caller):
+        await message.reply(_SUDO_WARN)
         return
 
     await message.reply(
@@ -531,19 +531,19 @@ async def restart_cmd(client: Client, message: Message):
 
 
 # ─────────────────────────────────────────────
-# /maintenance — Owner only, group + private
+# /maintenance — Owner/Sudo, group + private
 # ─────────────────────────────────────────────
 
 @Client.on_message(filters.command("maintenance") & (filters.group | filters.private))
-@require_owner
+@require_sudo
 async def maintenance_cmd(client: Client, message: Message):
-    """Toggle maintenance mode (owner only)."""
+    """Toggle maintenance mode (owner/sudo)."""
     caller = message.from_user.id if message.from_user else None
     if not caller:
         return
 
-    if not await is_owner(caller):
-        await message.reply(_OWNER_WARN)
+    if not await is_sudo(caller):
+        await message.reply(_SUDO_WARN)
         return
 
     # No argument — show current status

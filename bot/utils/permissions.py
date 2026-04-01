@@ -299,7 +299,8 @@ def require_admin(func):
         if not await check_bot_admin(chat_id):
             await message.reply(
                 "❌ I need to be an admin with 'Manage Voice Chats' permission to function.\n"
-                "Please promote me and try again."
+                "Please promote me and/or your userbot helper with voice chat permissions and try again.\n"
+                "Use /userbotjoin to route voice activities through your userbot if needed, and /vcdebug for diagnostics."
             )
             return
         
