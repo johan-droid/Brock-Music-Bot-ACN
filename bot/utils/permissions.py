@@ -147,7 +147,9 @@ async def is_group_admin(chat_id: int, user_id: int) -> bool:
     try:
         # Fetch from Telegram
         member = await bot_module.bot_client.get_chat_member(chat_id, user_id)
-        is_admin = member.status in ["administrator", "creator"]
+        # Handle both string and enum status values
+        status_str = str(member.status)
+        is_admin = status_str in ["administrator", "creator", "ChatMemberStatus.ADMINISTRATOR", "ChatMemberStatus.OWNER", "OWNER"]
         
         # Update cache
         if is_admin:
