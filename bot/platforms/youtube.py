@@ -12,6 +12,7 @@ Design principles:
 import asyncio
 import logging
 import os
+import re
 from typing import Optional, Dict, Any
 
 import yt_dlp
@@ -31,12 +32,13 @@ _PLAYER_CLIENTS = [
 
 # ─── Format selection ─────────────────────────────────────────────────────────
 # Prefer Opus/WebM (native Telegram codec) → M4A → MP3 → best
+# 'bestaudio/best' fallback keeps extraction working even when strict filters fail
 # Do NOT use postprocessors — we want the RAW stream URL, not a downloaded file
 _FORMAT = (
     "bestaudio[ext=webm][acodec=opus]/"
     "bestaudio[ext=m4a]/"
     "bestaudio[ext=mp3]/"
-    "bestaudio"
+    "bestaudio/best"
 )
 
 
@@ -77,6 +79,20 @@ def _build_opts(player_clients: list, cookies: Optional[str] = None) -> dict:
 _COOKIES_PATH = "./cookies.txt"
 
 
+def _is_youtube_video_id(query: str) -> bool:
+    """Detect plain 11-character YouTube video IDs."""
+    return bool(re.fullmatch(r"[A-Za-z0-9_-]{11}", query))
+
+
+def _normalize_youtube_query(query: str) -> str:
+    """Convert raw IDs to watch URLs and leave other non-URL queries as ytsearch."""
+    if query.startswith("http://") or query.startswith("https://") or query.startswith("youtu"):
+        return query
+    if _is_youtube_video_id(query):
+        return f"https://www.youtube.com/watch?v={query}"
+    return f"ytsearch:{query}"
+
+
 class YouTubeExtractor:
     """Thread-pool-safe YouTube audio URL extractor."""
 
@@ -84,65 +100,78 @@ class YouTubeExtractor:
         """Run yt-dlp synchronously in a thread pool executor."""
         opts = _build_opts(player_clients, _COOKIES_PATH if os.path.exists(_COOKIES_PATH) else None)
 
-        # Prepend ytsearch: for non-URL queries
-        if not any(query.startswith(p) for p in ("http://", "https://", "youtu")):
-            query = f"ytsearch:{query}"
+        # Normalize IDs and search queries to avoid 'format not available' from invalid query states
+        query = _normalize_youtube_query(query)
 
         try:
             with yt_dlp.YoutubeDL(opts) as ydl:
                 info = ydl.extract_info(query, download=False)
-
-                # Unwrap search results
-                if info and "entries" in info:
-                    entries = [e for e in info["entries"] if e]
-                    if not entries:
-                        return None
-                    info = entries[0]
-
-                if not info:
+        except yt_dlp.utils.DownloadError as exc:
+            err_text = str(exc).lower()
+            if "requested format is not available" in err_text or "format is not available" in err_text:
+                logger.warning("yt-dlp download error, retrying with strict fallback format (bestaudio/best)")
+                strict_opts = dict(opts)
+                strict_opts["format"] = "bestaudio/best"
+                try:
+                    with yt_dlp.YoutubeDL(strict_opts) as ydl:
+                        info = ydl.extract_info(query, download=False)
+                except Exception as exc2:
+                    logger.debug(f"yt-dlp strict fallback failed [{player_clients}]: {exc2}")
                     return None
-
-                # Pick the best audio-only stream URL
-                formats = info.get("formats") or []
-                stream_url = None
-
-                # Priority: audio-only streams first
-                for fmt in reversed(formats):
-                    if fmt.get("acodec") not in (None, "none") and fmt.get("vcodec") in (None, "none", ""):
-                        url = fmt.get("url")
-                        if url:
-                            stream_url = url
-                            break
-
-                # Fallback: any format with audio
-                if not stream_url:
-                    for fmt in reversed(formats):
-                        if fmt.get("acodec") not in (None, "none"):
-                            url = fmt.get("url")
-                            if url:
-                                stream_url = url
-                                break
-
-                # Last resort: top-level url
-                if not stream_url:
-                    stream_url = info.get("url")
-
-                if not stream_url:
-                    return None
-
-                return {
-                    "url": stream_url,
-                    "title": info.get("title", "Unknown"),
-                    "duration": int(info.get("duration") or 0),
-                    "thumbnail": info.get("thumbnail"),
-                    "uploader": info.get("uploader") or info.get("channel", ""),
-                    "source": "youtube",
-                    "video_id": info.get("id", ""),
-                }
-
+            else:
+                logger.debug(f"yt-dlp download error [{player_clients}]: {exc}")
+                return None
         except Exception as exc:
             logger.debug(f"yt-dlp extract_sync error [{player_clients}]: {exc}")
             return None
+
+        # Unwrap search results
+        if info and "entries" in info:
+            entries = [e for e in info["entries"] if e]
+            if not entries:
+                return None
+            info = entries[0]
+
+        if not info:
+            return None
+
+        # Pick the best audio-only stream URL
+        formats = info.get("formats") or []
+        stream_url = None
+
+        # Priority: audio-only streams first
+        for fmt in reversed(formats):
+            if fmt.get("acodec") not in (None, "none") and fmt.get("vcodec") in (None, "none", ""):
+                url = fmt.get("url")
+                if url:
+                    stream_url = url
+                    break
+
+        # Fallback: any format with audio
+        if not stream_url:
+            for fmt in reversed(formats):
+                if fmt.get("acodec") not in (None, "none"):
+                    url = fmt.get("url")
+                    if url:
+                        stream_url = url
+                        break
+
+        # Last resort: top-level url
+        if not stream_url:
+            stream_url = info.get("url")
+
+        if not stream_url:
+            return None
+
+        return {
+            "url": stream_url,
+            "title": info.get("title", "Unknown"),
+            "duration": int(info.get("duration") or 0),
+            "thumbnail": info.get("thumbnail"),
+            "uploader": info.get("uploader") or info.get("channel", ""),
+            "source": "youtube",
+            "video_id": info.get("id", ""),
+        }
 
     async def extract(self, query: str) -> Optional[Dict[str, Any]]:
         """
@@ -231,8 +260,6 @@ class YouTubeExtractor:
 
 
 # ─── Redis / cache helpers ────────────────────────────────────────────────────
-
-import re
 
 def _parse_video_id(query: str) -> Optional[str]:
     """Extract YouTube video ID from URL, or None for plain search queries."""

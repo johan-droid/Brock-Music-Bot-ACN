@@ -8,6 +8,7 @@ yt-dlp==2024.12.6
 pydantic==2.10.4
 pydantic-settings==2.7.1
 motor==3.6.0
+pymongo==4.9.2
 redis==5.2.1
 upstash-redis==1.2.0
 aiofiles==24.1.0
