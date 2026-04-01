@@ -78,6 +78,41 @@ async def resume_cmd(client: Client, message: Message):
         await message.reply("💀 Even Brook can't resume this one! Try again.")
 
 
+@Client.on_message(filters.command("forceresume") & filters.group)
+@require_admin
+@rate_limit
+async def forceresume_cmd(client: Client, message: Message):
+    """Force resume - cleans up stuck state and restarts playback (admin only)."""
+    chat_id = message.chat.id
+    
+    queue_len = await queue_manager.get_queue_length(chat_id)
+    if queue_len == 0:
+        await message.reply(
+            "💀 <b>No songs in queue!</b>\n"
+            "Use /play to add songs first, Yohoho!"
+        )
+        return
+    
+    try:
+        # Clean up any stuck state
+        from bot.plugins.play import cleanup_vc_session
+        await cleanup_vc_session(chat_id, send_message=False)
+        
+        # Start fresh playback
+        from bot.plugins.play import start_playback
+        await start_playback(chat_id)
+        
+        await message.reply(
+            "🔄 <b>Force Resumed!</b> Cleaned up and restarted the concert!\n"
+            "<i>YOHOHOHO! The Soul King is back! 🎸</i>",
+            parse_mode="html"
+        )
+        logger.info(f"Force resumed playback in chat {chat_id}")
+    except Exception as e:
+        logger.error(f"Force resume failed: {e}")
+        await message.reply("💀 Even Brook couldn't force a resume! Try /play or /cleanup instead.")
+
+
 @Client.on_message(filters.command("skip") & filters.group)
 @require_admin
 @rate_limit
