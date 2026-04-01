@@ -8,7 +8,7 @@ from bot.core.queue import queue_manager
 from bot.core.call import call_manager
 from bot.utils.progress_tracker import progress_tracker
 from bot.utils.cache import cache
-from bot.core.bot import bot_client
+from bot.core import bot as bot_module
 from config import config
 import asyncio
 
@@ -131,7 +131,8 @@ async def handle_stop(client: Client, callback: CallbackQuery, chat_id: int):
         async def _nuke_np():
             await asyncio.sleep(config.NP_AUTOCLEAN_DELAY)
             try:
-                await bot_client.delete_messages(chat_id, np_msg_id)
+                if bot_module.bot_client:
+                    await bot_module.bot_client.delete_messages(chat_id, np_msg_id)
             except Exception:
                 pass
             await cache.clear_np_message(chat_id)

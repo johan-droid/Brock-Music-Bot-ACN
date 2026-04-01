@@ -74,6 +74,35 @@ class QueueManager:
         logger.info(f"Added track to queue for chat {chat_id}: {title} (pos: {queue_len})")
         
         return queue_len
+
+    async def add_to_front(
+        self,
+        chat_id: int,
+        title: str,
+        url: str,
+        duration: int,
+        thumb: Optional[str] = None,
+        requested_by: Optional[int] = None,
+        source: str = "youtube",
+        track_id: Optional[str] = None,
+        uploader: Optional[str] = None,
+    ) -> int:
+        """Add a song to the front of queue so it plays next immediately."""
+        track = {
+            "title": title,
+            "url": url,
+            "duration": duration,
+            "thumb": thumb,
+            "requested_by": requested_by,
+            "source": source,
+            "id": track_id,
+            "uploader": uploader,
+        }
+
+        key = self._queue_key(chat_id)
+        await cache.lpush(key, json.dumps(track))
+        logger.info(f"Added track to FRONT of queue for chat {chat_id}: {title}")
+        return 1
     
     async def get_next(self, chat_id: int) -> Optional[Dict[str, Any]]:
         """Get and remove the next song from queue."""

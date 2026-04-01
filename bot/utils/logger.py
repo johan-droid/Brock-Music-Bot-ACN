@@ -5,7 +5,7 @@ import logging.handlers
 import os
 from datetime import datetime
 from config import config
-from bot.core.bot import bot_client
+from bot.core import bot as bot_module
 
 
 class TelegramLogHandler(logging.Handler):
@@ -19,7 +19,10 @@ class TelegramLogHandler(logging.Handler):
     def emit(self, record: logging.LogRecord):
         try:
             if not self._bot:
-                self._bot = bot_client
+                self._bot = bot_module.bot_client
+
+            if not self._bot and bot_module.bot_client:
+                self._bot = bot_module.bot_client
             
             # Only send warnings and above to Telegram
             if record.levelno < logging.WARNING:

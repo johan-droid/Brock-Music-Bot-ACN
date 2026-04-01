@@ -10,7 +10,7 @@ from bot.utils.cache import cache
 import bot.utils.database as app_db
 from bot.core.call import call_manager
 from bot.core.queue import queue_manager
-from bot.core.bot import bot_client
+from bot.core import bot as bot_module
 from config import config
 
 logger = logging.getLogger(__name__)
@@ -138,7 +138,8 @@ async def stop_cmd(client: Client, message: Message):
                 import asyncio as _a
                 await _a.sleep(config.NP_AUTOCLEAN_DELAY)
                 try:
-                    await bot_client.delete_messages(chat_id, np_msg_id)
+                    if bot_module.bot_client:
+                        await bot_module.bot_client.delete_messages(chat_id, np_msg_id)
                 except Exception:
                     pass
                 await cache.clear_np_message(chat_id)

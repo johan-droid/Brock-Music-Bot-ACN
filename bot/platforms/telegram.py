@@ -4,7 +4,7 @@ import logging
 import os
 from typing import Optional, Dict, Any
 from pyrogram.types import Message
-from bot.core.bot import bot_client
+from bot.core import bot as bot_module
 
 logger = logging.getLogger(__name__)
 
@@ -95,6 +95,10 @@ class TelegramAudioHandler:
             Local file path or None
         """
         try:
+            if not bot_module.bot_client:
+                logger.error("Bot client is not initialized for Telegram media download")
+                return None
+
             file_name = f"tg_{media.file_unique_id}"
             if hasattr(media, 'file_name') and media.file_name:
                 file_name = media.file_name
@@ -102,7 +106,7 @@ class TelegramAudioHandler:
             file_path = os.path.join(self.download_dir, file_name)
             
             # Download using bot client
-            downloaded = await bot_client.download_media(
+            downloaded = await bot_module.bot_client.download_media(
                 media,
                 file_name=file_path
             )

@@ -27,7 +27,7 @@ from bot.platforms import extract_audio
 from bot.platforms import youtube as yt_module
 from bot.core.queue import queue_manager
 from bot.core.call import call_manager
-from bot.core.bot import bot_client
+from bot.core import bot as bot_module
 from bot.core.music_backend import music_backend, Track
 from config import config
 
@@ -279,18 +279,31 @@ async def add_track_and_play(
         await queue_manager.set_status(chat_id, "idle")
         is_playing = False
 
-    # Pass track_id and uploader to queue_manager to ensure reliable stream resolution
-    position = await queue_manager.add_to_queue(
-        chat_id=chat_id,
-        title=track.get("title", "Unknown"),
-        url=track.get("url", ""),
-        duration=track.get("duration", 0),
-        thumb=track.get("thumbnail") or track.get("thumb"),
-        requested_by=user_id,
-        source=track.get("source", "youtube"),
-        track_id=track.get("id") or track.get("track_id"),
-        uploader=track.get("uploader") or track.get("artist"),
-    )
+    # Ensure selected song starts immediately when player is idle/stale.
+    if is_playing:
+        position = await queue_manager.add_to_queue(
+            chat_id=chat_id,
+            title=track.get("title", "Unknown"),
+            url=track.get("url", ""),
+            duration=track.get("duration", 0),
+            thumb=track.get("thumbnail") or track.get("thumb"),
+            requested_by=user_id,
+            source=track.get("source", "youtube"),
+            track_id=track.get("id") or track.get("track_id"),
+            uploader=track.get("uploader") or track.get("artist"),
+        )
+    else:
+        position = await queue_manager.add_to_front(
+            chat_id=chat_id,
+            title=track.get("title", "Unknown"),
+            url=track.get("url", ""),
+            duration=track.get("duration", 0),
+            thumb=track.get("thumbnail") or track.get("thumb"),
+            requested_by=user_id,
+            source=track.get("source", "youtube"),
+            track_id=track.get("id") or track.get("track_id"),
+            uploader=track.get("uploader") or track.get("artist"),
+        )
 
     # Auto-delete search msg after SEARCH_MSG_AUTOCLEAN seconds
     async def _cleanup_search():
@@ -433,7 +446,8 @@ async def start_playback(chat_id: int) -> None:
         # User-friendly VC errors
         await queue_manager.set_status(chat_id, "idle")
         try:
-            await bot_client.send_message(chat_id, f"💀 <b>{exc}</b>", parse_mode=ParseMode.HTML)
+            if bot_module.bot_client:
+                await bot_module.bot_client.send_message(chat_id, f"💀 <b>{exc}</b>", parse_mode=ParseMode.HTML)
         except Exception:
             pass
 
@@ -533,7 +547,9 @@ async def _send_now_playing(chat_id: int, track: dict) -> None:
                 pass
 
         if thumb_data:
-            msg = await bot_client.send_photo(
+            if not bot_module.bot_client:
+                raise RuntimeError("bot client is not initialized")
+            msg = await bot_module.bot_client.send_photo(
                 chat_id=chat_id,
                 photo=thumb_data,
                 caption=text,
@@ -541,7 +557,9 @@ async def _send_now_playing(chat_id: int, track: dict) -> None:
                 parse_mode=ParseMode.HTML,
             )
         else:
-            msg = await bot_client.send_message(
+            if not bot_module.bot_client:
+                raise RuntimeError("bot client is not initialized")
+            msg = await bot_module.bot_client.send_message(
                 chat_id=chat_id,
                 text=text,
                 reply_markup=buttons,
@@ -638,7 +656,8 @@ async def _autoclean_np(chat_id: int, msg_id: int, delay: int) -> None:
         return
 
     try:
-        await bot_client.delete_messages(chat_id, msg_id)
+        if bot_module.bot_client:
+            await bot_module.bot_client.delete_messages(chat_id, msg_id)
     except Exception:
         pass
 

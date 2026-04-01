@@ -21,7 +21,7 @@ from bot.utils.permissions import (
 )
 from bot.utils.cache import cache
 import bot.utils.database as app_db
-from bot.core.bot import bot_client
+from bot.core import bot as bot_module
 
 logger = logging.getLogger(__name__)
 
@@ -482,7 +482,8 @@ async def broadcast_cmd(client: Client, message: Message):
             if broadcast_msg:
                 await broadcast_msg.copy(gid)
             else:
-                await bot_client.send_message(gid, broadcast_text)
+                if bot_module.bot_client:
+                    await bot_module.bot_client.send_message(gid, broadcast_text)
             success += 1
             await asyncio.sleep(0.08)  # Respect Telegram rate limits
         except FloodWait as e:
