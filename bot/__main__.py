@@ -26,6 +26,26 @@ from bot.core.music_backend import music_backend
 from config import config
 
 
+def _is_auth_key_duplicated(exc: Exception) -> bool:
+    """Return True if exception chain indicates Telegram AUTH_KEY_DUPLICATED."""
+    seen = set()
+    current: Exception | None = exc
+
+    while current and id(current) not in seen:
+        seen.add(id(current))
+
+        if isinstance(current, pyrogram.errors.AuthKeyDuplicated):
+            return True
+
+        msg = str(current).upper()
+        if "AUTH_KEY_DUPLICATED" in msg or "AUTH KEY DUPLICATED" in msg:
+            return True
+
+        current = current.__cause__ or current.__context__
+
+    return False
+
+
 async def main():
     """Main entry point - initialize all components."""
     # Setup logging
@@ -57,7 +77,7 @@ async def main():
             # If the session key is duplicated elsewhere, keep the container alive
             # so logs stay visible and avoid crash loops. Operator must rotate the
             # SESSION_STRING or stop the conflicting instance.
-            if "AUTH_KEY_DUPLICATED" in str(exc).upper():
+            if _is_auth_key_duplicated(exc):
                 logger.error(
                     "Auth key duplicated. Bot will idle until SESSION_STRING_* is rotated "
                     "or the other instance is stopped."
