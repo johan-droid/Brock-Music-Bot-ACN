@@ -339,12 +339,14 @@ async def vcdebug_cmd(client: Client, message: Message):
     queue_status = await queue_manager.get_status(chat_id)
     current = await queue_manager.get_current(chat_id)
     qlen = await queue_manager.get_queue_length(chat_id)
-    is_bot_admin = await require_admin.__wrapped__(client, message) if False else None
     # using existing helper for userbot permissions
     from bot.utils.permissions import check_bot_admin, check_userbot_admin
 
     bot_admin_state = await check_bot_admin(chat_id)
     userbot_admin_state = await check_userbot_admin(chat_id)
+    balancer = call_manager.get_balancer_snapshot() if call_manager else {"loads": {}}
+    loads = balancer.get("loads", {})
+    load_text = ", ".join([f"#{int(idx) + 1}:{count}" for idx, count in loads.items()]) if loads else "n/a"
 
     text = (
         f"🔍 <b>VC Debug Status</b>\n"
@@ -356,9 +358,9 @@ async def vcdebug_cmd(client: Client, message: Message):
         f"• Current track: {current.get('title','None') if current else 'None'}\n"
         f"• Bot admin: {'✅' if bot_admin_state else '❌'}\n"
         f"• Userbot admin: {'✅' if userbot_admin_state else '❌'}\n"
-        f"\n💡 Tip: Ensure both the bot and userbot are admins with **Manage Video Chats / Voice Chats**.
-        "
-        f"If userbot is not admin, run /userbotjoin after promotion."
+        f"• Assistant loads: {load_text}\n"
+        "\n💡 Tip: Ensure both the bot and userbot are admins with **Manage Video Chats / Voice Chats**.\n"
+        "If userbot is not admin, run /userbotjoin after promotion."
     )
 
     await message.reply(text, parse_mode="html")

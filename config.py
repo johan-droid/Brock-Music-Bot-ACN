@@ -96,6 +96,8 @@ class Config(BaseSettings):
     VC_PLAY_TIMEOUT: int = 20
     AUTO_START_VC: bool = True
     AUTO_START_VC_TITLE: str = "Music Bot Live"
+    # Per-assistant active VC cap. 0 means unlimited.
+    ASSISTANT_MAX_ACTIVE_CHATS: int = 0
 
     @property
     def session_strings(self) -> List[str]:

@@ -11,7 +11,7 @@ DO NOT run a separate FFmpeg subprocess — it is redundant and causes instabili
 import asyncio
 import logging
 import random
-from typing import Dict, Optional, Callable, List
+from typing import Dict, Optional, Callable, List, Any
 
 from pytgcalls import PyTgCalls
 from pytgcalls.types import MediaStream
@@ -43,6 +43,8 @@ class CallManager:
         self.calls: Dict[int, PyTgCalls] = {}
         # chat_id (int) → userbot_idx (int)
         self.active_chats: Dict[int, int] = {}
+        # chat-scoped lock to avoid concurrent join/stream race in the same group
+        self.chat_locks: Dict[int, asyncio.Lock] = {}
         # External handlers called when a stream ends
         self.on_stream_end_handlers: List[Callable] = []
 
@@ -115,6 +117,70 @@ class CallManager:
             logger.warning(f"Auto-start voice chat failed in {chat_id}: {exc}")
             return False
 
+    def _chat_lock(self, chat_id: int) -> asyncio.Lock:
+        """Return a per-chat lock to serialize VC operations for that group."""
+        lock = self.chat_locks.get(chat_id)
+        if lock is None:
+            lock = asyncio.Lock()
+            self.chat_locks[chat_id] = lock
+        return lock
+
+    def _current_loads(self) -> Dict[int, int]:
+        """Return active chat counts per userbot index."""
+        loads = {idx: 0 for idx in self.calls.keys()}
+        for idx in self.active_chats.values():
+            loads[idx] = loads.get(idx, 0) + 1
+        return loads
+
+    def _candidate_userbots(self, preferred_idx: Optional[int] = None) -> List[int]:
+        """Build userbot candidates sorted by current load (least loaded first)."""
+        loads = self._current_loads()
+        candidates = sorted(self.calls.keys(), key=lambda idx: (loads.get(idx, 0), idx))
+
+        # Apply per-assistant load cap if configured (>0).
+        max_chats = int(getattr(config, "ASSISTANT_MAX_ACTIVE_CHATS", 0) or 0)
+        if max_chats > 0:
+            under_limit = [idx for idx in candidates if loads.get(idx, 0) < max_chats]
+            if under_limit:
+                candidates = under_limit
+
+        # If caller explicitly requested an assistant, prioritize it when available.
+        if preferred_idx is not None and preferred_idx in candidates:
+            candidates.remove(preferred_idx)
+            candidates.insert(0, preferred_idx)
+
+        return candidates
+
+    def _select_assistant_for_chat(
+        self,
+        chat_id: int,
+        preferred_idx: Optional[int] = None,
+        force_reassign: bool = False,
+    ) -> int:
+        """
+        Choose userbot for this chat:
+        1) Sticky assignment while active (prevents cross-assistant stream switches)
+        2) Least-loaded candidate for new chat joins
+        """
+        sticky_idx = self.active_chats.get(chat_id)
+        if not force_reassign and sticky_idx in self.calls:
+            return sticky_idx
+
+        candidates = self._candidate_userbots(preferred_idx=preferred_idx)
+        if not candidates:
+            raise RuntimeError("No userbot call instances are available")
+        return candidates[0]
+
+    def get_balancer_snapshot(self) -> Dict[str, Any]:
+        """Expose load-balancer state for /vcdebug and diagnostics."""
+        loads = self._current_loads()
+        return {
+            "total_userbots": len(self.calls),
+            "active_chats": len(self.active_chats),
+            "loads": {str(idx): loads.get(idx, 0) for idx in sorted(self.calls.keys())},
+            "assignments": {str(chat_id): idx for chat_id, idx in self.active_chats.items()},
+        }
+
     # ─── Playback control ─────────────────────────────────────────────────────
 
     # ─── Playback control ─────────────────────────────────────────────────────
@@ -124,7 +190,7 @@ class CallManager:
         chat_id: int,
         stream_url: str,
         video: bool = False,
-        userbot_idx: int = 0,
+        userbot_idx: Optional[int] = None,
         seek: Optional[int] = None,
         force_join: bool = False,
         headers: Optional[Dict[str, str]] = None,
@@ -140,103 +206,144 @@ class CallManager:
             seek:        Optional skip to X seconds
             force_join:  Always call .play instead of .change_stream
         """
-        call = self.calls.get(userbot_idx)
-        if not call:
-            raise RuntimeError(f"No call instance for userbot {userbot_idx}")
+        async with self._chat_lock(chat_id):
+            selected_idx = self._select_assistant_for_chat(
+                chat_id,
+                preferred_idx=userbot_idx,
+                force_reassign=force_join,
+            )
+            call = self.calls.get(selected_idx)
+            if not call:
+                raise RuntimeError(f"No call instance for userbot {selected_idx}")
 
-        stream = self._build_stream(stream_url, video=video, seek=seek, headers=headers)
-        timeout_s = max(5, int(getattr(config, "VC_PLAY_TIMEOUT", 20) or 20))
-        
-        # Check if we're already active in this chat
-        is_active = chat_id in self.active_chats and not force_join
-        
-        try:
-            if is_active:
-                try:
-                    logger.info(f"Attempting stream change in {chat_id} (timeout={timeout_s}s)")
-                    await asyncio.wait_for(call.change_stream(chat_id, stream), timeout=timeout_s)
-                    logger.info(f"Changed stream in {chat_id}")
-                    return
-                except NotInCallError:
-                    # Inconsistent state, fallback to play()
-                    logger.warning(f"Inconsistent call state for {chat_id}, rejoining...")
-                except asyncio.TimeoutError:
-                    raise RuntimeError(
-                        "Voice Chat stream change timed out. Please ensure the assistant is in the VC and try /play again."
-                    )
-            
-            # Peer Resolution Pre-check:
-            # Pyrogram clients need to "see" a chat (be in their SQLite cache) before 
-            # PyTgCalls can resolve the peer and join. We force a get_chat() here.
+            stream = self._build_stream(stream_url, video=video, seek=seek, headers=headers)
+            timeout_s = max(5, int(getattr(config, "VC_PLAY_TIMEOUT", 20) or 20))
+
+            # Keep stream changes sticky to the assistant that owns this chat.
+            is_active = chat_id in self.active_chats and not force_join
+
             try:
-                # userbot_idx is passed in self.play() arguments
-                client = self.userbots[userbot_idx]
-                await client.get_chat(chat_id)
-            except Exception as e:
-                logger.debug(f"Pre-play get_chat on userbot failed: {e}")
-                # We don't raise here yet; call.play might still work or give a better error 
-
-            # ensure a voice chat exists / auto-start with userbot if supported
-            await self._start_voice_chat(chat_id, userbot_idx)
-
-            logger.info(f"Attempting VC playback join in {chat_id} (timeout={timeout_s}s)")
-            await asyncio.wait_for(call.play(chat_id, stream), timeout=timeout_s)
-            self.active_chats[chat_id] = userbot_idx
-            logger.info(f"Started playback in {chat_id} (video={video})")
-
-        except Exception as exc:
-            # Handle 'Already Joined' scenario which can happen with PyTgCalls
-            exc_str = str(exc).lower()
-
-            if isinstance(exc, asyncio.TimeoutError):
-                raise RuntimeError(
-                    "Voice Chat join/play timed out. Verify an active VC exists and the assistant has permission to speak."
-                )
-            
-            if "already joined" in exc_str or "already_joined" in exc_str:
-                try:
-                    await asyncio.wait_for(call.change_stream(chat_id, stream), timeout=timeout_s)
-                except asyncio.TimeoutError:
-                    raise RuntimeError(
-                        "Voice Chat stream switch timed out. Please restart VC and try again."
-                    )
-                self.active_chats[chat_id] = userbot_idx
-                return
-
-            if "peer id invalid" in exc_str or "id not found" in exc_str or "peer_id_invalid" in exc_str:
-                raise RuntimeError(
-                    "❌ PEER ERROR: The Assistant account cannot see this chat!\n"
-                    "Please make sure you have added your Assistant account (@Justahuman6996) "
-                    "to this group as a Member or Admin, then try again."
-                )
-
-            if "bot_method_invalid" in exc_str or "bot method invalid" in exc_str:
-                 raise RuntimeError(
-                    "ERROR: Your Userbot Session is a BOT account! "
-                    "PyTgCalls requires a REAL USER account (Phone Number) to stream music. "
-                    "Please run 'python generate_session.py' and log in with a phone number."
-                )
-
-            if "no active group call" in exc_str or isinstance(exc, NoActiveGroupCall):
-                started = await self._start_voice_chat(chat_id, userbot_idx)
-                if started:
+                if is_active:
+                    active_idx = self.active_chats.get(chat_id, selected_idx)
+                    call = self.calls.get(active_idx)
+                    if not call:
+                        raise RuntimeError(f"No call instance for active userbot {active_idx}")
                     try:
-                        await asyncio.sleep(1.2)
-                        logger.info(f"Retrying VC playback join in {chat_id} after auto-start")
-                        await asyncio.wait_for(call.play(chat_id, stream), timeout=timeout_s)
-                        self.active_chats[chat_id] = userbot_idx
-                        logger.info(f"Started playback in {chat_id} after auto VC start (video={video})")
+                        logger.info(
+                            f"Attempting stream change in {chat_id} via userbot #{active_idx + 1} "
+                            f"(timeout={timeout_s}s)"
+                        )
+                        await asyncio.wait_for(call.change_stream(chat_id, stream), timeout=timeout_s)
+                        logger.info(f"Changed stream in {chat_id}")
                         return
-                    except Exception as retry_exc:
-                        logger.error(f"VC retry failed in {chat_id}: {retry_exc}")
+                    except NotInCallError:
+                        # Inconsistent state, fallback to play()
+                        logger.warning(f"Inconsistent call state for {chat_id}, rejoining...")
+                        selected_idx = active_idx
+                    except asyncio.TimeoutError:
+                        raise RuntimeError(
+                            "Voice Chat stream change timed out. Please ensure the assistant is in the VC and try /play again."
+                        )
 
-                raise RuntimeError(
-                    "No active Voice Chat was found and auto-start failed. "
-                    "Please grant the assistant 'Manage Video Chats' permission or start VC manually, then /play again."
-                )
-            
-            logger.error(f"Playback failed in {chat_id}: {exc}")
-            raise
+                # For fresh join, try least-loaded candidates until one succeeds.
+                join_candidates = [selected_idx] + [
+                    idx for idx in self._candidate_userbots() if idx != selected_idx
+                ]
+
+                last_exc: Optional[Exception] = None
+                for idx in join_candidates:
+                    call = self.calls.get(idx)
+                    if not call:
+                        continue
+
+                    try:
+                        # Peer pre-cache for selected assistant.
+                        try:
+                            client = self.userbots[idx]
+                            await client.get_chat(chat_id)
+                        except Exception as e:
+                            logger.debug(f"Pre-play get_chat on userbot #{idx + 1} failed: {e}")
+
+                        await self._start_voice_chat(chat_id, idx)
+                        logger.info(
+                            f"Attempting VC playback join in {chat_id} via userbot #{idx + 1} "
+                            f"(timeout={timeout_s}s)"
+                        )
+                        await asyncio.wait_for(call.play(chat_id, stream), timeout=timeout_s)
+                        self.active_chats[chat_id] = idx
+                        logger.info(f"Started playback in {chat_id} (video={video}) via userbot #{idx + 1}")
+                        return
+                    except Exception as join_exc:
+                        last_exc = join_exc
+                        logger.warning(
+                            f"Join attempt failed for chat {chat_id} on userbot #{idx + 1}: {join_exc}"
+                        )
+                        continue
+
+                if last_exc is not None:
+                    raise last_exc
+                raise RuntimeError("No available userbot could join the voice chat")
+
+            except Exception as exc:
+                # Handle 'Already Joined' scenario which can happen with PyTgCalls
+                exc_str = str(exc).lower()
+
+                if isinstance(exc, asyncio.TimeoutError):
+                    raise RuntimeError(
+                        "Voice Chat join/play timed out. Verify an active VC exists and the assistant has permission to speak."
+                    )
+
+                if "already joined" in exc_str or "already_joined" in exc_str:
+                    active_idx = self.active_chats.get(chat_id, selected_idx)
+                    call = self.calls.get(active_idx)
+                    if not call:
+                        raise RuntimeError(f"No call instance for active userbot {active_idx}")
+                    try:
+                        await asyncio.wait_for(call.change_stream(chat_id, stream), timeout=timeout_s)
+                    except asyncio.TimeoutError:
+                        raise RuntimeError(
+                            "Voice Chat stream switch timed out. Please restart VC and try again."
+                        )
+                    self.active_chats[chat_id] = active_idx
+                    return
+
+                if "peer id invalid" in exc_str or "id not found" in exc_str or "peer_id_invalid" in exc_str:
+                    raise RuntimeError(
+                        "❌ PEER ERROR: The Assistant account cannot see this chat!\n"
+                        "Please make sure you have added your Assistant account (@Justahuman6996) "
+                        "to this group as a Member or Admin, then try again."
+                    )
+
+                if "bot_method_invalid" in exc_str or "bot method invalid" in exc_str:
+                    raise RuntimeError(
+                        "ERROR: Your Userbot Session is a BOT account! "
+                        "PyTgCalls requires a REAL USER account (Phone Number) to stream music. "
+                        "Please run 'python generate_session.py' and log in with a phone number."
+                    )
+
+                if "no active group call" in exc_str or isinstance(exc, NoActiveGroupCall):
+                    started = await self._start_voice_chat(chat_id, selected_idx)
+                    if started:
+                        try:
+                            await asyncio.sleep(1.2)
+                            logger.info(f"Retrying VC playback join in {chat_id} after auto-start")
+                            call = self.calls.get(selected_idx)
+                            if not call:
+                                raise RuntimeError(f"No call instance for userbot {selected_idx}")
+                            await asyncio.wait_for(call.play(chat_id, stream), timeout=timeout_s)
+                            self.active_chats[chat_id] = selected_idx
+                            logger.info(f"Started playback in {chat_id} after auto VC start (video={video})")
+                            return
+                        except Exception as retry_exc:
+                            logger.error(f"VC retry failed in {chat_id}: {retry_exc}")
+
+                    raise RuntimeError(
+                        "No active Voice Chat was found and auto-start failed. "
+                        "Please grant the assistant 'Manage Video Chats' permission or start VC manually, then /play again."
+                    )
+
+                logger.error(f"Playback failed in {chat_id}: {exc}")
+                raise
 
     async def join_call(self, *args, **kwargs):
         """Deprecated: Use .play() instead."""

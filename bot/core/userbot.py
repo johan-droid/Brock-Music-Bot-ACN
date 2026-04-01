@@ -9,6 +9,7 @@ logger = logging.getLogger(__name__)
 
 # Global userbot clients list
 userbot_clients: List[Client] = []
+_rr_cursor: int = 0
 
 
 async def init_userbots() -> List[Client]:
@@ -71,18 +72,29 @@ async def init_userbots() -> List[Client]:
 
 
 def get_available_userbot() -> Client:
-    """Get a userbot using round-robin distribution.
-    
-    TODO: Implement active VC tracking for smarter distribution.
-    
-    Returns:
-        Client instance
-    """
-    # Simple round-robin for now
-    # In production, track active VC count per userbot
+    """Get an available userbot, preferring the least-loaded assistant."""
+    global _rr_cursor
+
     if not userbot_clients:
         raise RuntimeError("No userbots available")
-    
-    # For now, return the first one
-    # Multi-assistant scaling will be implemented in Phase 4
-    return userbot_clients[0]
+
+    # Prefer load-aware selection from call manager when initialized.
+    try:
+        from bot.core.call import call_manager
+
+        if call_manager:
+            snapshot = call_manager.get_balancer_snapshot()
+            loads = snapshot.get("loads", {})
+            candidates = sorted(
+                range(len(userbot_clients)),
+                key=lambda idx: (int(loads.get(str(idx), 0)), idx),
+            )
+            if candidates:
+                return userbot_clients[candidates[0]]
+    except Exception as exc:
+        logger.debug(f"Load-aware selector fallback: {exc}")
+
+    # Fallback to round-robin if call manager is not ready.
+    idx = _rr_cursor % len(userbot_clients)
+    _rr_cursor += 1
+    return userbot_clients[idx]

@@ -333,7 +333,40 @@ async def start_playback(chat_id: int) -> None:
             headers = music_backend.get_source_headers(effective_source)
 
         # Use consolidated play method
-        await call_manager.play(chat_id, url, video=is_video, headers=headers)
+        try:
+            await call_manager.play(chat_id, url, video=is_video, headers=headers)
+        except Exception as exc:
+            logger.warning(f"Playback failed on initial URL for '{track.get('title', 'unknown')}' in {chat_id}: {exc}")
+
+            # Retry with fallback resolver pipeline (try to re-resolve track URL to a fresh stream URL)
+            fallback_payload = await music_backend._resolve_fallback_payload(Track(
+                title=track.get("title", ""),
+                artist=track.get("uploader", ""),
+                duration=track.get("duration", 0),
+                stream_url=track.get("url", ""),
+                source=track.get("source", "youtube"),
+                track_id=track.get("id")
+            ))
+
+            if fallback_payload and fallback_payload.get("url"):
+                fallback_url = fallback_payload["url"]
+                fallback_headers = fallback_payload.get("headers")
+                fallback_source = fallback_payload.get("source")
+                if fallback_source:
+                    track["source"] = fallback_source
+
+                try:
+                    await call_manager.play(chat_id, fallback_url, video=is_video, headers=fallback_headers)
+                    logger.info(f"Fallback playback succeeded for '{track.get('title','unknown')}' in {chat_id}")
+                    # Update URL for tracking if needed
+                    url = fallback_url
+                    headers = fallback_headers
+                except Exception as exc2:
+                    logger.error(f"Fallback playback failed for '{track.get('title','unknown')}' in {chat_id}: {exc2}")
+                    raise
+            else:
+                logger.error(f"No fallback URL resolved for '{track.get('title','unknown')}' in {chat_id}")
+                raise
 
         # Start progress tracking
         progress_tracker.start(chat_id, seek=int(track.get("position", 0)))

@@ -28,6 +28,9 @@ RUN pip install --no-cache-dir -U pip && \
 # Copy application code
 COPY . .
 
+# Build-time syntax gate: fail the image build if any Python file has syntax errors.
+RUN python -m compileall -q bot config.py
+
 # Ensure directories are created (env files should be provided via service variables in production)
 RUN mkdir -p /app/sessions && chmod -R 777 /app/sessions
 
