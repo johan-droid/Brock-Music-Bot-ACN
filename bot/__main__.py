@@ -73,22 +73,43 @@ async def main():
         logger.info("Music backend initialized")
         
         # Initialize userbots first (needed for calls)
-        try:
-            userbots = await init_userbots()
-            logger.info(f"Initialized {len(userbots)} userbot(s)")
-        except Exception as exc:
-            # If the session key is duplicated elsewhere, keep the container alive
-            # so health checks stay green and logs remain visible. Operator must
-            # rotate the SESSION_STRING or stop the conflicting instance.
-            if _is_auth_key_duplicated(exc) or "NO USERBOTS COULD BE STARTED DUE AUTH_KEY_DUPLICATED" in str(exc).upper():
-                logger.error(
-                    "Auth key duplicated. Bot will idle until userbot auth is rotated "
-                    "(SESSION_FILE_PATH_*, SESSION_FILE_B64_*, or SESSION_STRING_*) "
-                    "or the other instance is stopped."
-                )
-                while True:
-                    await asyncio.sleep(3600)
-            raise
+        async def init_userbots_with_autoretry():
+            from config import Config, config as global_config
+
+            while True:
+                try:
+                    userbots = await init_userbots()
+                    logger.info(f"Initialized {len(userbots)} userbot(s)")
+                    return userbots
+                except Exception as exc:
+                    missing_auth = "AT LEAST ONE USERBOT AUTH IS REQUIRED" in str(exc).upper()
+                    duplicated = _is_auth_key_duplicated(exc)
+
+                    if missing_auth or duplicated:
+                        if missing_auth:
+                            logger.warning(
+                                "No userbot auth configured yet. Re-checking every 30 seconds..."
+                            )
+                            retry_seconds = 30
+                        else:
+                            logger.warning(
+                                "Auth key duplicated. Re-checking every 60 seconds..."
+                            )
+                            retry_seconds = 60
+
+                        await asyncio.sleep(retry_seconds)
+
+                        try:
+                            revised = Config()
+                            global_config.__dict__.update(revised.__dict__)
+                            logger.info("Config reloaded from environment for retry.")
+                        except Exception as e:
+                            logger.warning("Failed to reload config: %s", e)
+                        continue
+
+                    raise
+
+        userbots = await init_userbots_with_autoretry()
 
         if config.TELEGRAM_ENABLED:
             # Initialize py-tgcalls

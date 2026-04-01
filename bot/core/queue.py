@@ -32,6 +32,10 @@ class QueueManager:
     def _status_key(self, chat_id: int) -> str:
         """Cache key for player status."""
         return f"vc:status:{chat_id}"
+
+    def _history_key(self, chat_id: int) -> str:
+        """Cache key for track history (previous tracks)."""
+        return f"vc:history:{chat_id}"
     
     async def get_queue(self, chat_id: int) -> List[Dict[str, Any]]:
         """Get the full queue for a chat."""
@@ -109,6 +113,15 @@ class QueueManager:
         key = self._queue_key(chat_id)
         data = await cache.lpop(key)
         
+        # Save previous track for /previous support
+        current = await self.get_current(chat_id)
+        if current:
+            history_key = self._history_key(chat_id)
+            # lpush ensures most recent previous is first
+            await cache.lpush(history_key, json.dumps(current))
+            # Keep history length bounded for memory (20 tracks)
+            await cache.ltrim(history_key, 0, 19)
+
         if data:
             track = json.loads(data)
             # Store as currently playing
@@ -130,10 +143,12 @@ class QueueManager:
         """Clear the entire queue for a chat."""
         key = self._queue_key(chat_id)
         await cache.delete(key)
-        
-        # Also clear playing
-        playing_key = self._playing_key(chat_id)
-        await cache.delete(playing_key)
+
+        play_key = self._playing_key(chat_id)
+        await cache.delete(play_key)
+
+        history_key = self._history_key(chat_id)
+        await cache.delete(history_key)
         
         # Reset status
         await self.set_status(chat_id, "idle")
@@ -222,6 +237,34 @@ class QueueManager:
             track = json.loads(data)
             return track.get("position", 0)
         return 0
+
+    async def get_previous(self, chat_id: int) -> Optional[Dict[str, Any]]:
+        """Get last played track and set it as current."""
+        history_key = self._history_key(chat_id)
+        data = await cache.lpop(history_key)
+        if not data:
+            return None
+
+        prev = json.loads(data)
+        # preserve old now playing into queue front
+        current = await self.get_current(chat_id)
+        if current:
+            await self.add_to_front(
+                chat_id,
+                title=current.get("title", "Unknown"),
+                url=current.get("url", ""),
+                duration=current.get("duration", 0),
+                thumb=current.get("thumb"),
+                requested_by=current.get("requested_by"),
+                source=current.get("source", "youtube"),
+                track_id=current.get("id"),
+                uploader=current.get("uploader"),
+            )
+
+        # Set previous as now playing
+        prev["position"] = 0
+        await cache.set(self._playing_key(chat_id), json.dumps(prev))
+        return prev
 
 
 async def init_queue_manager():

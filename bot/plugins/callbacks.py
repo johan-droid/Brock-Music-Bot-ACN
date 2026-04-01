@@ -167,7 +167,27 @@ async def handle_queue(client: Client, callback: CallbackQuery, chat_id: int):
         await callback.answer("Queue is empty", show_alert=True)
         return
 
-    await callback.answer("📋 Queue refreshed")
+    lines = []
+    if current:
+        now = current.get("title", "Unknown")
+        duration = current.get("duration", 0)
+        lines.append(f"▶️ Now: {now} ({duration}s)")
+
+    if queue:
+        lines.append("\n📜 Upcoming:")
+        for i, track in enumerate(queue[:8], start=1):
+            title = track.get("title", "Unknown")
+            duration = track.get("duration", 0)
+            lines.append(f"{i}. {title} ({duration}s)")
+        if len(queue) > 8:
+            lines.append(f"... plus {len(queue)-8} more")
+
+    text = "\n".join(lines)
+    try:
+        await callback.message.edit(text, parse_mode="html")
+    except Exception:
+        pass
+    await callback.answer("📋 Queue updated", show_alert=False)
 
 
 async def handle_shuffle(client: Client, callback: CallbackQuery, chat_id: int):
@@ -325,8 +345,22 @@ async def handle_replay(client: Client, callback: CallbackQuery, chat_id: int):
 
 async def handle_previous(client: Client, callback: CallbackQuery, chat_id: int):
     """Play previously completed track if possible."""
-    # no structured history yet in queue manager, so fallback to do nothing.
-    await callback.answer("⏮️ Previous track feature not implemented yet (coming).", show_alert=True)
+    prev = await queue_manager.get_previous(chat_id)
+    if not prev:
+        await callback.answer("⏮️ No previous track in history yet.", show_alert=True)
+        return
+
+    await queue_manager.set_status(chat_id, "playing")
+    await progress_tracker.stop(chat_id)
+    await progress_tracker.start(chat_id, 0)
+
+    is_video = prev.get("is_video", False)
+    try:
+        await call_manager.change_stream(chat_id, prev["url"], video=is_video, seek=0)
+        await callback.answer(f"⏮️ Playing previous track: {prev.get('title','Unknown')[:40]}", show_alert=False)
+    except Exception as e:
+        logger.error(f"Previous track failed: {e}")
+        await callback.answer("Failed to play previous track.", show_alert=True)
 
 
 async def handle_export_queue(client: Client, callback: CallbackQuery, chat_id: int):
