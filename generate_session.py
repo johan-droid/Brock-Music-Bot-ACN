@@ -1,12 +1,38 @@
 import asyncio
+import base64
+import os
+from pathlib import Path
+
 from pyrogram import Client
+from dotenv import load_dotenv
+
+
+def _load_env_files() -> None:
+    for p in ("bot/.env.local", ".env.local", ".env"):
+        if os.path.exists(p):
+            load_dotenv(p)
+
+
+def _get_api_credentials() -> tuple[int, str]:
+    api_id_raw = os.getenv("API_ID") or os.getenv("TELEGRAM_API_ID") or ""
+    api_hash = os.getenv("API_HASH") or os.getenv("TELEGRAM_API_HASH") or ""
+
+    if not api_id_raw:
+        api_id_raw = input("Enter API_ID (from my.telegram.org): ").strip()
+    if not api_hash:
+        api_hash = input("Enter API_HASH (from my.telegram.org): ").strip()
+
+    if not api_id_raw or not api_hash:
+        raise RuntimeError("API_ID and API_HASH are required.")
+
+    return int(api_id_raw), api_hash
 
 async def main():
-    api_id = "31686467"
-    api_hash = "985164f322dd4319bb56951ca0a2ba25"
+    _load_env_files()
+    api_id, api_hash = _get_api_credentials()
     
     print("\n" + "="*60)
-    print("      TELEGRAM USERBOT SESSION STRING GENERATOR")
+    print("      TELEGRAM USERBOT SESSION GENERATOR")
     print("="*60 + "\n")
     print("🚨 IMPORTANT: You MUST log in with a REAL TELEGRAM ACCOUNT (Phone Number).")
     print("❌ DO NOT USE A BOT TOKEN. Bots CANNOT join Voice Chats!")
@@ -15,13 +41,14 @@ async def main():
     print("2. Enter the login code Telegram sends you")
     print("3. Enter your 2FA password (if you have one enabled)\n")
     
-    # We use a temporary file-based session to ensure login completes successfully,
-    # then we export the string and delete the file (in-memory can sometimes be buggy).
+    sessions_dir = Path("./sessions")
+    sessions_dir.mkdir(parents=True, exist_ok=True)
+
     app = Client(
-        "temp_userbot",
+        "userbot_1",
         api_id=api_id,
         api_hash=api_hash,
-        in_memory=True
+        workdir=str(sessions_dir),
     )
     
     async with app:
@@ -31,14 +58,22 @@ async def main():
             print("Please run the script again and use a real phone number.")
             return
 
-        session_string = await app.export_session_string()
+        session_file = sessions_dir / "userbot_1.session"
+        if not session_file.exists():
+            print("\n❌ ERROR: Session file was not created.")
+            return
+
+        session_b64 = base64.b64encode(session_file.read_bytes()).decode("ascii")
+
         print("\n" + "="*60)
         print("✅ SUCCESS! Logged in as:", me.first_name)
-        print("\nYOUR SESSION STRING (Copy everything inside the quotes):")
+        print("\nSESSION FILE CREATED:")
         print("="*60 + "\n")
-        print(session_string)
+        print(session_file)
+        print("\nENV VALUE FOR CLOUD DEPLOYMENT (Recommended):")
+        print("SESSION_FILE_B64_1=" + session_b64)
         print("\n" + "="*60)
-        print("Copy the string above and paste it into SESSION_STRING_1 in bot/.env.local")
+        print("Use SESSION_FILE_B64_1 in your deploy variables (or mount SESSION_FILE_PATH_1).")
         print("="*60 + "\n")
 
 if __name__ == "__main__":

@@ -2,7 +2,7 @@ import logging
 from pathlib import Path
 from pydantic_settings import BaseSettings
 from pydantic import field_validator
-from typing import Optional, List
+from typing import Optional, List, Dict
 
 logger = logging.getLogger(__name__)
 
@@ -31,6 +31,20 @@ class Config(BaseSettings):
     SESSION_STRING_3: Optional[str] = None
     SESSION_STRING_4: Optional[str] = None
     SESSION_STRING_5: Optional[str] = None
+
+    # Userbot session files (production-friendly alternatives to session strings)
+    # If both are present for the same index, path/b64 is preferred over string.
+    SESSION_FILE_PATH_1: Optional[str] = None
+    SESSION_FILE_PATH_2: Optional[str] = None
+    SESSION_FILE_PATH_3: Optional[str] = None
+    SESSION_FILE_PATH_4: Optional[str] = None
+    SESSION_FILE_PATH_5: Optional[str] = None
+
+    SESSION_FILE_B64_1: Optional[str] = None
+    SESSION_FILE_B64_2: Optional[str] = None
+    SESSION_FILE_B64_3: Optional[str] = None
+    SESSION_FILE_B64_4: Optional[str] = None
+    SESSION_FILE_B64_5: Optional[str] = None
     
     # MongoDB
     MONGO_URI: str = "mongodb://mongo:27017/musicbot"
@@ -110,6 +124,46 @@ class Config(BaseSettings):
             self.SESSION_STRING_5
         ]
         return [s for s in raw if s and s.strip()]
+
+    @staticmethod
+    def _clean_optional(value: Optional[str]) -> Optional[str]:
+        if value is None:
+            return None
+        trimmed = value.strip()
+        if not trimmed or trimmed.lower() == "none":
+            return None
+        return trimmed
+
+    @property
+    def userbot_auth_entries(self) -> List[Dict[str, str]]:
+        """Return ordered userbot auth entries with file-first precedence."""
+        entries: List[Dict[str, str]] = []
+
+        for idx in range(1, 6):
+            file_path = self._clean_optional(getattr(self, f"SESSION_FILE_PATH_{idx}", None))
+            file_b64 = self._clean_optional(getattr(self, f"SESSION_FILE_B64_{idx}", None))
+            session_str = self._clean_optional(getattr(self, f"SESSION_STRING_{idx}", None))
+
+            if file_path:
+                entries.append({
+                    "mode": "file_path",
+                    "value": file_path,
+                    "label": f"SESSION_FILE_PATH_{idx}",
+                })
+            elif file_b64:
+                entries.append({
+                    "mode": "file_b64",
+                    "value": file_b64,
+                    "label": f"SESSION_FILE_B64_{idx}",
+                })
+            elif session_str:
+                entries.append({
+                    "mode": "string",
+                    "value": session_str,
+                    "label": f"SESSION_STRING_{idx}",
+                })
+
+        return entries
     
     class Config:
         # Priority: Environment Variables -> .env.local -> .env
@@ -233,11 +287,18 @@ def synchronize_bot_token():
                     config.BOT_TOKEN = val
                     break
 
-    # Session strings (direct fallback)
-    if config.TELEGRAM_ENABLED and not config.session_strings:
-        val = os.getenv("SESSION_STRING_1")
-        if val and "your_" not in val.lower():
-            config.SESSION_STRING_1 = val
+    # Userbot auth fallback (direct env fallback)
+    if config.TELEGRAM_ENABLED and not config.userbot_auth_entries:
+        path_val = os.getenv("SESSION_FILE_PATH_1")
+        b64_val = os.getenv("SESSION_FILE_B64_1")
+        str_val = os.getenv("SESSION_STRING_1")
+
+        if path_val and "your_" not in path_val.lower():
+            config.SESSION_FILE_PATH_1 = path_val
+        elif b64_val and "your_" not in b64_val.lower():
+            config.SESSION_FILE_B64_1 = b64_val
+        elif str_val and "your_" not in str_val.lower():
+            config.SESSION_STRING_1 = str_val
 
 # Run token/session sync
 synchronize_bot_token()

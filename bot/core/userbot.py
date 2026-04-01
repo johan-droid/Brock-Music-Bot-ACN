@@ -1,8 +1,10 @@
 """Userbot Client(s) initialization for voice chat streaming."""
 
+import base64
+import binascii
 import logging
 from pathlib import Path
-from typing import List
+from typing import Dict, List, Tuple
 import pyrogram.errors
 from pyrogram import Client
 from config import config
@@ -12,6 +14,57 @@ logger = logging.getLogger(__name__)
 # Global userbot clients list
 userbot_clients: List[Client] = []
 _rr_cursor: int = 0
+
+
+def _decode_session_file_b64(encoded: str, target_file: Path) -> None:
+    """Decode SESSION_FILE_B64_* into a .session file on disk."""
+    raw = "".join(encoded.strip().split())
+    missing_padding = len(raw) % 4
+    if missing_padding:
+        raw += "=" * (4 - missing_padding)
+
+    try:
+        payload = base64.b64decode(raw, validate=False)
+    except binascii.Error as exc:
+        raise RuntimeError("Invalid base64 value for SESSION_FILE_B64_*.") from exc
+
+    target_file.parent.mkdir(parents=True, exist_ok=True)
+    target_file.write_bytes(payload)
+
+
+def _build_client_from_auth(index: int, auth: Dict[str, str]) -> Tuple[Client, Path, str, str]:
+    """Create a Pyrogram client from auth entry (string, file path, or base64 file)."""
+    mode = auth["mode"]
+    label = auth["label"]
+    client_name = f"userbot_{index}"
+    session_file = Path("./sessions") / f"{client_name}.session"
+    workdir = session_file.parent
+    kwargs: Dict[str, str] = {}
+
+    if mode == "string":
+        kwargs["session_string"] = auth["value"]
+    elif mode == "file_b64":
+        _decode_session_file_b64(auth["value"], session_file)
+    elif mode == "file_path":
+        file_path = Path(auth["value"]).expanduser()
+        if file_path.is_dir():
+            file_path = file_path / f"userbot_{index}.session"
+        if not file_path.exists():
+            raise RuntimeError(f"{label} points to missing file: {file_path}")
+        session_file = file_path
+        workdir = file_path.parent
+        client_name = file_path.stem
+    else:
+        raise RuntimeError(f"Unsupported userbot auth mode: {mode}")
+
+    client = Client(
+        client_name,
+        api_id=config.API_ID,
+        api_hash=config.API_HASH,
+        workdir=str(workdir),
+        **kwargs,
+    )
+    return client, session_file, label, mode
 
 
 async def init_userbots() -> List[Client]:
@@ -32,19 +85,22 @@ async def init_userbots() -> List[Client]:
             "API_HASH/TELEGRAM_API_HASH/TG_API_HASH) and restart."
         )
 
-    sessions = config.session_strings
-    if not sessions:
-        raise RuntimeError("At least one SESSION_STRING is required when TELEGRAM_ENABLED is true")
+    auth_entries = config.userbot_auth_entries
+    if not auth_entries:
+        raise RuntimeError(
+            "At least one userbot auth is required when TELEGRAM_ENABLED is true. "
+            "Set one of: SESSION_FILE_PATH_1, SESSION_FILE_B64_1, or SESSION_STRING_1."
+        )
 
-    for i, session in enumerate(sessions, 1):
+    userbot_clients.clear()
+
+    for i, auth in enumerate(auth_entries, 1):
+        client: Client | None = None
+        session_file = Path("./sessions") / f"userbot_{i}.session"
+        auth_label = auth.get("label", f"userbot_{i}")
+        auth_mode = auth.get("mode", "string")
         try:
-            client = Client(
-                f"userbot_{i}",
-                api_id=config.API_ID,
-                api_hash=config.API_HASH,
-                session_string=session,
-                workdir="./sessions",
-            )
+            client, session_file, auth_label, auth_mode = _build_client_from_auth(i, auth)
             
             await client.start()
             user_info = await client.get_me()
@@ -53,7 +109,7 @@ async def init_userbots() -> List[Client]:
                 await client.stop()
                 logger.error(f"Userbot {i} (@{user_info.username or user_info.id}) is a BOT account!")
                 raise RuntimeError(
-                    f"SESSION_STRING_{i} belongs to a Bot (@{user_info.username}). "
+                    f"{auth_label} belongs to a Bot (@{user_info.username}). "
                     "PyTgCalls requires a REAL USER account to join voice chats. "
                     "Please run 'python generate_session.py' and log in with a phone number."
                 )
@@ -64,22 +120,23 @@ async def init_userbots() -> List[Client]:
         except Exception as e:
             # Clean up partial startup if possible
             try:
-                await client.stop()
+                if client:
+                    await client.stop()
             except Exception:
                 pass
 
-            session_file = Path("./sessions") / f"userbot_{i}.session"
             if isinstance(e, pyrogram.errors.AuthKeyDuplicated) or "AUTH_KEY_DUPLICATED" in str(e).upper():
                 logger.error(
                     "Failed to start userbot %d due to AUTH_KEY_DUPLICATED. "
                     "This means the same user session is used in another process/device. "
-                    "Stop other instances or re-generate SESSION_STRING_%d via generate_session.py. "
+                    "Stop other instances or rotate %s. "
                     "For local cleanup, delete %s if present and restart.",
                     i,
-                    i,
+                    auth_label,
                     session_file,
                 )
-                if session_file.exists():
+                can_remove_local = auth_mode in {"string", "file_b64"}
+                if can_remove_local and session_file.exists():
                     try:
                         session_file.unlink()
                         logger.info("Removed stale session file %s", session_file)
@@ -91,7 +148,7 @@ async def init_userbots() -> List[Client]:
                 # First userbot is required
                 raise RuntimeError(
                     "Required userbot 1 failed to start: "
-                    "ensure SESSION_STRING_1 is a valid logged-in user session and not used elsewhere. "
+                    f"ensure {auth_label} is a valid logged-in user session and not used elsewhere. "
                     "Use generate_session.py to re-create it, then restart.",
                     ) from e
     

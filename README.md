@@ -46,7 +46,7 @@ A high-quality music streaming bot for Telegram Video Chats (formerly Voice Chat
 
 - **API_ID & API_HASH**: https://my.telegram.org
 - **BOT_TOKEN**: Message @BotFather on Telegram
-- **SESSION_STRING**: Run userbot session generator (see below)
+- **USERBOT SESSION**: Use one of `SESSION_FILE_PATH_1`, `SESSION_FILE_B64_1`, or `SESSION_STRING_1`
 
 ### 2. Configure Environment
 
@@ -67,7 +67,10 @@ nano .env
 API_ID=your_api_id
 API_HASH=your_api_hash
 BOT_TOKEN=your_bot_token
-SESSION_STRING_1=your_session_string
+# Preferred production auth (choose one):
+SESSION_FILE_B64_1=your_base64_encoded_session_file
+# SESSION_FILE_PATH_1=/app/sessions/userbot_1.session
+# SESSION_STRING_1=your_session_string
 OWNER_ID=your_telegram_user_id
 
 # For zero-cost deployment (optional external services)

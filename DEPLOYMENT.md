@@ -43,7 +43,9 @@ This guide shows how to deploy the music bot completely free using various cloud
    API_ID=your_api_id
    API_HASH=your_api_hash
    BOT_TOKEN=your_bot_token
-   SESSION_STRING_1=your_session_string
+   SESSION_FILE_B64_1=your_base64_encoded_session_file
+   # or SESSION_FILE_PATH_1=/app/sessions/userbot_1.session
+   # or SESSION_STRING_1=your_session_string
    OWNER_ID=your_user_id
    MONGO_URI=mongodb+srv://... (optional - uses SQLite if not set)
    ```
@@ -92,7 +94,7 @@ flyctl launch
 flyctl secrets set API_ID=your_api_id
 flyctl secrets set API_HASH=your_api_hash
 flyctl secrets set BOT_TOKEN=your_bot_token
-flyctl secrets set SESSION_STRING_1=your_session_string
+flyctl secrets set SESSION_FILE_B64_1=your_base64_encoded_session_file
 flyctl secrets set OWNER_ID=your_user_id
 
 # Deploy
@@ -181,32 +183,21 @@ MONGO_URI=mongodb+srv://username:password@cluster.mongodb.net/musicbot
 | `API_ID` | Telegram API ID | https://my.telegram.org |
 | `API_HASH` | Telegram API Hash | https://my.telegram.org |
 | `BOT_TOKEN` | Bot token | @BotFather on Telegram |
-| `SESSION_STRING_1` | Userbot session | Run `python3 -c "from pyrogram import Client; Client(':memory:').export_session_string()"` |
+| `SESSION_FILE_B64_1` | Userbot session file (preferred) | Run `python generate_session.py` |
+| `SESSION_FILE_PATH_1` | Mounted `.session` file path | e.g. `/app/sessions/userbot_1.session` |
+| `SESSION_STRING_1` | Userbot session string (legacy) | Run `python generate_session.py` |
 | `OWNER_ID` | Your Telegram user ID | @userinfobot on Telegram |
 | `MONGO_URI` | MongoDB URL (optional) | MongoDB Atlas or omit for SQLite |
 
-## Getting Session String
+## Getting Userbot Session
 
-To get the userbot session string:
+To generate a production-ready userbot session file + base64 value:
 
 ```bash
-# Install pyrogram first
-pip3 install pyrogram tgcrypto
-
-# Run this script
-python3 << 'EOF'
-from pyrogram import Client
-
-API_ID = int(input("Enter API ID: "))
-API_HASH = input("Enter API HASH: ")
-
-with Client("my_account", api_id=API_ID, api_hash=API_HASH) as app:
-    session = app.export_session_string()
-    print(f"\nYour session string:\n{session}")
-EOF
+python generate_session.py
 ```
 
-Enter your phone number and verification code when prompted.
+Use the output `SESSION_FILE_B64_1=...` in cloud environment variables.
 
 ## Troubleshooting
 

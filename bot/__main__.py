@@ -82,7 +82,8 @@ async def main():
             # rotate the SESSION_STRING or stop the conflicting instance.
             if _is_auth_key_duplicated(exc):
                 logger.error(
-                    "Auth key duplicated. Bot will idle until SESSION_STRING_* is rotated "
+                    "Auth key duplicated. Bot will idle until userbot auth is rotated "
+                    "(SESSION_FILE_PATH_*, SESSION_FILE_B64_*, or SESSION_STRING_*) "
                     "or the other instance is stopped."
                 )
                 while True:
