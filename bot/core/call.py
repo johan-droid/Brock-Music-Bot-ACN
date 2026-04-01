@@ -175,7 +175,10 @@ class CallManager:
             except Exception as e:
                 logger.debug(f"Pre-play get_chat on userbot failed: {e}")
                 # We don't raise here yet; call.play might still work or give a better error 
-            
+
+            # ensure a voice chat exists / auto-start with userbot if supported
+            await self._start_voice_chat(chat_id, userbot_idx)
+
             logger.info(f"Attempting VC playback join in {chat_id} (timeout={timeout_s}s)")
             await asyncio.wait_for(call.play(chat_id, stream), timeout=timeout_s)
             self.active_chats[chat_id] = userbot_idx

@@ -289,3 +289,77 @@ async def volume_cmd(client: Client, message: Message):
     except Exception as e:
         logger.error(f"Volume change failed: {e}")
         await message.reply("💀 Brook can't adjust the volume right now! Try again.")
+
+
+@Client.on_message(filters.command("userbotjoin") & filters.group)
+@require_admin
+@rate_limit
+async def userbotjoin_cmd(client: Client, message: Message):
+    """Prompt the userbot to join/create a voice chat and provide promotion hints."""
+    chat_id = message.chat.id
+
+    if chat_id in call_manager.active_chats:
+        await message.reply(
+            "✅ Userbot is already in the voice chat for this group. "
+            "If no audio is playing, use /play <song> now."
+        )
+        return
+
+    success = False
+    try:
+        success = await call_manager._start_voice_chat(chat_id, 0)
+    except Exception as exc:
+        logger.warning(f"userbotjoin failed: {exc}")
+
+    if success:
+        await message.reply(
+            "✅ Userbot join request sent. Voice chat should now be active or already active.\n\n"
+            "💡 Next step: Promote the userbot as **Administrator** with at least **Manage Voice Chats / Manage Video Chats** privileges, "
+            "then run `/play <song>` to start streaming."
+        )
+    else:
+        await message.reply(
+            "❌ Could not auto-start voice chat. Please check:\n"
+            "1) userbot is a group member.\n"
+            "2) userbot has Admin role with Manage Voice Chats permissions.\n"
+            "3) Group voice chat is allowed for this group.\n"
+            "Then retry `/userbotjoin` and `/play <song>`."
+        )
+
+
+@Client.on_message(filters.command("vcdebug") & filters.group)
+@require_admin
+@rate_limit
+async def vcdebug_cmd(client: Client, message: Message):
+    """Inspect voice chat state to help debug join/play issues."""
+    chat_id = message.chat.id
+
+    active = chat_id in call_manager.active_chats
+    activeChatLists = [f"{c} (userbot #{i+1})" for c, i in call_manager.active_chats.items()]
+    queue_status = await queue_manager.get_status(chat_id)
+    current = await queue_manager.get_current(chat_id)
+    qlen = await queue_manager.get_queue_length(chat_id)
+    is_bot_admin = await require_admin.__wrapped__(client, message) if False else None
+    # using existing helper for userbot permissions
+    from bot.utils.permissions import check_bot_admin, check_userbot_admin
+
+    bot_admin_state = await check_bot_admin(chat_id)
+    userbot_admin_state = await check_userbot_admin(chat_id)
+
+    text = (
+        f"🔍 <b>VC Debug Status</b>\n"
+        f"• Active for this group: {'✅' if active else '❌'}\n"
+        f"• Active chats tracked: {len(call_manager.active_chats)}\n"
+        f"• Active chat IDs: {', '.join(activeChatLists) if activeChatLists else 'None'}\n"
+        f"• Queue status: {queue_status}\n"
+        f"• Queue length: {qlen}\n"
+        f"• Current track: {current.get('title','None') if current else 'None'}\n"
+        f"• Bot admin: {'✅' if bot_admin_state else '❌'}\n"
+        f"• Userbot admin: {'✅' if userbot_admin_state else '❌'}\n"
+        f"\n💡 Tip: Ensure both the bot and userbot are admins with **Manage Video Chats / Voice Chats**.
+        "
+        f"If userbot is not admin, run /userbotjoin after promotion."
+    )
+
+    await message.reply(text, parse_mode="html")
+
