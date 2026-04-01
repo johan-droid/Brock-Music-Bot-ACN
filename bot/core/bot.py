@@ -1,6 +1,8 @@
 """Pyrogram Bot Client initialization."""
 
 import logging
+import asyncio
+from aiohttp import web
 from pyrogram import Client, filters, idle
 from pyrogram.handlers import MessageHandler
 from config import config
@@ -9,6 +11,24 @@ logger = logging.getLogger(__name__)
 
 # Global bot client instance
 bot_client = None
+
+# Health check server for Railway
+async def health_check(request):
+    """Simple health check endpoint for Railway."""
+    return web.Response(text="OK", status=200)
+
+async def start_health_server():
+    """Start health check server on port 8080."""
+    app = web.Application()
+    app.router.add_get("/", health_check)
+    app.router.add_get("/health", health_check)
+    
+    runner = web.AppRunner(app)
+    await runner.setup()
+    site = web.TCPSite(runner, "0.0.0.0", 8080)
+    await site.start()
+    logger.info("Health check server started on port 8080")
+    return runner
 
 
 async def init_bot():
@@ -32,6 +52,9 @@ async def init_bot():
         workdir="./sessions",
         plugins=dict(root="bot/plugins"),
     )
+
+    # Start health check server for Railway
+    await start_health_server()
 
     await bot_client.start()
     bot_info = await bot_client.get_me()

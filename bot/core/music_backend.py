@@ -50,7 +50,8 @@ class Track:
 class MusicBackend:
     """
     Unified music backend that tries multiple sources.
-    Priority: YT Music → YouTube → JioSaavn → SoundCloud → Audiomack
+    Priority: JioSaavn → SoundCloud → YT Music → YouTube → Audiomack
+    (JioSaavn prioritized for stability on free tier)
     """
     
     def __init__(self):
@@ -95,12 +96,13 @@ class MusicBackend:
         if not self.session:
             await self.init()
 
-        # Run all searches in parallel for maximum efficiency
+        # Run searches - prioritize reliable sources first
         tasks = [
-            self.ytmusic.search(query, limit),
-            self.youtube.search(query, limit),
-            self.jiosaavn.search(query, limit),
-            self.soundcloud.search(query, limit),
+            self.jiosaavn.search(query, limit),   # Most reliable (Indian music)
+            self.soundcloud.search(query, limit),  # Reliable
+            # YouTube sources disabled temporarily due to blocking
+            # self.ytmusic.search(query, limit),
+            # self.youtube.search(query, limit),
             self.audiomack.search(query, limit),
         ]
         
@@ -108,43 +110,9 @@ class MusicBackend:
         
         tracks = []
         
-        # 1. Process YT Music results (user requested primary priority)
+        # 1. Process JioSaavn results (PRIMARY - most reliable)
         if not isinstance(results[0], Exception):
-            ytm_results = results[0]
-            for result in ytm_results:
-                track = Track(
-                    title=result.get("title", "Unknown"),
-                    artist=result.get("uploader", "Unknown Artist"),
-                    duration=result.get("duration", 0),
-                    stream_url=result.get("url", ""),
-                    thumbnail=result.get("thumbnail"),
-                    source="ytmusic",
-                    track_id=result.get("id")
-                )
-                if not any(t.title.lower() == track.title.lower() for t in tracks):
-                    tracks.append(track)
-            logger.info(f"YT Music found {len(ytm_results)} tracks")
-
-        # 2. Process YouTube results
-        if not isinstance(results[1], Exception):
-            yt_results = results[1]
-            for result in yt_results:
-                track = Track(
-                    title=result.get("title", "Unknown"),
-                    artist=result.get("uploader", "Unknown"),
-                    duration=result.get("duration", 0),
-                    stream_url=result.get("url", ""),
-                    thumbnail=result.get("thumbnail"),
-                    source="youtube",
-                    track_id=result.get("id")
-                )
-                if not any(t.title.lower() == track.title.lower() for t in tracks):
-                    tracks.append(track)
-            logger.info(f"YouTube found {len(yt_results)} tracks")
-
-        # 3. Process JioSaavn results
-        if not isinstance(results[2], Exception):
-            js_results = results[2]
+            js_results = results[0]
             for result in js_results:
                 track = Track(
                     title=result.get("title", "Unknown"),
@@ -159,9 +127,9 @@ class MusicBackend:
                     tracks.append(track)
             logger.info(f"JioSaavn found {len(js_results)} tracks")
 
-        # 4. Process SoundCloud results
-        if not isinstance(results[3], Exception):
-            sc_results = results[3]
+        # 2. Process SoundCloud results
+        if not isinstance(results[1], Exception):
+            sc_results = results[1]
             for result in sc_results:
                 track = Track(
                     title=result.get("title", "Unknown"),
@@ -176,9 +144,9 @@ class MusicBackend:
                     tracks.append(track)
             logger.info(f"SoundCloud found {len(sc_results)} tracks")
 
-        # 5. Process Audiomack results
-        if not isinstance(results[4], Exception):
-            am_results = results[4]
+        # 3. Process Audiomack results
+        if not isinstance(results[2], Exception):
+            am_results = results[2]
             for result in am_results:
                 track = Track(
                     title=result.get("title", "Unknown"),
@@ -268,22 +236,9 @@ class MusicBackend:
                 return await self._resolve_fallback_payload(track)
             return {"url": url, "source": "jiosaavn", "headers": self.get_source_headers("jiosaavn")}
 
-        if source == "youtube":
-            tid = track.track_id or track.get("id") or track.stream_url
-            result = await self.youtube.extract(tid)
-            if result and result.get("url"):
-                return {"url": result["url"], "source": "youtube", "headers": None}
-
-            logger.warning(f"YouTube extraction blocked/failed, attempting fallback: {track.title[:60]}")
-            return await self._resolve_fallback_payload(track)
-
-        if source == "ytmusic":
-            tid = track.track_id or track.get("id") or track.stream_url
-            result = await self.ytmusic.extract(tid)
-            if result and result.get("url"):
-                return {"url": result["url"], "source": "ytmusic", "headers": None}
-
-            logger.warning(f"YT Music extraction failed, attempting fallback: {track.title[:60]}")
+        if source in ("youtube", "ytmusic"):
+            # Skip YouTube extraction (blocked), use fallback directly
+            logger.debug(f"Skipping YouTube extraction for: {track.title[:60]}")
             return await self._resolve_fallback_payload(track)
 
         if source == "soundcloud":
