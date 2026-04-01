@@ -199,6 +199,7 @@ async def seek_cmd(client: Client, message: Message):
         is_video = current.get("is_video", False)
         
         # Change stream (py-tgcalls handles the transition)
+        # change_stream may be absent on some builds; call_manager handles compatibility
         await call_manager.change_stream(chat_id, current["url"], video=is_video, seek=seconds)
         
         # Update position
@@ -239,6 +240,7 @@ async def replay_cmd(client: Client, message: Message):
         
         # Replay is just seeking to 0
         is_video = current.get("is_video", False)
+        # change_stream may be absent on some builds; call_manager handles compatibility
         await call_manager.change_stream(chat_id, current["url"], video=is_video, seek=0)
         
         # Reset position

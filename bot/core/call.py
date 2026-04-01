@@ -193,6 +193,27 @@ class CallManager:
             "assignments": {str(chat_id): idx for chat_id, idx in self.active_chats.items()},
         }
 
+    async def _switch_stream_compat(self, call: PyTgCalls, chat_id: int, stream: MediaStream, timeout_s: int) -> None:
+        """Switch stream with compatibility fallback for py-tgcalls builds without change_stream."""
+        try:
+            if hasattr(call, "change_stream"):
+                await asyncio.wait_for(call.change_stream(chat_id, stream), timeout=timeout_s)
+                return
+        except AttributeError:
+            # Some builds may expose the attribute but raise on access; treat as missing
+            logger.debug("change_stream attribute lookup raised; falling back to leave+play")
+
+        logger.warning(
+            f"PyTgCalls change_stream is unavailable; using leave+play fallback in chat {chat_id}"
+        )
+        try:
+            await asyncio.wait_for(call.leave_call(chat_id), timeout=min(timeout_s, 10))
+        except Exception as leave_exc:
+            logger.debug(f"Compatibility leave before replay failed in {chat_id}: {leave_exc}")
+
+        await asyncio.sleep(0.4)
+        await asyncio.wait_for(call.play(chat_id, stream), timeout=timeout_s)
+
     # ─── Playback control ─────────────────────────────────────────────────────
 
     # ─── Playback control ─────────────────────────────────────────────────────
@@ -245,7 +266,7 @@ class CallManager:
                             f"Attempting stream change in {chat_id} via userbot #{active_idx + 1} "
                             f"(timeout={timeout_s}s)"
                         )
-                        await asyncio.wait_for(call.change_stream(chat_id, stream), timeout=timeout_s)
+                        await self._switch_stream_compat(call, chat_id, stream, timeout_s)
                         logger.info(f"Changed stream in {chat_id}")
                         return
                     except NotInCallError:
@@ -338,7 +359,7 @@ class CallManager:
                     if not call:
                         raise RuntimeError(f"No call instance for active userbot {active_idx}")
                     try:
-                        await asyncio.wait_for(call.change_stream(chat_id, stream), timeout=timeout_s)
+                        await self._switch_stream_compat(call, chat_id, stream, timeout_s)
                     except asyncio.TimeoutError:
                         raise RuntimeError(
                             "Voice Chat stream switch timed out. Please restart VC and try again."

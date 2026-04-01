@@ -27,8 +27,12 @@ async def callback_handler(client: Client, callback: CallbackQuery):
         await handle_play_select(client, callback, chat_id, user_id, data)
         return
 
-    if data == "play_cancel":
-        await handle_play_cancel(client, callback, chat_id, user_id)
+    if data.startswith("pc:"):
+        await handle_play_cancel(client, callback, chat_id, user_id, data)
+        return
+
+    if data == "play_cancel":  # legacy
+        await handle_play_cancel(client, callback, chat_id, user_id, data)
         return
 
     # Check permissions
@@ -247,25 +251,39 @@ async def handle_status_check(client: Client, callback: CallbackQuery, chat_id: 
 
 
 async def handle_play_select(client: Client, callback: CallbackQuery, chat_id: int, user_id: int, data: str):
-    """Handle song selection from conflict resolution (supports ps:N and legacy play_select_N)."""
-    # Parse index from either "ps:N" or "play_select_N"
+    """Handle song selection from conflict resolution (supports ps:token:index and legacy formats)."""
+    token = None
+
     try:
         if data.startswith("ps:"):
-            idx = int(data[3:])
+            parts = data.split(":")
+            if len(parts) == 2:
+                idx = int(parts[1])
+            elif len(parts) == 3:
+                token = parts[1]
+                idx = int(parts[2])
+            else:
+                raise ValueError()
         else:
             idx = int(data.split("_")[-1])
     except (IndexError, ValueError):
         await callback.answer("Invalid selection", show_alert=True)
         return
 
-    from bot.plugins.play import _pending_conflicts, resolve_conflict
+    from bot.plugins.play import get_pending_conflict, resolve_conflict
 
-    chat_conflicts = _pending_conflicts.get(chat_id, {})
-    if user_id not in chat_conflicts:
+    conflict, resolved_token = await get_pending_conflict(chat_id, user_id, token)
+    token = token or resolved_token
+
+    if not conflict:
         await callback.answer("⚠️ Selection expired — please search again.", show_alert=True)
         return
 
-    tracks = chat_conflicts[user_id].get("tracks", [])
+    if conflict.get("user_id") not in (None, user_id):
+        await callback.answer("This menu belongs to someone else.", show_alert=True)
+        return
+
+    tracks = conflict.get("tracks", [])
     if idx < 0 or idx >= len(tracks):
         await callback.answer("Invalid selection", show_alert=True)
         return
@@ -277,18 +295,29 @@ async def handle_play_select(client: Client, callback: CallbackQuery, chat_id: i
     # Delegate to resolve_conflict which handles dict/Track normalisation and enqueuing
     message = callback.message
     message.from_user = callback.from_user
-    await resolve_conflict(chat_id, user_id, idx, message)
+    await resolve_conflict(chat_id, user_id, idx, message, token)
 
 
-async def handle_play_cancel(client: Client, callback: CallbackQuery, chat_id: int, user_id: int):
-    """Handle cancel from conflict resolution."""
+async def handle_play_cancel(client: Client, callback: CallbackQuery, chat_id: int, user_id: int, data: str):
+    """Handle cancel from conflict resolution with token scoping."""
     from bot.plugins.play import _pending_conflicts
 
+    token = data.split(":", 1)[1] if data.startswith("pc:") and ":" in data else None
+
     chat_conflicts = _pending_conflicts.get(chat_id, {})
-    if user_id in chat_conflicts:
-        del chat_conflicts[user_id]
-        if not chat_conflicts:
-            _pending_conflicts.pop(chat_id, None)
+    removed = False
+
+    if token and token in chat_conflicts:
+        chat_conflicts.pop(token, None)
+        removed = True
+    else:
+        for tok, conf in list(chat_conflicts.items()):
+            if conf.get("user_id") == user_id:
+                chat_conflicts.pop(tok, None)
+                removed = True
+
+    if not chat_conflicts:
+        _pending_conflicts.pop(chat_id, None)
 
     await callback.answer("❌ Cancelled")
     try:

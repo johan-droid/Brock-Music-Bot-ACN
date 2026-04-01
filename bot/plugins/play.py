@@ -668,7 +668,7 @@ async def _autoclean_np(chat_id: int, msg_id: int, delay: int) -> None:
 
 # ── Conflict resolution UI ────────────────────────────────────────────────────
 
-_pending_conflicts: dict = {}  # chat_id → {user_id → {tracks, original_msg}}
+_pending_conflicts: dict = {}  # chat_id → {token → {tracks, original_msg, user_id, user_mention}}
 
 # Source number emojis for a clean numbered list
 _NUM_EMOJI = ["1️⃣", "2️⃣", "3️⃣", "4️⃣", "5️⃣"]
@@ -748,6 +748,7 @@ async def _show_conflict_options(
 ) -> None:
     """Display a modern, info-rich track-selection menu."""
     tracks = conflicts[:5]
+    token = f"{search_msg.id}"
 
     # ── Buttons (one per row for legibility) ───────────────────────────────
     # callback_data: "ps:N" (play-select index N) — always < 64 bytes
@@ -758,9 +759,9 @@ async def _show_conflict_options(
         label = truncate_text(f["title"], 28)
         num   = _NUM_EMOJI[i]
         button_rows.append(
-            [InlineKeyboardButton(f"{num} {icon} {label}", callback_data=f"ps:{i}")]
+            [InlineKeyboardButton(f"{num} {icon} {label}", callback_data=f"ps:{token}:{i}")]
         )
-    button_rows.append([InlineKeyboardButton("❌  Cancel", callback_data="play_cancel")])
+    button_rows.append([InlineKeyboardButton("❌  Cancel", callback_data=f"pc:{token}")])
 
     # ── Message body ────────────────────────────────────────────────────────
     requester = message.from_user.first_name if message.from_user else "Someone"
@@ -789,10 +790,18 @@ async def _show_conflict_options(
     text = header + "\n".join(lines)
 
     # ── Store pending state ─────────────────────────────────────────────────
-    _pending_conflicts.setdefault(chat_id, {})[user_id] = {
+    chat_conflicts = _pending_conflicts.setdefault(chat_id, {})
+
+    # Drop any previous pending selection menus for this user to avoid mismatched callbacks.
+    stale_tokens = [tok for tok, data in chat_conflicts.items() if data.get("user_id") == user_id]
+    for tok in stale_tokens:
+        chat_conflicts.pop(tok, None)
+
+    chat_conflicts[token] = {
         "tracks": tracks,
         "original_msg": search_msg,
         "user_mention": message.from_user.mention if message.from_user else "User",
+        "user_id": user_id,
     }
 
     await _safe_edit(search_msg, text, InlineKeyboardMarkup(button_rows))
@@ -800,14 +809,38 @@ async def _show_conflict_options(
 
 # ── Export helpers for callbacks.py ──────────────────────────────────────────
 
-async def get_pending_conflict(chat_id: int, user_id: int) -> Optional[dict]:
-    return (_pending_conflicts.get(chat_id) or {}).get(user_id)
+async def get_pending_conflict(chat_id: int, user_id: int, token: Optional[str] = None) -> tuple[Optional[dict], Optional[str]]:
+    chat_conflicts = _pending_conflicts.get(chat_id, {})
+
+    if token and token in chat_conflicts:
+        return chat_conflicts[token], token
+
+    for tok, data in chat_conflicts.items():
+        if data.get("user_id") == user_id:
+            return data, tok
+
+    return None, None
 
 
-async def resolve_conflict(chat_id: int, user_id: int, index: int, message: Message) -> None:
+async def resolve_conflict(chat_id: int, user_id: int, index: int, message: Message, token: Optional[str] = None) -> None:
     """Called from callbacks.py when user picks a track from the conflict list."""
-    conflict = (_pending_conflicts.get(chat_id) or {}).get(user_id)
+    chat_conflicts = _pending_conflicts.get(chat_id, {})
+    conflict = None
+
+    if token and token in chat_conflicts:
+        conflict = chat_conflicts.get(token)
+    else:
+        for tok, data in chat_conflicts.items():
+            if data.get("user_id") == user_id:
+                conflict = data
+                token = tok
+                break
+
     if not conflict:
+        return
+
+    # Ensure only the requester can act on their menu
+    if conflict.get("user_id") not in (None, user_id):
         return
 
     tracks = conflict.get("tracks", [])
@@ -838,6 +871,12 @@ async def resolve_conflict(chat_id: int, user_id: int, index: int, message: Mess
                 pass  # Non-critical — playback still works without pre-resolved metadata
 
     # Clean up pending conflict
-    _pending_conflicts.get(chat_id, {}).pop(user_id, None)
+    if token:
+        chat_conflicts.pop(token, None)
+    else:
+        _pending_conflicts.get(chat_id, {}).pop(user_id, None)
+
+    if not chat_conflicts:
+        _pending_conflicts.pop(chat_id, None)
 
     await add_track_and_play(message, chat_id, user_id, track, orig_msg)
