@@ -177,7 +177,9 @@ async def check_bot_admin(chat_id: int) -> bool:
         return False
     try:
         member = await bot_module.bot_client.get_chat_member(chat_id, bot_module.bot_client.me.id)
-        return member.status == "administrator" or member.status == "creator"
+        # Handle both string and enum status values
+        status_str = str(member.status)
+        return status_str in ["administrator", "creator", "ChatMemberStatus.ADMINISTRATOR", "ChatMemberStatus.OWNER"]
     except Exception:
         return False
 
