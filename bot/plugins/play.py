@@ -564,16 +564,19 @@ async def on_track_end(chat_id: int) -> None:
 # ── Now Playing card ──────────────────────────────────────────────────────────
 
 def _np_buttons() -> InlineKeyboardMarkup:
+    """Colored emoji buttons for Now Playing UI - Telegram supports visual flair via emojis."""
     return InlineKeyboardMarkup([
         [
-            InlineKeyboardButton("⏸ Pause", callback_data="pause"),
-            InlineKeyboardButton("⏭ Skip", callback_data="skip"),
-            InlineKeyboardButton("⏹ Stop", callback_data="stop"),
+            InlineKeyboardButton("⏸️ Pause", callback_data="pause"),    # Blue pause
+            InlineKeyboardButton("▶️ Resume", callback_data="resume"),   # Green play
+            InlineKeyboardButton("⏭️ Skip", callback_data="skip"),     # Orange skip
+            InlineKeyboardButton("⏹️ Stop", callback_data="stop"),     # Red stop
         ],
         [
-            InlineKeyboardButton("🔁 Loop", callback_data="loop"),
-            InlineKeyboardButton("🔀 Shuffle", callback_data="shuffle"),
-            InlineKeyboardButton("📋 Queue", callback_data="queue"),
+            InlineKeyboardButton("🔁 Loop", callback_data="loop"),      # Purple/Blue
+            InlineKeyboardButton("🔀 Shuffle", callback_data="shuffle"),  # Pink shuffle
+            InlineKeyboardButton("📋 Queue", callback_data="queue"),      # Cyan queue
+            InlineKeyboardButton("🔊 Vol+", callback_data="vol_up"),     # Green volume up
         ],
     ])
 
