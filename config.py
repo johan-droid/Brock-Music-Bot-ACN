@@ -77,6 +77,12 @@ class Config(BaseSettings):
     AUDIO_BITRATE: int = 192  # kbps (128-320)
     AUDIO_LOUDNORM: bool = True  # EBU R128 loudness normalization
 
+    # Source policy settings
+    # LEGAL_SOURCES_FIRST=true prefers licensed/official catalogs for generic text search.
+    LEGAL_SOURCES_FIRST: bool = True
+    # For Spotify links: keep YouTube as a final fallback only when explicitly enabled.
+    SPOTIFY_YOUTUBE_FALLBACK: bool = False
+
     # Now Playing card auto-clean (seconds)
     NP_AUTOCLEAN_DELAY: int = 30       # delete NP card N seconds after track ends / /stop
     SEARCH_MSG_AUTOCLEAN: int = 8      # delete "Searching..." msg N seconds after reply sent

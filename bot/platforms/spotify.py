@@ -7,6 +7,10 @@ import logging
 import asyncio
 from typing import Optional, Dict, Any
 from bot.platforms.youtube import youtube
+from bot.platforms.jiosaavn import jiosaavn
+from bot.platforms.ytmusic import ytmusic
+from bot.platforms.soundcloud import soundcloud
+from bot.platforms.audiomack import audiomack
 from config import config
 
 logger = logging.getLogger(__name__)
@@ -64,23 +68,49 @@ class SpotifyExtractor:
 
             logger.info(f"💀 Spotify resolving: {search_query}")
 
-            yt_result = await youtube.extract(search_query)
+            resolved = await self._resolve_stream_for_spotify(search_query)
 
-            if yt_result:
-                yt_result.update({
+            if resolved:
+                resolved.update({
                     "title": title,
                     "uploader": artists,
-                    "thumbnail": thumbnail or yt_result.get("thumbnail"),
+                    "thumbnail": thumbnail or resolved.get("thumbnail"),
                     "source": "spotify",
                     "spotify_url": url,
+                    "duration": int((track.get("duration_ms") or 0) // 1000) or resolved.get("duration", 0),
                 })
-                return yt_result
+                return resolved
 
             return None
 
         except Exception as e:
             logger.error(f"💀 Spotify extraction failed: {e}")
             return None
+
+    async def _resolve_stream_for_spotify(self, search_query: str) -> Optional[Dict[str, Any]]:
+        """Resolve a playable stream URL for Spotify metadata using legal-first sources."""
+        legal_first_sources = [
+            ("jiosaavn", jiosaavn.extract),
+            ("ytmusic", ytmusic.extract),
+            ("soundcloud", soundcloud.extract),
+            ("audiomack", audiomack.extract),
+        ]
+
+        for source_name, resolver in legal_first_sources:
+            try:
+                result = await resolver(search_query)
+                if result and result.get("url"):
+                    logger.info(f"💀 Spotify resolved via {source_name}: {search_query}")
+                    return result
+            except Exception as exc:
+                logger.debug(f"Spotify resolver {source_name} failed: {exc}")
+
+        if config.SPOTIFY_YOUTUBE_FALLBACK:
+            logger.info("💀 Spotify legal-first sources failed, trying YouTube fallback")
+            return await youtube.extract(search_query)
+
+        logger.warning("💀 Spotify legal-first sources failed and YouTube fallback is disabled")
+        return None
 
     def _extract_track_id(self, url: str) -> Optional[str]:
         """Extract track ID from Spotify URL or URI."""

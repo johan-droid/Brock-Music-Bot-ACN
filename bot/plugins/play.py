@@ -304,7 +304,7 @@ async def start_playback(chat_id: int) -> None:
 
         url = track.get("url", "")
         # Always try to resolve/refresh stream URL for stability
-        resolved_url = await music_backend.get_stream_url(Track(
+        stream_payload = await music_backend.get_stream_payload(Track(
             title=track.get("title", ""),
             artist=track.get("uploader", ""),
             duration=track.get("duration", 0),
@@ -312,9 +312,13 @@ async def start_playback(chat_id: int) -> None:
             source=track.get("source", "youtube"),
             track_id=track.get("id")
         ))
-        
-        if resolved_url:
-            url = resolved_url
+
+        if stream_payload and stream_payload.get("url"):
+            url = stream_payload["url"]
+            effective_source = stream_payload.get("source", track.get("source", "youtube"))
+            track["source"] = effective_source
+        else:
+            effective_source = track.get("source", "youtube")
             
         if not url:
             logger.error(f"Track has no URL and resolution failed in chat {chat_id}: {track}")
@@ -323,17 +327,10 @@ async def start_playback(chat_id: int) -> None:
 
         is_video = track.get("is_video", False)
         
-        # Prepare headers for certain sources (e.g. JioSaavn needs UA/Referer for CDN)
-        headers = None
-        if track.get("source") == "jiosaavn":
-            headers = {
-                "User-Agent": (
-                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-                    "AppleWebKit/537.36 (KHTML, like Gecko) "
-                    "Chrome/120.0.0.0 Safari/537.36"
-                ),
-                "Referer": "https://www.jiosaavn.com/",
-            }
+        # Prepare source-specific headers (e.g. JioSaavn CDN referer requirement)
+        headers = (stream_payload or {}).get("headers") if stream_payload else None
+        if headers is None:
+            headers = music_backend.get_source_headers(effective_source)
 
         # Use consolidated play method
         await call_manager.play(chat_id, url, video=is_video, headers=headers)

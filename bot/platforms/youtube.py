@@ -19,6 +19,22 @@ import yt_dlp
 
 logger = logging.getLogger(__name__)
 
+
+class _YtDlpLogger:
+    """Bridge yt-dlp logs to project logger instead of raw stderr."""
+
+    def debug(self, msg):
+        if msg:
+            logger.debug(f"yt-dlp: {msg}")
+
+    def warning(self, msg):
+        if msg:
+            logger.warning(f"yt-dlp: {msg}")
+
+    def error(self, msg):
+        if msg:
+            logger.debug(f"yt-dlp error: {msg}")
+
 # ─── Concurrency guard ────────────────────────────────────────────────────────
 _EXTRACT_SEMAPHORE = asyncio.Semaphore(3)
 
@@ -47,6 +63,8 @@ def _build_opts(player_clients: list, cookies: Optional[str] = None) -> dict:
         "format": _FORMAT,
         "quiet": True,
         "no_warnings": True,
+        "noprogress": True,
+        "logger": _YtDlpLogger(),
         "extract_flat": False,
         "noplaylist": True,
         "geo_bypass": True,

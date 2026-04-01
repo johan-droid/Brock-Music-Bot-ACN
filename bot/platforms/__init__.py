@@ -16,6 +16,7 @@ from bot.platforms.jiosaavn import jiosaavn
 from bot.platforms.ytmusic import ytmusic
 from bot.platforms.audiomack import audiomack
 from bot.platforms.telegram import TelegramAudioHandler
+from config import config
 
 logger = logging.getLogger(__name__)
 
@@ -101,32 +102,32 @@ async def extract_audio(query: str, message: Message = None) -> Optional[Dict[st
             
             else:
                 # ── SOURCE WATERFALL ──────────────────────────────────────────
-                # If a generic search, try YouTube first
+                # If a generic search, prefer legal/licensed catalogs first.
                 logger.info(f"💀 Waterfall search: {query}")
-                
-                # YouTube (Primary)
-                result = await youtube.extract(query)
-                if result: return result
-                
-                # SoundCloud (Secondary)
-                logger.debug(f"💀 YT failed, trying SoundCloud waterfall for: {query}")
-                result = await soundcloud.extract(query)
-                if result: return result
-                
-                # JioSaavn
-                logger.debug(f"SC failed, trying JioSaavn waterfall for: {query}")
-                result = await jiosaavn.extract(query)
-                if result: return result
 
-                # YT Music (High Quality fallback)
-                logger.debug(f"JioSaavn failed, trying YT Music waterfall for: {query}")
-                result = await ytmusic.extract(query)
-                if result: return result
-                
-                # Audiomack (Reliability fallback)
-                logger.debug(f"YTM failed, trying Audiomack waterfall for: {query}")
-                result = await audiomack.extract(query)
-                if result: return result
+                if config.LEGAL_SOURCES_FIRST:
+                    waterfall = [
+                        ("JioSaavn", jiosaavn.extract),
+                        ("YT Music", ytmusic.extract),
+                        ("SoundCloud", soundcloud.extract),
+                        ("Audiomack", audiomack.extract),
+                        ("YouTube", youtube.extract),
+                    ]
+                else:
+                    waterfall = [
+                        ("YouTube", youtube.extract),
+                        ("YT Music", ytmusic.extract),
+                        ("JioSaavn", jiosaavn.extract),
+                        ("SoundCloud", soundcloud.extract),
+                        ("Audiomack", audiomack.extract),
+                    ]
+
+                for source_name, extractor in waterfall:
+                    result = await extractor(query)
+                    if result:
+                        logger.debug(f"💀 Waterfall resolved via {source_name}: {query}")
+                        return result
+                    logger.debug(f"💀 {source_name} failed in waterfall for: {query}")
                 
                 return None
                 

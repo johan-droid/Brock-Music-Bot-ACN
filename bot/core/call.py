@@ -22,6 +22,13 @@ from config import config
 
 logger = logging.getLogger(__name__)
 
+_QUALITY_MIN_BITRATE = {
+    "standard": 128,
+    "high": 192,
+    "premium": 256,
+    "lossless": 320,
+}
+
 # Global instance — set by init_calls()
 call_manager: Optional["CallManager"] = None
 
@@ -284,9 +291,14 @@ class CallManager:
         from pytgcalls.types.raw.audio_parameters import AudioParameters
         from pytgcalls.types.raw.video_parameters import VideoParameters
 
-        # Use configurable bitrate (bits/s)
+        # Use configurable bitrate (bits/s) with a quality-tier floor.
+        quality_name = (getattr(config, "AUDIO_QUALITY", "high") or "high").lower()
+        min_bitrate = _QUALITY_MIN_BITRATE.get(quality_name, 192)
+        bitrate_kbps = max(int(getattr(config, "AUDIO_BITRATE", 192) or 192), min_bitrate)
+        bitrate_kbps = min(max(bitrate_kbps, 128), 320)
+
         audio_cfg = AudioParameters(
-            bitrate=config.AUDIO_BITRATE * 1000,
+            bitrate=bitrate_kbps * 1000,
         )
 
         video_flags = MediaStream.Flags.IGNORE
@@ -300,7 +312,10 @@ class CallManager:
             video_flags = MediaStream.Flags.AUTO_DETECT
 
         # FFmpeg Input Options: placed before the input URL
-        ffmpeg_params = "-reconnect 1 -reconnect_at_eof 1 -reconnect_streamed 1 -reconnect_delay_max 5 "
+        ffmpeg_params = "-nostdin "
+        if not video:
+            ffmpeg_params += "-vn "
+        ffmpeg_params += "-reconnect 1 -reconnect_at_eof 1 -reconnect_streamed 1 -reconnect_delay_max 5 "
         
         if headers:
             ua = headers.get("User-Agent")
