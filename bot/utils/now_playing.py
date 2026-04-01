@@ -39,7 +39,7 @@ BROOK_QUOTES = {
 
 # Auto-clean delays (from config)
 NP_AUTOCLEAN_DELAY = 30  # seconds
-SEARCH_MSG_AUTOCLEAN = 8  # seconds
+SEARCH_MSG_AUTOCLEAN = 300  # seconds (5 minutes for music selection)
 
 
 class NowPlayingUI:
