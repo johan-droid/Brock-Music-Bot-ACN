@@ -8,9 +8,26 @@ from dotenv import load_dotenv
 
 
 def _load_env_files() -> None:
+    from dotenv import dotenv_values
+
     for p in ("bot/.env.local", ".env.local", ".env"):
-        if os.path.exists(p):
-            load_dotenv(p)
+        if not os.path.exists(p):
+            continue
+
+        values = dotenv_values(p) or {}
+        for k, v in values.items():
+            if v is None:
+                continue
+            # Windows has a hard limit of 32767 chars on environment values.
+            if len(v) > 32767:
+                # Prefer file path login mode; skip huge session b64 values.
+                if k.startswith("SESSION_FILE_B64"):
+                    continue
+                if k.startswith("SESSION_STRING"):
+                    continue
+
+            if k not in os.environ:
+                os.environ[k] = v
 
 
 def _get_api_credentials() -> tuple[int, str]:
