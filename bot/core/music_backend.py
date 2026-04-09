@@ -47,6 +47,145 @@ class Track:
 # JioSaavnExtractor is now imported from bot.platforms.jiosaavn
 
 
+class SourceRanker:
+    """
+    Dynamic source prioritization based on query type and source health.
+    """
+    
+    # Base weights for sources (higher = better)
+    _BASE_WEIGHTS = {
+        "jiosaavn": 0.7,
+        "soundcloud": 0.6,
+        "ytmusic": 0.8,
+        "youtube": 0.5,
+        "audiomack": 0.5,
+        "spotify": 0.9,
+    }
+    
+    # Health tracking: source -> {success: int, fail: int}
+    _health: Dict[str, Dict[str, int]] = {}
+    
+    @classmethod
+    def record_success(cls, source: str) -> None:
+        """Record a successful extraction from a source."""
+        if source not in cls._health:
+            cls._health[source] = {"success": 0, "fail": 0}
+        cls._health[source]["success"] += 1
+    
+    @classmethod
+    def record_failure(cls, source: str) -> None:
+        """Record a failed extraction from a source."""
+        if source not in cls._health:
+            cls._health[source] = {"success": 0, "fail": 0}
+        cls._health[source]["fail"] += 1
+    
+    @classmethod
+    def get_reliability(cls, source: str) -> float:
+        """Get reliability score (0.0 - 1.0) for a source."""
+        stats = cls._health.get(source, {})
+        total = stats.get("success", 0) + stats.get("fail", 0)
+        if total < 5:  # Not enough data
+            return 0.8  # Neutral
+        return stats["success"] / total
+    
+    @classmethod
+    def get_source_priority(cls, source: str, query: str = "") -> int:
+        """
+        Get priority rank for a source (lower = higher priority).
+        Combines base weights, query-type adjustments, and health penalties.
+        """
+        from bot.utils.title_detector import get_source_weights_for_query
+        
+        # Get dynamic weights based on query type
+        dynamic_weights = get_source_weights_for_query(query)
+        
+        # Get base weight or default
+        base_weight = cls._BASE_WEIGHTS.get(source, 0.5)
+        
+        # Apply dynamic weight adjustment
+        dynamic_weight = dynamic_weights.get(source, base_weight)
+        
+        # Blend base and dynamic (70% dynamic, 30% base)
+        weight = (dynamic_weight * 0.7) + (base_weight * 0.3)
+        
+        # Apply health penalty if source is unreliable
+        reliability = cls.get_reliability(source)
+        if reliability < 0.5:
+            # Unreliable source gets +10 priority penalty
+            weight *= 0.5
+        
+        # Convert weight to priority rank (inverse relationship)
+        # Higher weight = lower rank number = higher priority
+        priority = int((1.0 - weight) * 100)
+        
+        return priority
+
+
+def calculate_track_quality(track: Track) -> float:
+    """
+    Calculate quality score (0.0 - 2.0) for a track.
+    Higher quality = more complete metadata.
+    """
+    score = 0.0
+    
+    # Duration present (+1.0)
+    if track.duration and track.duration > 0:
+        score += 1.0
+        # Penalize very short tracks (likely previews/snippets)
+        if track.duration < 30:
+            score -= 0.5
+    
+    # Artist known (+0.5)
+    if track.artist and track.artist.lower() not in ("unknown", "unknown artist", ""):
+        score += 0.5
+    
+    # Thumbnail present (+0.3)
+    if track.thumbnail:
+        score += 0.3
+    
+    # Track ID present (+0.2) - indicates stable identifier
+    if track.track_id:
+        score += 0.2
+    
+    return score
+
+
+def is_duplicate_track(new_track: Track, existing_tracks: List[Track], threshold: float = 0.85) -> bool:
+    """
+    Fuzzy deduplication using title and artist similarity.
+    More robust than exact string matching.
+    """
+    from bot.utils.title_detector import calculate_similarity
+    
+    new_title = new_track.title or ""
+    new_artist = new_track.artist or ""
+    
+    for existing in existing_tracks:
+        existing_title = existing.title or ""
+        existing_artist = existing.artist or ""
+        
+        # Title similarity (70% weight)
+        title_sim = calculate_similarity(new_title, existing_title)
+        
+        # Artist similarity (30% weight)
+        artist_sim = calculate_similarity(new_artist, existing_artist) if new_artist and existing_artist else 0.0
+        
+        # Combined similarity
+        combined_sim = (title_sim * 0.7) + (artist_sim * 0.3)
+        
+        if combined_sim >= threshold:
+            # Keep the higher quality track
+            new_quality = calculate_track_quality(new_track)
+            existing_quality = calculate_track_quality(existing)
+            if new_quality > existing_quality:
+                # Replace lower quality with higher quality
+                existing_tracks.remove(existing)
+                return False  # Not a duplicate (we want to keep this better one)
+            return True  # Duplicate found
+    
+    return False
+
+
 class MusicBackend:
     """
     Unified music backend that tries multiple sources.
@@ -90,76 +229,116 @@ class MusicBackend:
     
     async def search(self, query: str, limit: int = 5) -> List[Track]:
         """
-        Search across all sources in parallel.
-        Returns unified Track objects.
+        Search across all sources in parallel with dynamic prioritization.
+        Returns unified Track objects ranked by quality and relevance.
         """
         if not self.session:
             await self.init()
 
-        # Run searches - prioritize reliable sources first
-        tasks = [
-            self.jiosaavn.search(query, limit),   # Most reliable (Indian music)
-            self.soundcloud.search(query, limit),  # Reliable
-            # YouTube sources disabled temporarily due to blocking
-            # self.ytmusic.search(query, limit),
-            # self.youtube.search(query, limit),
-            self.audiomack.search(query, limit),
-        ]
+        # Determine search order based on query type
+        from bot.utils.title_detector import detect_query_type
+        query_type = detect_query_type(query)
+        
+        # Build task list with source-specific timeouts
+        tasks = []
+        source_order = []
+        
+        # JioSaavn: Fast, reliable for Indian music
+        tasks.append(asyncio.wait_for(self.jiosaavn.search(query, limit), timeout=8))
+        source_order.append("jiosaavn")
+        
+        # SoundCloud: Good for electronic/remixes
+        tasks.append(asyncio.wait_for(self.soundcloud.search(query, limit), timeout=12))
+        source_order.append("soundcloud")
+        
+        # Audiomack: Good for hip-hop
+        tasks.append(asyncio.wait_for(self.audiomack.search(query, limit), timeout=10))
+        source_order.append("audiomack")
+        
+        # YouTube Music: Best for official western releases
+        if self.ytmusic and query_type.get("western_pop", 0) > 0.6:
+            try:
+                tasks.append(asyncio.wait_for(self.ytmusic.search(query, limit), timeout=15))
+                source_order.append("ytmusic")
+            except Exception:
+                pass  # ytmusic might not be available
         
         results = await asyncio.gather(*tasks, return_exceptions=True)
         
         tracks = []
+        source_stats = {source: {"found": 0, "added": 0} for source in source_order}
         
-        # 1. Process JioSaavn results (PRIMARY - most reliable)
-        if not isinstance(results[0], Exception):
-            js_results = results[0]
-            for result in js_results:
-                track = Track(
-                    title=result.get("title", "Unknown"),
-                    artist=result.get("uploader", "Unknown Artist"),
-                    duration=result.get("duration", 0),
-                    stream_url=result.get("url", ""),
-                    thumbnail=result.get("thumbnail"),
-                    source="jiosaavn",
-                    track_id=result.get("id")
-                )
-                if not any(t.title.lower() == track.title.lower() for t in tracks):
+        for idx, (result, source) in enumerate(zip(results, source_order)):
+            if isinstance(result, Exception):
+                logger.warning(f"{source} search failed: {result}")
+                SourceRanker.record_failure(source)
+                continue
+            
+            SourceRanker.record_success(source)
+            source_stats[source]["found"] = len(result)
+            
+            for item in result:
+                # Create Track object
+                if source == "jiosaavn":
+                    track = Track(
+                        title=item.get("title", "Unknown"),
+                        artist=item.get("uploader", "Unknown Artist"),
+                        duration=item.get("duration", 0),
+                        stream_url=item.get("url", ""),
+                        thumbnail=item.get("thumbnail"),
+                        source="jiosaavn",
+                        track_id=item.get("id")
+                    )
+                elif source == "soundcloud":
+                    track = Track(
+                        title=item.get("title", "Unknown"),
+                        artist=item.get("artist", "Unknown"),
+                        duration=item.get("duration", 0),
+                        stream_url=item.get("stream_url", ""),
+                        thumbnail=item.get("thumbnail"),
+                        source="soundcloud",
+                        track_id=item.get("id")
+                    )
+                elif source == "audiomack":
+                    track = Track(
+                        title=item.get("title", "Unknown"),
+                        artist=item.get("uploader", "Unknown Artist"),
+                        duration=item.get("duration", 0),
+                        stream_url=item.get("url", ""),
+                        thumbnail=item.get("thumbnail"),
+                        source="audiomack",
+                        track_id=item.get("id")
+                    )
+                elif source == "ytmusic":
+                    track = Track(
+                        title=item.get("title", "Unknown"),
+                        artist=item.get("artist", "Unknown Artist"),
+                        duration=item.get("duration", 0),
+                        stream_url=item.get("url", ""),
+                        thumbnail=item.get("thumbnail"),
+                        source="ytmusic",
+                        track_id=item.get("id")
+                    )
+                else:
+                    continue
+                
+                # Fuzzy deduplication - check for similar tracks
+                if not is_duplicate_track(track, tracks, threshold=0.85):
                     tracks.append(track)
-            logger.info(f"JioSaavn found {len(js_results)} tracks")
-
-        # 2. Process SoundCloud results
-        if not isinstance(results[1], Exception):
-            sc_results = results[1]
-            for result in sc_results:
-                track = Track(
-                    title=result.get("title", "Unknown"),
-                    artist=result.get("artist", "Unknown"),
-                    duration=result.get("duration", 0),
-                    stream_url=result.get("stream_url", ""),
-                    thumbnail=result.get("thumbnail"),
-                    source="soundcloud",
-                    track_id=result.get("id")
-                )
-                if not any(t.title.lower() == track.title.lower() for t in tracks):
-                    tracks.append(track)
-            logger.info(f"SoundCloud found {len(sc_results)} tracks")
-
-        # 3. Process Audiomack results
-        if not isinstance(results[2], Exception):
-            am_results = results[2]
-            for result in am_results:
-                track = Track(
-                    title=result.get("title", "Unknown"),
-                    artist=result.get("uploader", "Unknown Artist"),
-                    duration=result.get("duration", 0),
-                    stream_url=result.get("url", ""),
-                    thumbnail=result.get("thumbnail"),
-                    source="audiomack",
-                    track_id=result.get("id")
-                )
-                if not any(t.title.lower() == track.title.lower() for t in tracks):
-                    tracks.append(track)
-            logger.info(f"Audiomack found {len(am_results)} tracks")
+                    source_stats[source]["added"] += 1
+        
+        # Log source performance
+        for source, stats in source_stats.items():
+            if stats["found"] > 0:
+                logger.info(f"{source}: found {stats['found']}, added {stats['added']} (reliability: {SourceRanker.get_reliability(source):.2f})")
+        
+        # Rank by quality and source priority
+        def rank_key(track):
+            quality = calculate_track_quality(track)
+            source_priority = SourceRanker.get_source_priority(track.source, query)
+            return (source_priority, -quality)
+        
+        tracks.sort(key=rank_key)
         
         return tracks[:limit]
 

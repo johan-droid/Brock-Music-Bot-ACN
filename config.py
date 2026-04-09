@@ -26,25 +26,12 @@ class Config(BaseSettings):
     OWNER_ID: Optional[int] = None
     
     # Userbot session strings (1 required when TELEGRAM_ENABLED=true)
+    # Generate with: python generate_session.py
     SESSION_STRING_1: Optional[str] = None
     SESSION_STRING_2: Optional[str] = None
     SESSION_STRING_3: Optional[str] = None
     SESSION_STRING_4: Optional[str] = None
     SESSION_STRING_5: Optional[str] = None
-
-    # Userbot session files (production-friendly alternatives to session strings)
-    # If both are present for the same index, path/b64 is preferred over string.
-    SESSION_FILE_PATH_1: Optional[str] = None
-    SESSION_FILE_PATH_2: Optional[str] = None
-    SESSION_FILE_PATH_3: Optional[str] = None
-    SESSION_FILE_PATH_4: Optional[str] = None
-    SESSION_FILE_PATH_5: Optional[str] = None
-
-    SESSION_FILE_B64_1: Optional[str] = None
-    SESSION_FILE_B64_2: Optional[str] = None
-    SESSION_FILE_B64_3: Optional[str] = None
-    SESSION_FILE_B64_4: Optional[str] = None
-    SESSION_FILE_B64_5: Optional[str] = None
     
     # MongoDB
     MONGO_URI: str = "mongodb://mongo:27017/musicbot"
@@ -142,54 +129,12 @@ class Config(BaseSettings):
 
     @property
     def userbot_auth_entries(self) -> List[Dict[str, str]]:
-        """Return ordered userbot auth entries with file-first precedence."""
+        """Return ordered userbot session string entries."""
         entries: List[Dict[str, str]] = []
 
-        # Load from env_file for large values that may be skipped from os.environ on Windows.
-        from collections.abc import Mapping
-
-        env_values: Mapping[str, str] = {}
-        env_file = getattr(self.Config, "env_file", None)
-        if env_file:
-            try:
-                from dotenv import dotenv_values
-                loaded = dotenv_values(env_file) or {}
-                # mypy types as Mapping[str, str | None]; normalize to dict[str, str]
-                env_values = {k: v for k, v in loaded.items() if v is not None}
-            except Exception:
-                env_values = {}
-
         for idx in range(1, 6):
-            file_path = self._clean_optional(getattr(self, f"SESSION_FILE_PATH_{idx}", None))
-            file_b64 = self._clean_optional(getattr(self, f"SESSION_FILE_B64_{idx}", None))
             session_str = self._clean_optional(getattr(self, f"SESSION_STRING_{idx}", None))
-
-            if not file_path and not file_b64 and not session_str:
-                env_file_path = self._clean_optional(env_values.get(f"SESSION_FILE_PATH_{idx}"))
-                if env_file_path:
-                    file_path = env_file_path
-
-                env_file_b64 = self._clean_optional(env_values.get(f"SESSION_FILE_B64_{idx}"))
-                if env_file_b64:
-                    file_b64 = env_file_b64
-
-                env_session_string = self._clean_optional(env_values.get(f"SESSION_STRING_{idx}"))
-                if env_session_string:
-                    session_str = env_session_string
-
-            if file_path:
-                entries.append({
-                    "mode": "file_path",
-                    "value": file_path,
-                    "label": f"SESSION_FILE_PATH_{idx}",
-                })
-            elif file_b64:
-                entries.append({
-                    "mode": "file_b64",
-                    "value": file_b64,
-                    "label": f"SESSION_FILE_B64_{idx}",
-                })
-            elif session_str:
+            if session_str:
                 entries.append({
                     "mode": "string",
                     "value": session_str,
@@ -353,15 +298,8 @@ def synchronize_bot_token():
 
     # Userbot auth fallback (direct env fallback)
     if config.TELEGRAM_ENABLED and not config.userbot_auth_entries:
-        path_val = os.getenv("SESSION_FILE_PATH_1")
-        b64_val = os.getenv("SESSION_FILE_B64_1")
         str_val = os.getenv("SESSION_STRING_1")
-
-        if path_val and "your_" not in path_val.lower():
-            config.SESSION_FILE_PATH_1 = path_val
-        elif b64_val and "your_" not in b64_val.lower():
-            config.SESSION_FILE_B64_1 = b64_val
-        elif str_val and "your_" not in str_val.lower():
+        if str_val and "your_" not in str_val.lower():
             config.SESSION_STRING_1 = str_val
 
 # Run token/session sync

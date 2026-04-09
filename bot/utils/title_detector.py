@@ -314,5 +314,159 @@ class TitleConflictResolver:
         return '\n'.join(lines)
 
 
+# ── Query Type Detection for Source Prioritization ─────────────────────────
+
+# Keywords that indicate query types
+_INDICIAN_ARTISTS = [
+    # Common Indian artist name patterns
+    'arijit', 'shreya', 'sonu', 'lata', 'kishore', 'mohammed', 'rafi', 'asha', 'kumar',
+    'sanu', 'udit', 'alka', 'kavita', 'sunidhi', 'kailash', 'lucky', 'jubin', 'neha',
+    'guru', 'badshah', 'yo yo', 'raftaar', 'divine', 'emway', 'mc stan', 'honey',
+    'diljit', 'karan', 'jassie', 'b praak', 'jaani', 'akhil', 'ninja', 'amrit',
+    'shankar', 'mahadevan', 'rehman', 'rahman', 'ilaiyaraaja', 'ar rahman', 'ilayaraja',
+    'anirudh', 'gv prakash', 'hiphop', 'tamizha', 'adhi', 'vijay', 'ajith', 'suriya',
+    'dhanush', 'simbu', 'yuvan', 'harris', 'jayaraj', 'deva', 'mano', 's janaki',
+    'spb', 'balasubrahmanyam', 'chitra', 'susheela', 'yesudas', 'jayachandran',
+    'vani', 'jairam', 'malaysia', 'vasudevan', 'unnikrishnan', 'nithyashree',
+    'bombay', 'jayashri', 'k s chithra', 'madhu balakrishnan', 'madhusoodanan',
+]
+
+_ELECTRONIC_KEYWORDS = [
+    'remix', 'bootleg', 'mashup', 'edit', 'flip', 'rework', 'vip', 'extended',
+    'radio edit', 'club mix', 'dubstep', 'house', 'techno', 'trance', 'edm',
+    'bass', 'trap', 'dub', 'electro', 'synthwave', 'lofi', 'lo-fi', 'chillout',
+    'progressive', 'deep house', 'future house', 'big room', 'hardstyle',
+    'drum and bass', 'dnb', 'jungle', 'garage', 'grime', 'bassline',
+]
+
+_HIPHOP_KEYWORDS = [
+    'rap', 'hip hop', 'hiphop', 'freestyle', 'diss', 'cypher', 'trap',
+    'drill', 'mumble', 'boom bap', 'old school', 'underground', 'grime',
+]
+
+_LIVE_KEYWORDS = [
+    'live', 'concert', 'unplugged', 'acoustic', 'studio', 'session',
+    'cover', 'tribute', 'karaoke', 'instrumental',
+]
+
+_OFFICIAL_KEYWORDS = [
+    'official', 'official video', 'official audio', 'music video', 'mv',
+    'lyric', 'lyrics video', 'audio', 'hd', '4k', 'remastered',
+]
+
+
+def detect_query_type(query: str) -> Dict[str, float]:
+    """
+    Detect the type of music query to inform source prioritization.
+    
+    Returns a dict of category scores (0.0 - 1.0):
+    - indian: Likely Indian/Bollywood music
+    - electronic: Electronic, remixes, EDM
+    - hiphop: Hip-hop, rap, trap
+    - live_acoustic: Live performances, acoustic versions
+    - official: Official releases (prioritize YT Music, Spotify)
+    - western_pop: Western pop/rock (default high for YT Music)
+    """
+    if not query:
+        return {"western_pop": 0.8, "indian": 0.3, "electronic": 0.5}
+    
+    query_lower = query.lower()
+    query_words = set(query_lower.split())
+    
+    scores = {
+        "indian": 0.0,
+        "electronic": 0.0,
+        "hiphop": 0.0,
+        "live_acoustic": 0.0,
+        "official": 0.0,
+        "western_pop": 0.5,  # Base score
+    }
+    
+    # Check for Indian artist names
+    for artist in _INDICIAN_ARTISTS:
+        if artist in query_lower:
+            scores["indian"] = 1.0
+            break
+    
+    # Check for electronic keywords
+    for keyword in _ELECTRONIC_KEYWORDS:
+        if keyword in query_lower:
+            scores["electronic"] = min(1.0, scores["electronic"] + 0.3)
+    
+    # Check for hip-hop keywords
+    for keyword in _HIPHOP_KEYWORDS:
+        if keyword in query_lower:
+            scores["hiphop"] = min(1.0, scores["hiphop"] + 0.4)
+    
+    # Check for live/acoustic keywords
+    for keyword in _LIVE_KEYWORDS:
+        if keyword in query_lower:
+            scores["live_acoustic"] = min(1.0, scores["live_acoustic"] + 0.3)
+    
+    # Check for official keywords
+    for keyword in _OFFICIAL_KEYWORDS:
+        if keyword in query_lower:
+            scores["official"] = min(1.0, scores["official"] + 0.3)
+    
+    # Language detection for Indian music
+    # Hindi songs often have specific patterns
+    hindi_indicators = ['है', 'का', 'की', 'के', 'में', 'से', 'को', 'ने', 'हैं']
+    if any(ind in query for ind in hindi_indicators):
+        scores["indian"] = 1.0
+    
+    # If no strong signals, boost western_pop
+    if sum(scores.values()) < 1.0:
+        scores["western_pop"] = 0.8
+    
+    logger.debug(f"Query type detection for '{query[:40]}...': {scores}")
+    return scores
+
+
+def get_source_weights_for_query(query: str) -> Dict[str, float]:
+    """
+    Get dynamic source weights based on query type.
+    Higher weight = higher priority (lower rank number).
+    """
+    query_type = detect_query_type(query)
+    
+    # Base weights
+    weights = {
+        "jiosaavn": 0.7,
+        "soundcloud": 0.6,
+        "ytmusic": 0.8,
+        "youtube": 0.5,
+        "audiomack": 0.5,
+        "spotify": 0.9,
+    }
+    
+    # Adjust based on query type
+    if query_type["indian"] > 0.7:
+        weights["jiosaavn"] = 1.0
+        weights["ytmusic"] = 0.7
+        weights["soundcloud"] = 0.4
+    
+    if query_type["electronic"] > 0.6:
+        weights["soundcloud"] = 1.0
+        weights["audiomack"] = 0.8
+        weights["jiosaavn"] = 0.4
+    
+    if query_type["hiphop"] > 0.6:
+        weights["audiomack"] = 1.0
+        weights["soundcloud"] = 0.9
+        weights["ytmusic"] = 0.6
+    
+    if query_type["official"] > 0.6:
+        weights["ytmusic"] = 1.0
+        weights["spotify"] = 0.95
+        weights["jiosaavn"] = 0.6
+    
+    if query_type["live_acoustic"] > 0.5:
+        # Live versions often on YouTube
+        weights["youtube"] = 0.8
+        weights["ytmusic"] = 0.7
+    
+    return weights
+
+
 # Global resolver instance
 conflict_resolver = TitleConflictResolver()

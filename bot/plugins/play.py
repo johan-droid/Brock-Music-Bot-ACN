@@ -92,35 +92,65 @@ def _cancel_task(task_dict: dict, chat_id: int) -> None:
 
 
 def _rank_candidates_for_selection(query: str, candidates: list) -> list:
-    """Rank tracks for /play selection with YouTube Music priority first."""
+    """Rank tracks for /play selection using quality scores and dynamic source priority."""
+    from bot.core.music_backend import SourceRanker, calculate_track_quality, Track
+    
     # Make a copy to avoid modifying the original list order during sorting
     candidates_copy = list(candidates)
     scored = []
+    
     for cand in candidates_copy:
+        # Get title and calculate similarity
         if hasattr(cand, "title"):
             title = getattr(cand, "title", "") or ""
             source = (getattr(cand, "source", "unknown") or "unknown").lower()
             sim = calculate_similarity(query, title)
             setattr(cand, "_similarity", sim)
+            # Calculate quality score if it's a Track object
+            quality = calculate_track_quality(cand) if isinstance(cand, Track) else 0.0
         else:
             title = cand.get("title", "") or ""
             source = (cand.get("source", "unknown") or "unknown").lower()
             sim = calculate_similarity(query, title)
             cand["_similarity"] = sim
+            # Create temporary Track to calculate quality
+            temp_track = Track(
+                title=title,
+                artist=cand.get("artist", cand.get("uploader", "Unknown")),
+                duration=cand.get("duration", 0),
+                stream_url=cand.get("url", ""),
+                thumbnail=cand.get("thumbnail"),
+                source=source,
+                track_id=cand.get("id") or cand.get("track_id")
+            )
+            quality = calculate_track_quality(temp_track)
+
+        # Get dynamic source priority (lower = better)
+        source_priority = SourceRanker.get_source_priority(source, query)
+        
+        # Combined score: (30% source priority, 50% similarity, 20% quality)
+        # Lower score = better ranking
+        combined_score = (
+            source_priority * 0.3 +  # Source reliability and query-type fit
+            (1.0 - sim) * 50 +       # Similarity penalty (convert to comparable scale)
+            (2.0 - quality) * 10     # Quality penalty (max quality is 2.0)
+        )
 
         scored.append((
-            _SOURCE_PRIORITY.get(source, 99),
-            -sim,
+            combined_score,
             cand,
         ))
 
-    scored.sort(key=lambda x: (x[0], x[1]))
-    result = [item[2] for item in scored]
+    scored.sort(key=lambda x: x[0])
+    result = [item[1] for item in scored]
+    
     logger.info(f"Ranked {len(result)} candidates for query '{query[:30]}...'")
     for i, track in enumerate(result[:5]):
         title = getattr(track, 'title', track.get('title', 'Unknown')) if hasattr(track, 'title') else track.get('title', 'Unknown')
         source = getattr(track, 'source', track.get('source', 'unknown')) if hasattr(track, 'source') else track.get('source', 'unknown')
-        logger.info(f"  {i+1}. {title[:40]} [{source}]")
+        sim = getattr(track, '_similarity', 0) if hasattr(track, '_similarity') else track.get('_similarity', 0)
+        logger.info(f"  {i+1}. {title[:40]} [{source}] (sim: {sim:.2f})")
+    
     return result
 
 

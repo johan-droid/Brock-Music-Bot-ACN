@@ -1,7 +1,5 @@
 import asyncio
-import base64
 import os
-from pathlib import Path
 
 from pyrogram import Client
 from dotenv import load_dotenv
@@ -18,14 +16,6 @@ def _load_env_files() -> None:
         for k, v in values.items():
             if v is None:
                 continue
-            # Windows has a hard limit of 32767 chars on environment values.
-            if len(v) > 32767:
-                # Prefer file path login mode; skip huge session b64 values.
-                if k.startswith("SESSION_FILE_B64"):
-                    continue
-                if k.startswith("SESSION_STRING"):
-                    continue
-
             if k not in os.environ:
                 os.environ[k] = v
 
@@ -58,14 +48,11 @@ async def main():
     print("2. Enter the login code Telegram sends you")
     print("3. Enter your 2FA password (if you have one enabled)\n")
     
-    sessions_dir = Path("./sessions")
-    sessions_dir.mkdir(parents=True, exist_ok=True)
-
     app = Client(
         "userbot_1",
         api_id=api_id,
         api_hash=api_hash,
-        workdir=str(sessions_dir),
+        in_memory=True,  # Don't create a session file, generate string instead
     )
     
     async with app:
@@ -75,22 +62,17 @@ async def main():
             print("Please run the script again and use a real phone number.")
             return
 
-        session_file = sessions_dir / "userbot_1.session"
-        if not session_file.exists():
-            print("\n❌ ERROR: Session file was not created.")
-            return
-
-        session_b64 = base64.b64encode(session_file.read_bytes()).decode("ascii")
+        # Export the session string directly
+        session_string = await app.export_session_string()
 
         print("\n" + "="*60)
         print("✅ SUCCESS! Logged in as:", me.first_name)
-        print("\nSESSION FILE CREATED:")
+        print("(@" + (me.username or "no username") + ")")
+        print("\nSESSION STRING (Copy this value):")
         print("="*60 + "\n")
-        print(session_file)
-        print("\nENV VALUE FOR CLOUD DEPLOYMENT (Recommended):")
-        print("SESSION_FILE_B64_1=" + session_b64)
+        print("SESSION_STRING_1=" + session_string)
         print("\n" + "="*60)
-        print("Use SESSION_FILE_B64_1 in your deploy variables (or mount SESSION_FILE_PATH_1).")
+        print("Add this SESSION_STRING_1 value to your Railway variables!")
         print("="*60 + "\n")
 
 if __name__ == "__main__":
