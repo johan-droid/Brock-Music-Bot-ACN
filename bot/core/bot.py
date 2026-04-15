@@ -52,13 +52,25 @@ async def init_bot():
     if not config.BOT_TOKEN or not config.API_ID or not config.API_HASH:
         raise RuntimeError("BOT_TOKEN, API_ID, and API_HASH are required when TELEGRAM_ENABLED is true")
 
+    session_dir = os.getenv("SESSION_DIR")
+    if session_dir:
+        os.makedirs(session_dir, exist_ok=True)
+    else:
+        try:
+            os.makedirs("./sessions", exist_ok=True)
+            session_dir = "./sessions"
+        except OSError:
+            import tempfile
+            session_dir = os.path.join(tempfile.gettempdir(), "musicbot_sessions")
+            os.makedirs(session_dir, exist_ok=True)
+
     global bot_client
     bot_client = Client(
         "musicbot",
         api_id=config.API_ID,
         api_hash=config.API_HASH,
         bot_token=config.BOT_TOKEN,
-        workdir="./sessions",
+        workdir=session_dir,
         plugins=dict(root="bot/plugins"),
     )
 
