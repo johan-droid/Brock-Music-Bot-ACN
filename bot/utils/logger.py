@@ -45,10 +45,29 @@ class TelegramLogHandler(logging.Handler):
 
 def setup_logging():
     """Setup logging configuration."""
-    # Create logs directory
-    log_dir = "/var/log/musicbot" if os.path.exists("/var/log") else "./logs"
-    os.makedirs(log_dir, exist_ok=True)
-    
+    preferred_dirs = []
+
+    env_log_dir = os.getenv("LOG_DIR")
+    if env_log_dir:
+        preferred_dirs.append(env_log_dir)
+
+    # Heroku and other container platforms write to /tmp
+    preferred_dirs.append("/tmp/musicbot")
+    preferred_dirs.append("/var/log/musicbot")
+    preferred_dirs.append("./logs")
+
+    log_dir = None
+    for candidate in preferred_dirs:
+        try:
+            os.makedirs(candidate, exist_ok=True)
+            log_dir = candidate
+            break
+        except OSError:
+            continue
+
+    if not log_dir:
+        log_dir = "."
+
     # Root logger
     root_logger = logging.getLogger()
     root_logger.setLevel(logging.INFO)
