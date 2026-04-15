@@ -135,3 +135,5 @@ async def stop_bot():
         logger.info("Bot client stopped")
     except Exception as exc:
         logger.error(f"Error stopping bot client: {exc}")
+    finally:
+        bot_client = None

@@ -342,18 +342,20 @@ end
 return out
 """
             shuffle_arg = 'true' if shuffle else 'false' if shuffle is not None else ''
-            await redis_client.eval(
-                script,
-                1,
-                keys=[key],
-                args=[
-                    status or "",
-                    loop_mode or "",
-                    str(volume) if volume is not None else "",
-                    shuffle_arg,
-                    str(ttl),
-                ],
-            )
+            eval_args = [
+                status or "",
+                loop_mode or "",
+                str(volume) if volume is not None else "",
+                shuffle_arg,
+                str(ttl),
+            ]
+
+            # Upstash uses eval(script, keys=[...], args=[...]) while redis-py uses
+            # eval(script, numkeys, key1, arg1, ...). Support both call styles.
+            try:
+                await redis_client.eval(script, keys=[key], args=eval_args)
+            except TypeError:
+                await redis_client.eval(script, 1, key, *eval_args)
             return
 
         # Fallback for SQLite or non-Redis caches
