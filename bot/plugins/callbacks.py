@@ -308,8 +308,9 @@ async def handle_stop(client: Client, callback: CallbackQuery, chat_id: int):
             async def _nuke_np():
                 await asyncio.sleep(config.NP_AUTOCLEAN_DELAY)
                 try:
-                    if bot_module.bot_client:
-                        await bot_module.bot_client.delete_messages(chat_id, np_msg_id)
+                    bot_client = bot_module.bot_client
+                    if bot_client:
+                        await bot_client.delete_messages(chat_id, np_msg_id)
                 except Exception:
                     pass
                 await cache.clear_np_message(chat_id)
@@ -669,6 +670,10 @@ async def handle_export_queue(client: Client, callback: CallbackQuery, chat_id: 
     text = "\n".join(lines[:200])
     if len(lines) > 200:
         text += f"\n... (+{len(lines)-200} more)"
+
+    if not bot_module.bot_client:
+        await callback.answer("Bot client not initialized yet.", show_alert=True)
+        return
 
     try:
         await bot_module.bot_client.send_message(chat_id, f"📤 Queue export:\n{text}")
