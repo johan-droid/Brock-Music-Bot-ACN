@@ -1,6 +1,9 @@
 """Userbot Client(s) initialization for voice chat streaming."""
 
+import base64
 import logging
+import tempfile
+from pathlib import Path
 from typing import List
 import pyrogram.errors
 from pyrogram.client import Client
@@ -13,10 +16,10 @@ userbot_clients: List[Client] = []
 _rr_cursor: int = 0
 
 
-def _build_client_from_session(index: int, session_string: str) -> Client:
-    """Create a Pyrogram client from session string."""
+def _build_client_from_session(index: int, auth: dict) -> Client:
+    """Create a Pyrogram client from a session auth entry."""
     client_name = f"userbot_{index}"
-    
+
     api_id = config.API_ID
     api_hash = config.API_HASH
 
@@ -26,13 +29,48 @@ def _build_client_from_session(index: int, session_string: str) -> Client:
             "Please set API_ID and API_HASH in your environment variables."
         )
 
-    client = Client(
-        client_name,
-        api_id=api_id,
-        api_hash=api_hash,
-        session_string=session_string,
+    auth_type = auth.get("type", "string")
+    auth_value = auth.get("value")
+
+    if auth_type == "string":
+        if not isinstance(auth_value, str):
+            raise RuntimeError("SESSION_STRING_* values must be valid strings.")
+
+        return Client(
+            client_name,
+            api_id=api_id,
+            api_hash=api_hash,
+            session_string=auth_value,
+        )
+
+    if auth_type == "file":
+        if not isinstance(auth_value, str) or not auth_value.strip():
+            raise RuntimeError("SESSION_FILE_PATH_* values must be a valid file path string.")
+
+        return Client(
+            auth_value,
+            api_id=api_id,
+            api_hash=api_hash,
+        )
+
+    if auth_type == "b64":
+        if not isinstance(auth_value, str) or not auth_value.strip():
+            raise RuntimeError("SESSION_FILE_B64_* values must be valid base64-encoded data.")
+
+        tmp_dir = Path(tempfile.gettempdir())
+        tmp_dir.mkdir(parents=True, exist_ok=True)
+        session_file = tmp_dir / f"userbot_{index}.session"
+        session_file.write_bytes(base64.b64decode(auth_value))
+        return Client(
+            str(session_file),
+            api_id=api_id,
+            api_hash=api_hash,
+        )
+
+    raise RuntimeError(
+        f"Unsupported userbot auth type: {auth_type}. "
+        "Supported auth types are SESSION_STRING_*, SESSION_FILE_PATH_*, and SESSION_FILE_B64_*."
     )
-    return client
 
 
 async def init_userbots() -> List[Client]:
@@ -68,7 +106,7 @@ async def init_userbots() -> List[Client]:
         client: Client | None = None
         auth_label = auth.get("label", f"userbot_{i}")
         try:
-            client = _build_client_from_session(i, auth["value"])
+            client = _build_client_from_session(i, auth)
             
             await client.start()
             user_info = await client.get_me()

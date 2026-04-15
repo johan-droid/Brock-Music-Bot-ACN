@@ -32,7 +32,20 @@ class Config(BaseSettings):
     SESSION_STRING_3: Optional[str] = None
     SESSION_STRING_4: Optional[str] = None
     SESSION_STRING_5: Optional[str] = None
-    
+
+    # Optional direct session file auth (supports Heroku / containerized runtime)
+    SESSION_FILE_PATH_1: Optional[str] = None
+    SESSION_FILE_PATH_2: Optional[str] = None
+    SESSION_FILE_PATH_3: Optional[str] = None
+    SESSION_FILE_PATH_4: Optional[str] = None
+    SESSION_FILE_PATH_5: Optional[str] = None
+
+    SESSION_FILE_B64_1: Optional[str] = None
+    SESSION_FILE_B64_2: Optional[str] = None
+    SESSION_FILE_B64_3: Optional[str] = None
+    SESSION_FILE_B64_4: Optional[str] = None
+    SESSION_FILE_B64_5: Optional[str] = None
+
     # MongoDB
     MONGO_URI: str = "mongodb://mongo:27017/musicbot"
     
@@ -129,17 +142,36 @@ class Config(BaseSettings):
 
     @property
     def userbot_auth_entries(self) -> List[Dict[str, str]]:
-        """Return ordered userbot session string entries."""
+        """Return ordered userbot auth entries from available session providers."""
         entries: List[Dict[str, str]] = []
 
         for idx in range(1, 6):
             session_str = self._clean_optional(getattr(self, f"SESSION_STRING_{idx}", None))
             if session_str:
                 entries.append({
-                    "mode": "string",
+                    "type": "string",
                     "value": session_str,
                     "label": f"SESSION_STRING_{idx}",
                 })
+                continue
+
+            file_path = self._clean_optional(getattr(self, f"SESSION_FILE_PATH_{idx}", None))
+            if file_path:
+                entries.append({
+                    "type": "file",
+                    "value": file_path,
+                    "label": f"SESSION_FILE_PATH_{idx}",
+                })
+                continue
+
+            file_b64 = self._clean_optional(getattr(self, f"SESSION_FILE_B64_{idx}", None))
+            if file_b64:
+                entries.append({
+                    "type": "b64",
+                    "value": file_b64,
+                    "label": f"SESSION_FILE_B64_{idx}",
+                })
+                continue
 
         return entries
     
