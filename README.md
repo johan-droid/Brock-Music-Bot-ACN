@@ -95,6 +95,18 @@ python -m bot
 **Option C: Free Cloud (Railway/Render/Fly.io)**
 See [DEPLOYMENT.md](DEPLOYMENT.md) for platform-specific instructions.
 
+**Option D: Heroku (Container Registry)**
+```bash
+heroku login
+heroku create your-app-name
+heroku container:login
+heroku container:push worker -a your-app-name
+heroku container:release worker -a your-app-name
+heroku ps:scale worker=1 -a your-app-name
+heroku config:set API_ID=your_api_id API_HASH=your_api_hash BOT_TOKEN=your_bot_token OWNER_ID=your_telegram_user_id SESSION_STRING_1="your_session_string_1"
+```
+Heroku automatically provides `PORT` to the container, and the bot starts a health server on that port.
+
 ## 🎮 Commands
 
 ### Playback (Admin & VC Participants)

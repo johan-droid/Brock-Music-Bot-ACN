@@ -43,15 +43,47 @@ This guide shows how to deploy the music bot completely free using various cloud
    API_ID=your_api_id
    API_HASH=your_api_hash
    BOT_TOKEN=your_bot_token
-   SESSION_FILE_B64_1=your_base64_encoded_session_file
+   SESSION_STRING_1=your_session_string
+   # or SESSION_FILE_B64_1=your_base64_encoded_session_file
    # or SESSION_FILE_PATH_1=/app/sessions/userbot_1.session
-   # or SESSION_STRING_1=your_session_string
    OWNER_ID=your_user_id
    MONGO_URI=mongodb+srv://... (optional - uses SQLite if not set)
    ```
 6. Deploy!
 
-### 2. Render.com (Free Tier)
+### 2. Heroku (Container Registry)
+
+**Pros:**
+- Run the same Docker image from your local or GitHub repo
+- Supports environment variables and ephemeral container storage
+- Heroku sets `PORT` automatically for the bot's health server
+
+**Steps:**
+1. Install and login to the Heroku CLI
+2. Create a new app:
+```bash
+heroku create your-app-name
+```
+3. Login to the container registry:
+```bash
+heroku container:login
+```
+4. Push and release the container as a worker process:
+```bash
+heroku container:push worker -a your-app-name
+heroku container:release worker -a your-app-name
+```
+5. Ensure the worker dyno is scaled up:
+```bash
+heroku ps:scale worker=1 -a your-app-name
+```
+6. Set required environment variables:
+```bash
+heroku config:set API_ID=your_api_id API_HASH=your_api_hash BOT_TOKEN=your_bot_token OWNER_ID=your_telegram_user_id SESSION_STRING_1="your_session_string_1"
+```
+6. Optional: set MongoDB/Redis/Supabase if used.
+
+### 3. Render.com (Free Tier)
 
 **Pros:**
 - Simple deployment
