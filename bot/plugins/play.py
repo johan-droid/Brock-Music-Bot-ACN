@@ -65,7 +65,7 @@ _SOURCE_BADGE = {
     "spotify": "🟢 Spotify",
     "soundcloud": "☁️ SoundCloud",
     "jiosaavn": "🎵 JioSaavn",
-    "ytmusic": "🎵 YT Music",
+    "ytmusic": "🎼 YT Music",
     "audiomack": "🎵 Audiomack",
     "telegram": "✈️ Telegram",
     "radio": "🔴 LIVE Radio",
@@ -308,6 +308,13 @@ async def add_track_and_play(
     search_msg: Optional[Message] = None,
 ) -> None:
     """Add track to queue and start if idle. Handle search_msg auto-clean."""
+    # Auto-clean search message if it was passed
+    if search_msg:
+        try:
+            await search_msg.delete()
+        except Exception:
+            pass
+
     status = await queue_manager.get_status(chat_id)
     is_playing = status in ("playing", "paused")
 
@@ -669,6 +676,7 @@ def _np_buttons() -> InlineKeyboardMarkup:
         ],
         [
             InlineKeyboardButton("➕ More", callback_data="more_options"),  # More options
+            InlineKeyboardButton("🔄 Force Resume", callback_data="forceresume"),
         ],
     ])
 
@@ -788,9 +796,11 @@ async def _progress_updater(chat_id: int, msg: Message, track: dict) -> None:
                 except Exception as e:
                     logger.debug(f"Pre-fetch failed (non-blocking): {e}")
             # --- END NEW PRE-FETCH LOGIC ---
+            
+            display_quote = "Intermission! The Soul King takes a breath... 💀" if status == "paused" else quote
 
             bar = progress_tracker.progress_bar(chat_id, duration)
-            text = _build_np_text(title, uploader, source, bar, elapsed, duration, q_size, quote)
+            text = _build_np_text(title, uploader, source, bar, elapsed, duration, q_size, display_quote)
 
             try:
                 await msg.edit_caption(text, reply_markup=_np_buttons(), parse_mode=ParseMode.HTML)
