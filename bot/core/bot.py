@@ -2,6 +2,7 @@
 
 import logging
 import asyncio
+from typing import Optional
 import os
 from aiohttp import web
 from pyrogram.client import Client
@@ -13,7 +14,7 @@ logger = logging.getLogger(__name__)
 
 
 # Global bot client instance
-bot_client = None
+bot_client: Optional[Client] = None
 _health_runner = None
 
 # Health check server for Railway
