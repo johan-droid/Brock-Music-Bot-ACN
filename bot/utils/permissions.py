@@ -132,6 +132,13 @@ async def is_gbanned(user_id: int) -> bool:
         return False
 
 
+async def is_group_bound(chat_id: int) -> bool:
+    """Return whether the current chat is permitted by the group binder."""
+    if config.BOUND_GROUP_ID is None:
+        return True
+    return chat_id == config.BOUND_GROUP_ID
+
+
 async def is_group_admin(chat_id: int, user_id: int) -> bool:
     """Check if user is admin in the group with caching."""
     # Check cache first
@@ -250,6 +257,14 @@ def require_member(func):
         if not user_id or not chat_id:
             return
 
+        # Check group binder
+        if not await is_group_bound(chat_id):
+            await message.reply(
+                "⛔ This bot is bound to a different group and cannot be used here.",
+                quote=True
+            )
+            return
+
         # Check maintenance mode
         if await cache.is_maintenance():
             if not await is_sudo(user_id):
@@ -282,6 +297,14 @@ def require_admin(func):
         chat_id = message.chat.id if message.chat else None
         
         if not user_id or not chat_id:
+            return
+
+        # Check group binder
+        if not await is_group_bound(chat_id):
+            await message.reply(
+                "⛔ This bot is bound to a different group and cannot be used here.",
+                quote=True
+            )
             return
         
         # Check maintenance mode

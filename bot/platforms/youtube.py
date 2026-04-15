@@ -13,7 +13,7 @@ import asyncio
 import logging
 import os
 import re
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 
 import yt_dlp
 
@@ -258,6 +258,57 @@ class YouTubeExtractor:
                         })
         except Exception as exc:
             logger.error(f"YouTube search error: {exc}")
+
+        return results
+
+    async def get_related(self, video_id: str, limit: int = 5) -> List[Dict[str, Any]]:
+        """Fetch YouTube recommendations / related videos for autoplay."""
+        try:
+            return await asyncio.wait_for(
+                asyncio.to_thread(self._get_related_sync, video_id, limit),
+                timeout=20.0,
+            )
+        except Exception as exc:
+            logger.debug(f"YouTube get_related failed: {exc}")
+            return []
+
+    def _get_related_sync(self, video_id: str, limit: int) -> List[Dict[str, Any]]:
+        url = f"https://www.youtube.com/watch?v={video_id}"
+        opts = _build_opts(_PLAYER_CLIENTS[0], _COOKIES_PATH if os.path.exists(_COOKIES_PATH) else None)
+        opts["extract_flat"] = True
+        opts["noplaylist"] = True
+
+        results: List[Dict[str, Any]] = []
+        try:
+            with yt_dlp.YoutubeDL(opts) as ydl:
+                info = ydl.extract_info(url, download=False)
+                if not info:
+                    return []
+
+                related = info.get("related_videos") or []
+                for related_item in related[:limit]:
+                    if not related_item or not related_item.get("id"):
+                        continue
+                    results.append({
+                        "id": related_item.get("id"),
+                        "title": related_item.get("title", "Unknown"),
+                        "uploader": related_item.get("uploader") or related_item.get("channel", "Unknown Artist"),
+                        "duration": int(related_item.get("duration") or 0),
+                        "url": f"https://youtube.com/watch?v={related_item.get('id')}",
+                        "thumbnail": related_item.get("thumbnail"),
+                        "source": "youtube",
+                    })
+
+                if results:
+                    return results
+
+                # Fallback to a title search if related list is unavailable
+                title = info.get("title", "")
+                uploader = info.get("uploader") or info.get("channel", "")
+                if title:
+                    return self._search_sync(f"{title} {uploader}", limit)
+        except Exception as exc:
+            logger.debug(f"YouTube related fetch error: {exc}")
 
         return results
 

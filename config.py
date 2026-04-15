@@ -20,7 +20,9 @@ class Config(BaseSettings):
     
     # Bot token from @BotFather
     BOT_TOKEN: Optional[str] = None
+    BOT_ID: Optional[int] = None
     BOT_USERNAME: Optional[str] = None
+    BOT_USERNAME_ALT: Optional[str] = None
     
     # Owner user ID
     OWNER_ID: Optional[int] = None
@@ -74,6 +76,9 @@ class Config(BaseSettings):
     
     # Log group/channel ID (optional)
     LOG_GROUP_ID: Optional[int] = None
+
+    # Optional group binder: if set, only this group/chat ID may use the bot.
+    BOUND_GROUP_ID: Optional[int] = None
 
     @field_validator("LOG_GROUP_ID", mode="before")
     def normalize_log_group_id(cls, v):
@@ -130,6 +135,16 @@ class Config(BaseSettings):
             self.SESSION_STRING_5
         ]
         return [s for s in raw if s and s.strip()]
+    
+    @property
+    def bot_usernames(self) -> List[str]:
+        """Return configured bot usernames for fallback/matching."""
+        candidates = [self.BOT_USERNAME, self.BOT_USERNAME_ALT]
+        return [u.strip() for u in candidates if u and u.strip()]
+
+    @property
+    def bound_group_id(self) -> Optional[int]:
+        return self.BOUND_GROUP_ID
 
     @staticmethod
     def _clean_optional(value: Optional[str]) -> Optional[str]:

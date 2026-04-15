@@ -121,26 +121,52 @@ class SQLiteDatabase:
         """Update group settings."""
         conn = self._get_conn()
         
-        # Get current
+        # Get current values
         current = await self.get_group(chat_id)
+        settings = current.get("settings", {}) or {}
         
-        # Apply updates
-        if "settings" in updates:
-            current["settings"].update(updates["settings"])
+        def _merge_dotted_settings(settings_dict, dotted_key, value):
+            parts = dotted_key.split(".")[1:]
+            target = settings_dict
+            for part in parts[:-1]:
+                if part not in target or not isinstance(target[part], dict):
+                    target[part] = {}
+                target = target[part]
+            target[parts[-1]] = value
+
+        # Apply direct settings merges
+        if "settings" in updates and isinstance(updates["settings"], dict):
+            settings.update(updates["settings"])
+
+        # Apply dotted path updates like settings.loop_mode or settings.vol_default
+        for key, value in updates.items():
+            if key.startswith("settings."):
+                _merge_dotted_settings(settings, key, value)
+
+        # Only update settings if actual values have changed
+        row = conn.execute("SELECT settings FROM groups WHERE id = ?", (chat_id,)).fetchone()
+        current_settings = {}
+        if row and row["settings"]:
+            try:
+                current_settings = json.loads(row["settings"])
+            except json.JSONDecodeError:
+                current_settings = {}
+
+        if settings != current_settings:
             conn.execute(
                 "UPDATE groups SET settings = ? WHERE id = ?",
-                (json.dumps(current["settings"]), chat_id)
+                (json.dumps(settings), chat_id)
             )
-        
+
         if "title" in updates:
             conn.execute("UPDATE groups SET title = ? WHERE id = ?", (updates["title"], chat_id))
-        
+
         if "is_active" in updates:
             conn.execute(
                 "UPDATE groups SET is_active = ? WHERE id = ?",
                 (1 if updates["is_active"] else 0, chat_id)
             )
-        
+
         conn.commit()
     
     async def set_group_active(self, chat_id: int, active: bool):

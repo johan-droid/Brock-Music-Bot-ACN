@@ -10,6 +10,7 @@ DO NOT run a separate FFmpeg subprocess — it is redundant and causes instabili
 
 import asyncio
 import logging
+import os
 import random
 from typing import Dict, Optional, Callable, List, Any
 
@@ -577,6 +578,13 @@ class CallManager:
         min_bitrate = _QUALITY_MIN_BITRATE.get(quality_name, 192)
         bitrate_kbps = max(int(getattr(config, "AUDIO_BITRATE", 192) or 192), min_bitrate)
         bitrate_kbps = min(max(bitrate_kbps, 128), 320)
+
+        # On Heroku, dynos are memory-constrained. Cap bitrate to 64 kbps to avoid FFmpeg/py-tgcalls spikes.
+        if os.getenv("DYNO"):
+            capped_bitrate = min(bitrate_kbps, 64)
+            if capped_bitrate != bitrate_kbps:
+                logger.info(f"Heroku environment detected, capping audio bitrate from {bitrate_kbps} to {capped_bitrate} kbps")
+            bitrate_kbps = capped_bitrate
 
         audio_cfg = AudioParameters(
             bitrate=bitrate_kbps * 1000,

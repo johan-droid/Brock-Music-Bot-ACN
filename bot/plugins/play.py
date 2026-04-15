@@ -10,7 +10,7 @@ Brook/One Piece themed Now Playing card with:
 import re
 import asyncio
 import logging
-from typing import Optional
+from typing import Optional, Dict, Any
 
 from pyrogram import Client, filters
 from pyrogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton
@@ -23,6 +23,9 @@ from bot.utils.thumbnails import generate_np_thumbnail
 from bot.utils.title_detector import conflict_resolver, normalize_text, calculate_similarity
 from bot.utils.progress_tracker import progress_tracker
 from bot.utils.cache import cache
+from bot.utils.live_ui import soul_king_ui
+from bot.utils.soul_king_thumbnail import soul_king_thumbnail
+from bot.utils.metrics import metrics_collector
 from bot.platforms import extract_audio
 from bot.platforms import youtube as yt_module
 from bot.core.queue import queue_manager
@@ -381,12 +384,16 @@ async def add_track_and_play(
         await start_playback(chat_id)
 
 
-async def start_playback(chat_id: int) -> None:
-    """Dequeue next track and start streaming."""
+async def start_playback(chat_id: int, prefetched_track: Optional[Dict[str, Any]] = None, seek: int = 0) -> None:
+    """Dequeue next track and start streaming. Can optionally use a pre-fetched track and seek position."""
     try:
-        track = await queue_manager.get_next(chat_id)
+        # Use prefetched track if provided, otherwise get from queue
+        track = prefetched_track or await queue_manager.get_next(chat_id)
+        
         if not track:
             await queue_manager.set_status(chat_id, "idle")
+            # Cache idle state immediately (for optimistic UI)
+            await cache.invalidate_playback_state(chat_id)
             # If no more tracks are queued, auto-leave VC to keep the call assistant clean.
             try:
                 await call_manager.leave_call(chat_id)
@@ -396,6 +403,8 @@ async def start_playback(chat_id: int) -> None:
             return
 
         await queue_manager.set_status(chat_id, "playing")
+        # Cache playing state immediately (for optimistic UI)
+        await cache.cache_playback_state(chat_id, status="playing")
 
         url = track.get("url", "")
         # Always try to resolve/refresh stream URL for stability
@@ -464,10 +473,11 @@ async def start_playback(chat_id: int) -> None:
                 raise
 
         # Start progress tracking
-        progress_tracker.start(chat_id, seek=int(track.get("position", 0)))
+        progress_tracker.start(chat_id, seek=seek if seek > 0 else int(track.get("position", 0)))
 
         # Send Now Playing card
-        await _send_now_playing(chat_id, track)
+        user_id = track.get("requested_by")
+        await _send_now_playing(chat_id, track, user_id)
 
         logger.info(f"Playback started in {chat_id}: {track.get('title', '?')[:50]}")
 
@@ -485,7 +495,7 @@ async def start_playback(chat_id: int) -> None:
         await queue_manager.set_status(chat_id, "idle")
 
 
-async def cleanup_vc_session(chat_id: int, send_message: bool = False) -> None:
+async def cleanup_vc_session(chat_id: int, send_message: bool = False, preserve_queue: bool = False) -> None:
     """
     Full cleanup when VC stops - wipes queue, resets trackers, clears pending conflicts.
     Call this when /stop is used or when VC is forcefully ended.
@@ -496,11 +506,14 @@ async def cleanup_vc_session(chat_id: int, send_message: bool = False) -> None:
     _cancel_task(_progress_tasks, chat_id)
     _cancel_task(_autoclean_tasks, chat_id)
     
-    # Clear all queues
+    # Clear queues unless preserving the current queue for recovery
     try:
-        await queue_manager.clear_queue(chat_id)
+        if not preserve_queue:
+            await queue_manager.clear_queue(chat_id)
+            logger.info(f"Queue cleared for chat {chat_id}")
+        else:
+            logger.info(f"Preserving queue for chat {chat_id} during cleanup")
         await queue_manager.set_status(chat_id, "idle")
-        logger.info(f"Queue cleared for chat {chat_id}")
     except Exception as e:
         logger.error(f"Failed to clear queue for {chat_id}: {e}")
     
@@ -544,11 +557,12 @@ async def cleanup_vc_session(chat_id: int, send_message: bool = False) -> None:
 
 
 async def on_track_end(chat_id: int) -> None:
-    """Called when a track finishes. Handles loop mode and auto-advance."""
+    """Called when a track finishes. Handles loop mode, auto-advance, and smart autoplay."""
     logger.info(f"Track ended in {chat_id}")
 
-    # Cancel progress updater
+    # Cancel progress updater and stop live UI session
     _cancel_task(_progress_tasks, chat_id)
+    await soul_king_ui.stop_live_session(chat_id)
 
     # Schedule NP card auto-deletion
     old_msg_id = await cache.get_np_message(chat_id)
@@ -566,11 +580,11 @@ async def on_track_end(chat_id: int) -> None:
     if loop_mode == "track":
         current = await queue_manager.get_current(chat_id)
         if current:
-            await queue_manager.add_to_queue(
+            await queue_manager.add_to_front(
                 chat_id=chat_id,
-                title=current["title"],
-                url=current["url"],
-                duration=current["duration"],
+                title=current.get("title"),
+                url=current.get("url"),
+                duration=current.get("duration"),
                 thumb=current.get("thumb"),
                 requested_by=current.get("requested_by"),
                 source=current.get("source", "youtube"),
@@ -578,7 +592,62 @@ async def on_track_end(chat_id: int) -> None:
                 uploader=current.get("uploader"),
             )
 
-    await start_playback(chat_id)
+    # --- NEW: ENDLESS RADIO (Autoplay) ---
+    q_len = await queue_manager.get_queue_length(chat_id)
+    if q_len == 0 and loop_mode != "track":
+        last_played = await queue_manager.get_current(chat_id)
+        if last_played and last_played.get("id"):
+            logger.info(f"Queue empty in {chat_id}, attempting Autoplay...")
+            try:
+                from bot.platforms.ytmusic import ytmusic
+
+                related_tracks = await ytmusic.get_related(last_played["id"], limit=3)
+                logger.info(f"Fetched {len(related_tracks)} related tracks from YT Music autoplay")
+
+                if related_tracks:
+                    filtered_related = [t for t in related_tracks if t.get("id") != last_played.get("id")]
+                    next_track = filtered_related[0] if filtered_related else None
+                    if not next_track and related_tracks and related_tracks[0].get("id") != last_played.get("id"):
+                        next_track = related_tracks[0]
+
+                    if next_track:
+                        await queue_manager.add_to_queue(
+                            chat_id=chat_id,
+                            title=next_track.get("title", "Unknown"),
+                            url=next_track.get("url", ""),
+                            duration=next_track.get("duration", 0),
+                            thumb=next_track.get("thumbnail"),
+                            requested_by=None,
+                            source="ytmusic",
+                            track_id=next_track.get("id"),
+                            uploader=next_track.get("artist") or next_track.get("uploader") or "YouTube Music",
+                        )
+
+                    if bot_module.bot_client:
+                        await bot_module.bot_client.send_message(
+                            chat_id,
+                            f"📻 <b>Autoplay:</b> Added <i>{next_track.get('title')}</i> to keep the party going! Yohoho!",
+                            parse_mode=ParseMode.HTML,
+                        )
+            except Exception as e:
+                logger.error(f"Autoplay resolution failed for {chat_id}: {e}")
+    # -------------------------------------
+
+    track = await queue_manager.get_next(chat_id)
+
+    if not track:
+        # No queue, no autoplay, or autoplay failed
+        await queue_manager.set_status(chat_id, "idle")
+        # If no more tracks are queued, auto-leave VC to keep the call assistant clean.
+        try:
+            await call_manager.leave_call(chat_id)
+            logger.info(f"Auto-left VC for chat {chat_id} after queue drained")
+        except Exception as exc:
+            logger.debug(f"Auto-leave VC failed for chat {chat_id}: {exc}")
+        return
+    
+    # Continue playback
+    await start_playback(chat_id, prefetched_track=track)
 
 
 # ── Now Playing card ──────────────────────────────────────────────────────────
@@ -604,74 +673,55 @@ def _np_buttons() -> InlineKeyboardMarkup:
     ])
 
 
-async def _send_now_playing(chat_id: int, track: dict) -> None:
-    """Send the Brook-themed Now Playing card and start the progress updater."""
-    # Cancel any existing progress task for this chat
+async def _send_now_playing(chat_id: int, track: dict, user_id: int = None) -> None:
+    """Send the Soul King concert-themed Live Now Playing card with real-time progress tracking."""
+    # Cancel any existing update tasks for this chat
+    await soul_king_ui.stop_live_session(chat_id)
     _cancel_task(_progress_tasks, chat_id)
     _cancel_task(_autoclean_tasks, chat_id)
 
-    duration = int(track.get("duration") or 0)
-    title = truncate_text(track.get("title", "Unknown"), 52)
-    uploader = track.get("uploader", track.get("artist", "Unknown Artist"))
-    source = _SOURCE_BADGE.get(track.get("source", "youtube"), "🎵")
-    bar = progress_tracker.progress_bar(chat_id, duration)
-    quote = _next_quote()
-
-    q_size = await queue_manager.get_queue_length(chat_id)
-
-    text = _build_np_text(title, uploader, source, bar, 0, duration, q_size, quote)
-    buttons = _np_buttons()
-
     try:
-        # Try thumbnail first
-        thumb = track.get("thumbnail") or track.get("thumb")
-        thumb_data = None
-        if thumb:
-            try:
-                thumb_data = await generate_np_thumbnail(
-                    title=track.get("title", "Unknown"),
-                    artist=uploader,
-                    duration=duration,
-                    position=0,
-                    thumbnail_url=thumb,
-                    source=track.get("source", "youtube"),
-                )
-            except Exception:
-                pass
-
-        if thumb_data:
-            if not bot_module.bot_client:
-                raise RuntimeError("bot client is not initialized")
-            # Wrap bytes in BytesIO for Pyrogram
-            from io import BytesIO
-            photo_file = BytesIO(thumb_data)
-            photo_file.name = "now_playing.png"
-            msg = await bot_module.bot_client.send_photo(
-                chat_id=chat_id,
-                photo=photo_file,
-                caption=text,
-                reply_markup=buttons,
-                parse_mode=ParseMode.HTML,
-            )
+        # Get user permission level
+        user_level = 1
+        if user_id:
+            from bot.utils.permissions import get_permission_level
+            user_level = await get_permission_level(user_id, chat_id)
+        
+        # Cache full playback state for state-aware UI rendering
+        import bot.utils.database as app_db
+        group = await app_db.db.get_group(chat_id)
+        loop_mode = group.get("settings", {}).get("loop_mode", "none")
+        
+        await cache.cache_playback_state(
+            chat_id,
+            status="playing",
+            loop_mode=loop_mode,
+            shuffle=False,  # Will be updated if user toggled shuffle
+            ttl=60
+        )
+        
+        # Send the live NP card via soul_king_ui
+        if not bot_module.bot_client:
+            raise RuntimeError("bot client is not initialized")
+        
+        msg = await soul_king_ui.send_live_np_card(
+            client=bot_module.bot_client,
+            chat_id=chat_id,
+            track=track,
+            message=None,
+            user_level=user_level,
+            with_photo=True
+        )
+        
+        if msg:
+            # Store message ID for cleanup purposes
+            await cache.set_np_message(chat_id, msg.id)
+            logger.info(f"Soul King Live NP card sent for chat {chat_id}, msg {msg.id}")
         else:
-            if not bot_module.bot_client:
-                raise RuntimeError("bot client is not initialized")
-            msg = await bot_module.bot_client.send_message(
-                chat_id=chat_id,
-                text=text,
-                reply_markup=buttons,
-                parse_mode=ParseMode.HTML,
-            )
-
-        # Store message ID for progress updates and auto-clean
-        await cache.set_np_message(chat_id, msg.id)
-
-        # Start background progress updater
-        task = asyncio.create_task(_progress_updater(chat_id, msg, track))
-        _progress_tasks[chat_id] = task
+            logger.warning(f"Failed to send Soul King Live NP card for chat {chat_id}")
 
     except Exception as exc:
-        logger.error(f"send_now_playing failed in {chat_id}: {exc}")
+        logger.error(f"_send_now_playing failed in {chat_id}: {exc}")
 
 
 def _build_np_text(title, uploader, source, bar, elapsed, duration, q_remaining, quote) -> str:
@@ -691,7 +741,10 @@ def _build_np_text(title, uploader, source, bar, elapsed, duration, q_remaining,
 
 
 async def _progress_updater(chat_id: int, msg: Message, track: dict) -> None:
-    """Background task: edit NP card every NP_UPDATE_INTERVAL seconds."""
+    """
+    Background task: edit NP card every NP_UPDATE_INTERVAL seconds.
+    Also pre-fetches the next track's URL 15 seconds before end to eliminate playback gaps.
+    """
     duration = int(track.get("duration") or 0)
     title = truncate_text(track.get("title", "Unknown"), 52)
     uploader = track.get("uploader", track.get("artist", "Unknown Artist"))
@@ -699,19 +752,44 @@ async def _progress_updater(chat_id: int, msg: Message, track: dict) -> None:
     quote = _next_quote()
 
     interval = max(3, int(getattr(config, "NP_UPDATE_INTERVAL", 5) or 5))
+    has_prefetched = False
 
     try:
         while True:
             await asyncio.sleep(interval)
 
-            # Stop if track ended or status changed
             status = await queue_manager.get_status(chat_id)
             if status not in ("playing", "paused"):
                 break
 
             elapsed = int(progress_tracker.elapsed(chat_id))
-            bar = progress_tracker.progress_bar(chat_id, duration)
             q_size = await queue_manager.get_queue_length(chat_id)
+
+            # --- NEW: PRE-FETCH LOGIC ---
+            if duration > 0 and (duration - elapsed) <= 15 and not has_prefetched and q_size > 0:
+                has_prefetched = True
+                logger.info(f"Pre-fetching next track for seamless playback in {chat_id}...")
+                try:
+                    queue_data = await queue_manager.get_queue(chat_id)
+                    if queue_data:
+                        next_queued_track = queue_data[0]
+                        from bot.core.music_backend import Track
+                        next_track = Track(
+                            title=next_queued_track.get("title", ""),
+                            artist=next_queued_track.get("uploader", next_queued_track.get("artist", "")),
+                            duration=next_queued_track.get("duration", 0),
+                            stream_url=next_queued_track.get("url", ""),
+                            source=next_queued_track.get("source", "youtube"),
+                            track_id=next_queued_track.get("id"),
+                        )
+                        asyncio.create_task(
+                            music_backend.get_stream_payload(next_track)
+                        )
+                except Exception as e:
+                    logger.debug(f"Pre-fetch failed (non-blocking): {e}")
+            # --- END NEW PRE-FETCH LOGIC ---
+
+            bar = progress_tracker.progress_bar(chat_id, duration)
             text = _build_np_text(title, uploader, source, bar, elapsed, duration, q_size, quote)
 
             try:
@@ -985,3 +1063,15 @@ async def resolve_conflict(chat_id: int, user_id: int, index: int, message: Mess
         _pending_conflicts.pop(chat_id, None)
 
     await add_track_and_play(message, chat_id, user_id, track, orig_msg)
+
+
+@Client.on_message(filters.command("metrics") & filters.private)
+async def metrics_cmd(client: Client, message: Message):
+    """Show real-time callback latency metrics (admin only)."""
+    if message.from_user.id != config.OWNER_ID:
+        await message.reply("⛔ Admin only")
+        return
+    
+    # Get summary and format as code block
+    summary = metrics_collector.log_summary()
+    await message.reply(f"```\n{summary}\n```", parse_mode=ParseMode.MARKDOWN)

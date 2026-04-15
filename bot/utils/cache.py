@@ -2,6 +2,7 @@
 
 import logging
 import os
+import time
 from typing import Optional
 from config import config
 
@@ -254,6 +255,13 @@ class Cache:
         else:
             return await sqlite_cache.lrange(key, start, end)
     
+    async def ltrim(self, key: str, start: int, end: int) -> None:
+        """Trim list to specified range (remove elements outside range)."""
+        if CACHE_MODE == "redis" and redis_client:
+            await redis_client.ltrim(key, start, end)
+        else:
+            await sqlite_cache.ltrim(key, start, end)
+
     async def delete(self, key: str) -> None:
         """Delete key."""
         if CACHE_MODE == "redis" and redis_client:
@@ -302,6 +310,114 @@ class Cache:
     async def get_cached_stream_url(self, video_id: str) -> Optional[str]:
         """Retrieve a cached YouTube CDN stream URL."""
         return await self.get(f"yt_stream:{video_id}")
+
+    # ── Playback state cache (for ultra-responsive buttons) ──────────────────
+
+    async def cache_playback_state(self, chat_id: int, status: str = None, loop_mode: str = None, 
+                                   volume: int = None, shuffle: bool = None, ttl: int = 60) -> None:
+        """Cache playback state for optimistic UI updates (TTL: 60s default)."""
+        import json
+        key = f"playback_state:{chat_id}"
+
+        if CACHE_MODE == "redis" and redis_client:
+            script = """
+local current = redis.call('GET', KEYS[1])
+local state = {}
+if current and current ~= false and current ~= '' then
+    local ok, decoded = pcall(cjson.decode, current)
+    if ok and type(decoded) == 'table' then
+        state = decoded
+    end
+end
+if ARGV[1] ~= '' then state['status'] = ARGV[1] end
+if ARGV[2] ~= '' then state['loop_mode'] = ARGV[2] end
+if ARGV[3] ~= '' then state['volume'] = tonumber(ARGV[3]) end
+if ARGV[4] ~= '' then state['shuffle'] = (ARGV[4] == 'true') end
+local out = cjson.encode(state)
+if ARGV[5] ~= '' then
+    redis.call('SET', KEYS[1], out, 'EX', tonumber(ARGV[5]))
+else
+    redis.call('SET', KEYS[1], out)
+end
+return out
+"""
+            shuffle_arg = 'true' if shuffle else 'false' if shuffle is not None else ''
+            await redis_client.eval(
+                script,
+                1,
+                key,
+                status or "",
+                loop_mode or "",
+                str(volume) if volume is not None else "",
+                shuffle_arg,
+                str(ttl),
+            )
+            return
+
+        # Fallback for SQLite or non-Redis caches
+        existing = await self.get(key)
+        state_dict = json.loads(existing) if existing else {}
+        
+        # Update only provided fields
+        if status is not None:
+            state_dict["status"] = status
+        if loop_mode is not None:
+            state_dict["loop_mode"] = loop_mode
+        if volume is not None:
+            state_dict["volume"] = volume
+        if shuffle is not None:
+            state_dict["shuffle"] = shuffle
+        
+        await self.set(key, json.dumps(state_dict), ex=ttl)
+    
+    async def get_playback_state(self, chat_id: int) -> dict:
+        """Get cached playback state (or empty dict if not found)."""
+        import json
+        key = f"playback_state:{chat_id}"
+        data = await self.get(key)
+        
+        if data:
+            try:
+                return json.loads(data)
+            except json.JSONDecodeError:
+                return {}
+        return {}
+    
+    async def invalidate_playback_state(self, chat_id: int) -> None:
+        """Invalidate playback state cache when stopping."""
+        await self.delete(f"playback_state:{chat_id}")
+
+    # ── Queue data cache (for batch queue button optimization) ───────────────
+
+    async def cache_queue_snapshot(self, chat_id: int, current: Optional[dict], queue: list, ttl: int = 30) -> None:
+        """Cache current track + queue list snapshot (TTL: 30s default, refreshes frequently for accuracy)."""
+        import json
+        key = f"queue_snapshot:{chat_id}"
+        
+        snapshot = {
+            "current": current,
+            "queue": queue,
+            "timestamp": time.time()
+        }
+        
+        await self.set(key, json.dumps(snapshot, default=str), ex=ttl)
+    
+    async def get_queue_snapshot(self, chat_id: int) -> Optional[dict]:
+        """Get cached queue snapshot (current + queue list) or None if expired."""
+        import json
+        key = f"queue_snapshot:{chat_id}"
+        data = await self.get(key)
+        
+        if data:
+            try:
+                return json.loads(data)
+            except json.JSONDecodeError:
+                return None
+        return None
+    
+    async def invalidate_queue_snapshot(self, chat_id: int) -> None:
+        """Invalidate queue snapshot when queue changes."""
+        await self.delete(f"queue_snapshot:{chat_id}")
 
 
 # Global cache instance

@@ -2,6 +2,7 @@
 
 import json
 import logging
+import asyncio
 from typing import List, Optional, Dict, Any
 from bot.utils.cache import cache
 
@@ -15,11 +16,18 @@ class QueueManager:
     """Manages per-chat song queues using cache (Redis or SQLite)."""
     
     def __init__(self):
-        pass
+        # Locks for queue atomicity (prevents race conditions)
+        self._locks: Dict[int, asyncio.Lock] = {}
         
     async def init(self):
         """Initialize queue manager."""
         pass  # Cache is already initialized
+    
+    def _get_lock(self, chat_id: int) -> asyncio.Lock:
+        """Get or create a lock for a chat ID."""
+        if chat_id not in self._locks:
+            self._locks[chat_id] = asyncio.Lock()
+        return self._locks[chat_id]
     
     def _queue_key(self, chat_id: int) -> str:
         """Cache key for queue list."""
@@ -71,13 +79,14 @@ class QueueManager:
             "uploader": uploader,
         }
         
-        key = self._queue_key(chat_id)
-        await cache.rpush(key, json.dumps(track))
-        
-        queue_len = await cache.llen(key)
-        logger.info(f"Added track to queue for chat {chat_id}: {title} (pos: {queue_len})")
-        
-        return queue_len
+        async with self._get_lock(chat_id):
+            key = self._queue_key(chat_id)
+            await cache.rpush(key, json.dumps(track))
+            
+            queue_len = await cache.llen(key)
+            logger.info(f"Added track to queue for chat {chat_id}: {title} (pos: {queue_len})")
+            
+            return queue_len
 
     async def add_to_front(
         self,
@@ -103,33 +112,35 @@ class QueueManager:
             "uploader": uploader,
         }
 
-        key = self._queue_key(chat_id)
-        await cache.lpush(key, json.dumps(track))
-        logger.info(f"Added track to FRONT of queue for chat {chat_id}: {title}")
-        return 1
+        async with self._get_lock(chat_id):
+            key = self._queue_key(chat_id)
+            await cache.lpush(key, json.dumps(track))
+            logger.info(f"Added track to FRONT of queue for chat {chat_id}: {title}")
+            return 1
     
     async def get_next(self, chat_id: int) -> Optional[Dict[str, Any]]:
-        """Get and remove the next song from queue."""
-        key = self._queue_key(chat_id)
-        data = await cache.lpop(key)
-        
-        # Save previous track for /previous support
-        current = await self.get_current(chat_id)
-        if current:
-            history_key = self._history_key(chat_id)
-            # lpush ensures most recent previous is first
-            await cache.lpush(history_key, json.dumps(current))
-            # Keep history length bounded for memory (20 tracks)
-            await cache.ltrim(history_key, 0, 19)
+        """Get and remove the next song from queue (ATOMIC with lock)."""
+        async with self._get_lock(chat_id):
+            key = self._queue_key(chat_id)
+            data = await cache.lpop(key)
+            
+            # Save previous track for /previous support
+            current = await self.get_current(chat_id)
+            if current:
+                history_key = self._history_key(chat_id)
+                # lpush ensures most recent previous is first
+                await cache.lpush(history_key, json.dumps(current))
+                # Keep history length bounded for memory (20 tracks)
+                await cache.ltrim(history_key, 0, 19)
 
-        if data:
-            track = json.loads(data)
-            # Store as currently playing
-            playing_key = self._playing_key(chat_id)
-            track["position"] = 0  # Reset position
-            await cache.set(playing_key, json.dumps(track))
-            return track
-        return None
+            if data:
+                track = json.loads(data)
+                # Store as currently playing
+                playing_key = self._playing_key(chat_id)
+                track["position"] = 0  # Reset position
+                await cache.set(playing_key, json.dumps(track))
+                return track
+            return None
     
     async def get_current(self, chat_id: int) -> Optional[Dict[str, Any]]:
         """Get currently playing track."""
@@ -141,68 +152,72 @@ class QueueManager:
     
     async def clear_queue(self, chat_id: int):
         """Clear the entire queue for a chat."""
-        key = self._queue_key(chat_id)
-        await cache.delete(key)
+        async with self._get_lock(chat_id):
+            key = self._queue_key(chat_id)
+            await cache.delete(key)
 
-        play_key = self._playing_key(chat_id)
-        await cache.delete(play_key)
+            play_key = self._playing_key(chat_id)
+            await cache.delete(play_key)
 
-        history_key = self._history_key(chat_id)
-        await cache.delete(history_key)
-        
-        # Reset status
-        await self.set_status(chat_id, "idle")
-        
-        logger.info(f"Cleared queue for chat {chat_id}")
+            history_key = self._history_key(chat_id)
+            await cache.delete(history_key)
+            
+            # Reset status
+            await self.set_status(chat_id, "idle")
+            
+            logger.info(f"Cleared queue for chat {chat_id}")
     
     async def remove_at(self, chat_id: int, position: int) -> Optional[Dict[str, Any]]:
         """Remove a song at specific position (1-indexed, skipping current)."""
         # position 1 = first in queue (index 0 in cache)
-        key = self._queue_key(chat_id)
-        
-        # Get the item at position-1 (0-indexed)
-        data = await cache.lindex(key, position - 1)
-        if data:
-            # Remove it - for SQLite we need to rebuild the list
-            # Get all, modify, set back
-            queue = await self.get_queue(chat_id)
-            if 0 <= position - 1 < len(queue):
-                removed = queue.pop(position - 1)
-                # Clear and re-add
-                await cache.delete(key)
-                for track in queue:
-                    await cache.rpush(key, json.dumps(track))
-                return removed
+        async with self._get_lock(chat_id):
+            key = self._queue_key(chat_id)
+            
+            # Get the item at position-1 (0-indexed)
+            data = await cache.lindex(key, position - 1)
+            if data:
+                # Remove it - for SQLite we need to rebuild the list
+                # Get all, modify, set back
+                queue = await self.get_queue(chat_id)
+                if 0 <= position - 1 < len(queue):
+                    removed = queue.pop(position - 1)
+                    # Clear and re-add
+                    await cache.delete(key)
+                    for track in queue:
+                        await cache.rpush(key, json.dumps(track))
+                    return removed
         return None
     
     async def shuffle(self, chat_id: int):
         """Shuffle the queue randomly."""
         import random
         
-        key = self._queue_key(chat_id)
-        queue = await self.get_queue(chat_id)
-        
-        if len(queue) > 1:
-            random.shuffle(queue)
-            # Clear and re-add
-            await cache.delete(key)
-            for track in queue:
-                await cache.rpush(key, json.dumps(track))
-            logger.info(f"Shuffled queue for chat {chat_id}")
+        async with self._get_lock(chat_id):
+            key = self._queue_key(chat_id)
+            queue = await self.get_queue(chat_id)
+            
+            if len(queue) > 1:
+                random.shuffle(queue)
+                # Clear and re-add
+                await cache.delete(key)
+                for track in queue:
+                    await cache.rpush(key, json.dumps(track))
+                logger.info(f"Shuffled queue for chat {chat_id}")
     
     async def move(self, chat_id: int, from_pos: int, to_pos: int):
         """Move a song from one position to another."""
-        key = self._queue_key(chat_id)
-        queue = await self.get_queue(chat_id)
-        
-        if 1 <= from_pos <= len(queue) and 1 <= to_pos <= len(queue):
-            track = queue.pop(from_pos - 1)
-            queue.insert(to_pos - 1, track)
+        async with self._get_lock(chat_id):
+            key = self._queue_key(chat_id)
+            queue = await self.get_queue(chat_id)
             
-            # Clear and re-add
-            await cache.delete(key)
-            for t in queue:
-                await cache.rpush(key, json.dumps(t))
+            if 1 <= from_pos <= len(queue) and 1 <= to_pos <= len(queue):
+                track = queue.pop(from_pos - 1)
+                queue.insert(to_pos - 1, track)
+                
+                # Clear and re-add
+                await cache.delete(key)
+                for t in queue:
+                    await cache.rpush(key, json.dumps(t))
     
     async def get_queue_length(self, chat_id: int) -> int:
         """Get number of songs in queue."""
@@ -240,31 +255,24 @@ class QueueManager:
 
     async def get_previous(self, chat_id: int) -> Optional[Dict[str, Any]]:
         """Get last played track and set it as current."""
-        history_key = self._history_key(chat_id)
-        data = await cache.lpop(history_key)
-        if not data:
-            return None
+        async with self._get_lock(chat_id):
+            history_key = self._history_key(chat_id)
+            data = await cache.lpop(history_key)
+            if not data:
+                return None
 
-        prev = json.loads(data)
-        # preserve old now playing into queue front
-        current = await self.get_current(chat_id)
-        if current:
-            await self.add_to_front(
-                chat_id,
-                title=current.get("title", "Unknown"),
-                url=current.get("url", ""),
-                duration=current.get("duration", 0),
-                thumb=current.get("thumb"),
-                requested_by=current.get("requested_by"),
-                source=current.get("source", "youtube"),
-                track_id=current.get("id"),
-                uploader=current.get("uploader"),
-            )
+            prev = json.loads(data)
+            # preserve old now playing into queue front
+            current = await self.get_current(chat_id)
+            if current:
+                queue_key = self._queue_key(chat_id)
+                await cache.lpush(queue_key, json.dumps(current))
+                logger.info(f"Moved current track back to queue for chat {chat_id}")
 
-        # Set previous as now playing
-        prev["position"] = 0
-        await cache.set(self._playing_key(chat_id), json.dumps(prev))
-        return prev
+            # Set previous as now playing
+            prev["position"] = 0
+            await cache.set(self._playing_key(chat_id), json.dumps(prev))
+            return prev
 
 
 async def init_queue_manager():
