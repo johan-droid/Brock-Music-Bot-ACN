@@ -601,9 +601,13 @@ class CallManager:
             video_flags = MediaStream.Flags.AUTO_DETECT
 
         # FFmpeg Input Options: placed before the input URL
+        from bot.utils.audio_config import get_audio_optimizer
+        af_chain = get_audio_optimizer()._build_audio_filter()
+        
         ffmpeg_params = "-nostdin "
         if not video:
             ffmpeg_params += "-vn "
+            ffmpeg_params += f'-af "{af_chain}" '
         ffmpeg_params += "-reconnect 1 -reconnect_at_eof 1 -reconnect_streamed 1 -reconnect_delay_max 5 "
         
         if headers:

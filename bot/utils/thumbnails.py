@@ -108,15 +108,15 @@ class ThumbnailGenerator:
                 bg = bg.convert("RGB")
                 bg = bg.resize((THUMB_WIDTH, THUMB_HEIGHT), Image.Resampling.LANCZOS)
             else:
-                # Create gradient background
-                bg = Image.new("RGB", (THUMB_WIDTH, THUMB_HEIGHT), (30, 30, 30))
+                # Create gradient background base (15, 15, 35)
+                bg = Image.new("RGB", (THUMB_WIDTH, THUMB_HEIGHT), (15, 15, 35))
                 draw = ImageDraw.Draw(bg)
                 
                 # Add gradient effect
                 for y in range(THUMB_HEIGHT):
-                    r = int(30 + (60 - 30) * y / THUMB_HEIGHT)
-                    g = int(30 + (80 - 30) * y / THUMB_HEIGHT)
-                    b = int(30 + (120 - 30) * y / THUMB_HEIGHT)
+                    r = int(15 + (40 - 15) * y / THUMB_HEIGHT)
+                    g = int(15 + (40 - 15) * y / THUMB_HEIGHT)
+                    b = int(35 + (80 - 35) * y / THUMB_HEIGHT)
                     draw.line([(0, y), (THUMB_WIDTH, y)], fill=(r, g, b))
             
             # Add overlay for text readability
@@ -127,11 +127,13 @@ class ThumbnailGenerator:
             
             # Source emoji/icon
             source_emoji = {
-                "youtube": "🎬 YouTube",
-                "spotify": "🎵 Spotify",
+                "youtube": "▶️ YouTube",
+                "spotify": "🟢 Spotify",
                 "soundcloud": "☁️ SoundCloud",
-                "jiosaavn": "🇮🇳 JioSaavn",
-                "telegram": "📎 Telegram",
+                "jiosaavn": "🎵 JioSaavn",
+                "ytmusic": "🎼 YT Music",
+                "audiomack": "🎵 Audiomack",
+                "telegram": "✈️ Telegram",
             }.get(source, "🎵 Music")
             
             # Draw source badge
@@ -151,8 +153,8 @@ class ThumbnailGenerator:
             # Draw progress bar
             bar_y = 450
             bar_height = 8
-            bar_color = (0, 200, 255)
-            bg_bar_color = (100, 100, 100)
+            bar_color = (255, 215, 0)  # Gold highlight
+            bg_bar_color = (60, 60, 80)
             
             # Background bar
             draw.rectangle(
@@ -180,8 +182,8 @@ class ThumbnailGenerator:
             total_width = total_bbox[2] - total_bbox[0]
             draw.text((THUMB_WIDTH - 40 - total_width, bar_y + 20), total_str, fill=(200, 200, 200), font=self.font_small)
             
-            # Draw "Now Playing" indicator
-            draw.text((40, 550), "▶ Now Playing", fill=(0, 255, 100), font=self.font_medium)
+            # Draw "Now Playing" indicator with purple accents
+            draw.text((40, 550), "▶ Now Playing", fill=(138, 43, 226), font=self.font_medium)
             
             # Convert to bytes
             output = BytesIO()
