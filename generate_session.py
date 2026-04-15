@@ -16,8 +16,15 @@ def _load_env_files() -> None:
         for k, v in values.items():
             if v is None:
                 continue
-            if k not in os.environ:
-                os.environ[k] = v
+            if k in os.environ:
+                continue
+            if isinstance(v, str) and len(v) > 32767:
+                print(
+                    f"Skipping env var {k} from {p} because it exceeds the Windows limit "
+                    "(32767 characters). Only API credentials are loaded for session generation."
+                )
+                continue
+            os.environ[k] = v
 
 
 def _get_api_credentials() -> tuple[int, str]:
