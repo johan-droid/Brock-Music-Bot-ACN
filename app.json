@@ -1,0 +1,25 @@
+{
+  "name": "Brook Music Bot",
+  "description": "Telegram Music Bot",
+  "repository": "https://github.com/johan-droid/Music-Bot",
+  "buildpacks": [
+    {
+      "url": "https://github.com/heroku/heroku-buildpack-apt"
+    },
+    {
+      "url": "heroku/python"
+    }
+  ],
+  "environments": {
+    "production": {
+      "buildpacks": [
+        {
+          "url": "https://github.com/heroku/heroku-buildpack-apt"
+        },
+        {
+          "url": "heroku/python"
+        }
+      ]
+    }
+  }
+}
