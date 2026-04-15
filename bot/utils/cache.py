@@ -345,12 +345,14 @@ return out
             await redis_client.eval(
                 script,
                 1,
-                key,
-                status or "",
-                loop_mode or "",
-                str(volume) if volume is not None else "",
-                shuffle_arg,
-                str(ttl),
+                keys=[key],
+                args=[
+                    status or "",
+                    loop_mode or "",
+                    str(volume) if volume is not None else "",
+                    shuffle_arg,
+                    str(ttl),
+                ],
             )
             return
 
