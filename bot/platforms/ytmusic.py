@@ -6,7 +6,7 @@ import asyncio
 import logging
 import os
 import re
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 
 import yt_dlp
 
@@ -152,6 +152,77 @@ class YTMusicExtractor:
                         count += 1
         except Exception as e:
             logger.error(f"YTMusic search error: {e}")
+        return results
+
+    async def get_related(self, video_id: str, limit: int = 5) -> List[Dict[str, Any]]:
+        """Fetch related tracks / Up Next recommendations from YouTube Music."""
+        try:
+            return await asyncio.wait_for(
+                asyncio.to_thread(self._get_related_sync, video_id, limit),
+                timeout=20.0,
+            )
+        except Exception as exc:
+            logger.debug(f"YT Music get_related failed: {exc}")
+            return []
+
+    def _get_related_sync(self, video_id: str, limit: int) -> List[Dict[str, Any]]:
+        url = f"https://music.youtube.com/watch?v={video_id}"
+        opts = {
+            "format": _FORMAT,
+            "quiet": True,
+            "no_warnings": True,
+            "noplaylist": True,
+            "extract_flat": False,
+            "geo_bypass": True,
+            "extractor_args": {
+                "youtube": {
+                    "player_client": ["android", "web"],
+                    "player_skip": ["webpage", "configs"],
+                }
+            },
+        }
+
+        if os.path.exists(_COOKIES_PATH):
+            opts["cookiefile"] = _COOKIES_PATH
+
+        results: List[Dict[str, Any]] = []
+        try:
+            with yt_dlp.YoutubeDL(opts) as ydl:
+                info = ydl.extract_info(url, download=False)
+                if not info:
+                    return []
+
+                related = info.get("related_videos") or []
+                if not related:
+                    related = info.get("entries") or []
+
+                for entry in related[:limit]:
+                    if not entry or not entry.get("id"):
+                        continue
+                    uploader_name = entry.get("uploader") or entry.get("channel", "YouTube Music")
+                    results.append({
+                        "id": entry.get("id"),
+                        "title": entry.get("title", "Unknown"),
+                        "uploader": uploader_name,
+                        "artist": uploader_name,
+                        "duration": int(entry.get("duration") or 0),
+                        "url": f"https://music.youtube.com/watch?v={entry.get('id')}",
+                        "thumbnail": entry.get("thumbnail"),
+                        "source": "ytmusic",
+                    })
+
+                if results:
+                    return results
+
+                # Fallback to a text search if related videos are unavailable
+                title = info.get("title", "")
+                artist = info.get("uploader") or info.get("channel", "")
+                if title:
+                    fallback_query = f"{title} {artist}"
+                    return self._search_sync(fallback_query, limit)
+        except Exception as e:
+            logger.debug(f"YT Music related fetch error: {e}")
+
         return results
 
     async def search(self, query: str, limit: int = 5) -> list:

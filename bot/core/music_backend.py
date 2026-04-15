@@ -152,17 +152,24 @@ def calculate_track_quality(track: Track) -> float:
 
 def is_duplicate_track(new_track: Track, existing_tracks: List[Track], threshold: float = 0.85) -> bool:
     """
-    Fuzzy deduplication using title and artist similarity.
-    More robust than exact string matching.
+    Fuzzy deduplication using title, artist, and duration tolerance.
+    
+    Studio versions, live versions, and extended mixes are NOT treated as duplicates
+    even if titles/artists match, because their durations differ significantly.
+    
+    Duration tolerance: Tracks must be within 15 seconds to be considered duplicates.
+    (Allows for padding differences between Spotify and YouTube, etc.)
     """
     from bot.utils.title_detector import calculate_similarity
     
     new_title = new_track.title or ""
     new_artist = new_track.artist or ""
+    new_duration = new_track.duration or 0
     
     for existing in existing_tracks:
         existing_title = existing.title or ""
         existing_artist = existing.artist or ""
+        existing_duration = existing.duration or 0
         
         # Title similarity (70% weight)
         title_sim = calculate_similarity(new_title, existing_title)
@@ -174,14 +181,22 @@ def is_duplicate_track(new_track: Track, existing_tracks: List[Track], threshold
         combined_sim = (title_sim * 0.7) + (artist_sim * 0.3)
         
         if combined_sim >= threshold:
-            # Keep the higher quality track
-            new_quality = calculate_track_quality(new_track)
-            existing_quality = calculate_track_quality(existing)
-            if new_quality > existing_quality:
-                # Replace lower quality with higher quality
-                existing_tracks.remove(existing)
-                return False  # Not a duplicate (we want to keep this better one)
-            return True  # Duplicate found
+            # NEW: Only treat as duplicate if durations are within 15 seconds
+            # This prevents studio/live/extended mix confusion
+            duration_diff = abs(new_duration - existing_duration)
+            
+            if duration_diff <= 15:
+                # Same song (titles match + durations match)
+                # Keep the higher quality track
+                new_quality = calculate_track_quality(new_track)
+                existing_quality = calculate_track_quality(existing)
+                
+                if new_quality > existing_quality:
+                    # Replace lower quality with higher quality
+                    existing_tracks.remove(existing)
+                    return False  # Not a duplicate (we want to keep this better one)
+                return True  # Duplicate found
+            # else: titles match but durations differ significantly -> not a duplicate
     
     return False
 

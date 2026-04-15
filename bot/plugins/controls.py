@@ -307,7 +307,7 @@ async def volume_cmd(client: Client, message: Message):
         await call_manager.set_volume(chat_id, volume)
         
         # We store it for future streams and settings
-        await app_db.db.update_group(chat_id, {"settings.vol_default": volume})
+        await app_db.db.update_group(chat_id, {"settings": {"vol_default": volume}})
 
         bar = '🟩' * (volume // 20) + '⬜' * (10 - volume // 20)
         await message.reply(f"🔊 **Volume set to `{volume}%`!**\n{bar}\n\n💀 *Yohohoho! The Soul King cranks it up!*")

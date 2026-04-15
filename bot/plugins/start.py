@@ -115,6 +115,13 @@ async def start_private(client: Client, message: Message):
 @Client.on_message(filters.command("start") & filters.group)
 async def start_group(client: Client, message: Message):
     """Handle /start in groups — concise Brook group welcome."""
+    if config.BOUND_GROUP_ID is not None and message.chat.id != config.BOUND_GROUP_ID:
+        await message.reply(
+            "⛔ This bot is bound to a different group and cannot be used here.",
+            parse_mode=ParseMode.HTML
+        )
+        return
+
     group_name = message.chat.title or "your group"
     mention = message.from_user.mention if message.from_user else "friend"
 

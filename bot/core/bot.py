@@ -4,11 +4,13 @@ import logging
 import asyncio
 import os
 from aiohttp import web
-from pyrogram import Client, filters, idle
-from pyrogram.handlers import MessageHandler
+from pyrogram.client import Client
+from pyrogram.sync import idle
 from config import config
+from bot.utils.metrics import metrics_collector, log_metrics_periodically
 
 logger = logging.getLogger(__name__)
+
 
 # Global bot client instance
 bot_client = None
@@ -79,7 +81,57 @@ async def init_bot():
 
     await bot_client.start()
     bot_info = await bot_client.get_me()
-    logger.info(f"Bot started: @{bot_info.username}")
+    logger.info(f"Bot started: @{bot_info.username} (id={bot_info.id})")
+
+    if config.BOT_ID and bot_info.id != config.BOT_ID:
+        logger.warning(
+            f"Configured BOT_ID={config.BOT_ID} does not match actual bot id {bot_info.id}."
+        )
+
+    if config.BOT_USERNAME and bot_info.username and config.BOT_USERNAME.lower().strip("@") != bot_info.username.lower():
+        logger.warning(
+            f"Configured BOT_USERNAME={config.BOT_USERNAME} does not match actual bot username @{bot_info.username}."
+        )
+
+    if not config.BOT_USERNAME and bot_info.username:
+        config.BOT_USERNAME = bot_info.username
+        logger.info(f"BOT_USERNAME was not set; using @{config.BOT_USERNAME} from Telegram API")
+
+    if bot_info.username and config.BOT_USERNAME_ALT and bot_info.username.lower() == config.BOT_USERNAME_ALT.lower().strip("@"):
+        logger.info("Bot username matches configured BOT_USERNAME_ALT")
+
+    # Start metrics collection background task
+    metrics_task = getattr(bot_client, "metrics_task", None)
+    if metrics_task is None or metrics_task.done():
+        metrics_task = asyncio.create_task(log_metrics_periodically(interval_seconds=300))
+        setattr(bot_client, "metrics_task", metrics_task)
+        logger.info("Metrics collection started (300s interval)")
+    else:
+        logger.debug("Metrics task already running, skipping creation")
 
     await idle()
     return bot_client
+
+
+async def stop_bot():
+    """Stop the bot client and cancel background tasks cleanly."""
+    global bot_client
+    if bot_client is None:
+        return
+
+    metrics_task = getattr(bot_client, "metrics_task", None)
+    if metrics_task is not None:
+        metrics_task.cancel()
+        try:
+            await metrics_task
+        except asyncio.CancelledError:
+            pass
+        finally:
+            setattr(bot_client, "metrics_task", None)
+            logger.info("Metrics collection task cancelled")
+
+    try:
+        await bot_client.stop()
+        logger.info("Bot client stopped")
+    except Exception as exc:
+        logger.error(f"Error stopping bot client: {exc}")

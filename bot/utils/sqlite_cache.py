@@ -238,6 +238,35 @@ class SQLiteCache:
         
         return [r['value'] for r in rows[start:end]]
     
+    async def ltrim(self, key: str, start: int, end: int) -> None:
+        """Trim list to specified range, removing elements outside it."""
+        conn = self._get_conn()
+        
+        # Get all rows sorted by index
+        rows = conn.execute(
+            "SELECT idx FROM lists WHERE key = ? ORDER BY idx ASC", (key,)
+        ).fetchall()
+        
+        # Calculate which indices to keep
+        if end == -1:
+            end = len(rows) - 1
+        
+        rows_to_keep = set()
+        for i in range(max(0, start), min(end + 1, len(rows))):
+            rows_to_keep.add(rows[i]['idx'])
+        
+        # Delete all rows not in range
+        placeholders = ', '.join('?' * len(rows_to_keep)) if rows_to_keep else 'NULL'
+        if rows_to_keep:
+            conn.execute(
+                f"DELETE FROM lists WHERE key = ? AND idx NOT IN ({placeholders})",
+                (key, *rows_to_keep)
+            )
+        else:
+            conn.execute("DELETE FROM lists WHERE key = ?", (key,))
+        
+        conn.commit()
+
     # Set operations
     async def sadd(self, key: str, *members: str):
         """Add members to set."""

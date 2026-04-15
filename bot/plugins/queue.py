@@ -212,7 +212,7 @@ async def loop_cmd(client: Client, message: Message):
     new_mode = modes.get(current_mode, "none")
     
     # Update settings
-    await app_db.db.update_group(chat_id, {"settings.loop_mode": new_mode})
+    await app_db.db.update_group(chat_id, {"settings": {"loop_mode": new_mode}})
     
     mode_text = {
         "none": "❌ Loop disabled",

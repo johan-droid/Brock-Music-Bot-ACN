@@ -215,11 +215,25 @@ class SupabaseDatabase:
             
             # Build update data
             update_data = {}
-            
-            if "settings" in updates:
-                # Merge settings
-                current_settings = current.get("settings", {})
+            current_settings = current.get("settings", {}) or {}
+
+            def _merge_dotted_settings(settings_dict, dotted_key, value):
+                parts = dotted_key.split(".")[1:]
+                target = settings_dict
+                for part in parts[:-1]:
+                    if part not in target or not isinstance(target[part], dict):
+                        target[part] = {}
+                    target = target[part]
+                target[parts[-1]] = value
+
+            if "settings" in updates and isinstance(updates["settings"], dict):
                 current_settings.update(updates["settings"])
+
+            for key, value in updates.items():
+                if key.startswith("settings."):
+                    _merge_dotted_settings(current_settings, key, value)
+
+            if current_settings != current.get("settings", {}):
                 update_data["settings"] = current_settings
             
             if "title" in updates:
