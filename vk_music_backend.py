@@ -46,6 +46,10 @@ class BackendSettings(BaseSettings):
     CORS_ALLOW_ORIGIN_REGEX: Optional[str] = None
     # Whether to allow credentials; will be forced False if allowed origins contains '*'
     CORS_ALLOW_CREDENTIALS: bool = False
+    # Whether to trust X-Forwarded-For headers (only enable behind a trusted proxy)
+    TRUST_XFF: bool = False
+    # Comma/space/semicolon-separated list of trusted proxy IPs/hosts allowed to set X-Forwarded-For
+    TRUSTED_PROXIES: Optional[str] = None
 
     VK_API_BASE_URL: Optional[str] = None
     VK_API_TOKEN: Optional[str] = None
@@ -139,13 +143,22 @@ class TrackPayload:
     extra: Dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> Dict[str, Any]:
-        data = asdict(self)
-        extra = data.pop("extra", {}) or {}
+        # Protect canonical fields from being clobbered by untrusted `extra` data.
+        # Merge `extra` first, then overlay normalized/canonical values so the
+        # normalized representation always wins.
+        extra = dict(self.extra or {})
+        canonical = asdict(self)
+        canonical.pop("extra", None)
+
+        data: Dict[str, Any] = {}
         data.update(extra)
-        data["url"] = self.stream_url
-        data["stream_url"] = self.stream_url
-        data["uploader"] = self.artist
-        data["id"] = self.track_id
+        data.update(canonical)
+
+        # Ensure expected canonical aliases
+        data["url"] = canonical.get("stream_url")
+        data["stream_url"] = canonical.get("stream_url")
+        data["uploader"] = canonical.get("artist")
+        data["id"] = canonical.get("track_id")
         return data
 
     @classmethod
@@ -702,13 +715,25 @@ async def _rate_limit_middleware(request: Request, call_next):
     if request.url.path in {"/health", "/docs", "/openapi.json", "/redoc"}:
         return await call_next(request)
 
-    client_ip = request.headers.get("x-forwarded-for")
-    if client_ip:
-        client_ip = client_ip.split(",")[0].strip()
-    elif request.client:
-        client_ip = request.client.host or "unknown"
+    # Determine client IP safely. Only consider X-Forwarded-For when explicitly
+    # configured to trust it and when the immediate peer is a trusted proxy.
+    client_ip = None
+    trusted_raw = (settings.TRUSTED_PROXIES or "").strip()
+    trusted_proxies = {p.strip() for p in re.split(r"[\s,;]+", trusted_raw) if p.strip()}
+
+    if settings.TRUST_XFF and request.client and (request.client.host in trusted_proxies):
+        xff = request.headers.get("x-forwarded-for")
+        if xff:
+            client_ip = xff.split(",")[0].strip()
     else:
-        client_ip = "unknown"
+        if settings.TRUST_XFF and not trusted_proxies:
+            logger.debug("TRUST_XFF enabled but TRUSTED_PROXIES is empty; ignoring X-Forwarded-For for safety")
+
+    if not client_ip:
+        if request.client:
+            client_ip = request.client.host or "unknown"
+        else:
+            client_ip = "unknown"
 
     if not await music_service.allow_request(client_ip, request.url.path):
         raise HTTPException(status_code=429, detail="Rate limit exceeded")

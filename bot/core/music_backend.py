@@ -18,6 +18,24 @@ except Exception:
 
 logger = logging.getLogger(__name__)
 
+# Keep references to background tasks so they are not garbage-collected
+# and attach a done callback to surface exceptions.
+_background_tasks: set = set()
+
+
+def _background_task_done(task: asyncio.Task) -> None:
+    try:
+        exc = task.exception()
+        if exc:
+            logger.warning("Background task exception: %s", exc, exc_info=True)
+    except asyncio.CancelledError:
+        pass
+    finally:
+        try:
+            _background_tasks.discard(task)
+        except Exception:
+            pass
+
 _URL_SCHEME_RX = re.compile(r"^[a-zA-Z][a-zA-Z0-9+.-]*://")
 _UNSUPPORTED_PAGE_DOMAINS = (
     "youtube.com",
@@ -390,7 +408,12 @@ class MusicBackend:
             tracks = await self._search_with_extractor(deezer_extractor, query, limit, "deezer")
 
         if tracks:
-            asyncio.create_task(self._save_to_supabase(query, tracks))
+            try:
+                task = asyncio.create_task(self._save_to_supabase(query, tracks))
+                _background_tasks.add(task)
+                task.add_done_callback(_background_task_done)
+            except Exception as exc:
+                logger.debug("Failed to schedule background Supabase save: %s", exc)
 
         return tracks[:limit]
 
