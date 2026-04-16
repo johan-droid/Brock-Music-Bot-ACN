@@ -655,8 +655,9 @@ class MusicService:
                     pass
             return int(count) <= self.settings.RATE_LIMIT_PER_MINUTE
         except Exception:
-            # Conservative default: deny when cache/rate-limiter unavailable
-            return False
+            # Permissive fallback: allow requests when cache/rate-limiter is unavailable
+            logger.debug("Rate limiter cache unavailable; allowing request by permissive fallback")
+            return True
 
 
 music_service = MusicService()
