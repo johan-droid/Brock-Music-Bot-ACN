@@ -14,12 +14,12 @@ A high-quality music streaming bot for Telegram Video Chats (formerly Voice Chat
 - **EBU R128 loudness normalization** for consistent volume
 - **FFmpeg audio filters**: Dynamic range compression, high-pass filter, limiter
 
-### 🎵 Smart Music Discovery
-- **Multi-platform support**: YouTube Music, YouTube, JioSaavn, SoundCloud, Audiomack, Spotify, Telegram files
-- **Optimized Search Waterfall**: Parallel search across all platforms (YT Music > YouTube > JioSaavn > SoundCloud > Audiomack)
-- **Smart title detection**: Handles Cyrillic (Russian) text and similar titles
-- **Conflict resolution**: Shows selection options when multiple matches are found
-- **High-quality extraction**: Prioritizes 320kbps streams (JioSaavn/YTM) and Opus codecs
+### 🎵 Piped Universal Extraction
+- **Unified Extraction Logic**: Uses Piped API (public instances) to resolve all music requests.
+- **Bypass IP Restrictions**: Successfully runs on Heroku and other blocked cloud IPs by proxying extraction.
+- **Smart Title Resolution**: Automatically resolves song names to high-quality YouTube audio.
+- **Autoplay & Related**: Dynamic discovery of related tracks via Piped API.
+- **Telegram Native**: Direct streaming support for Telegram audio files.
 
 ### 👥 Enhanced Permissions
 - **VC participant access**: `/play` now works for Video Chat participants (not just admins)
@@ -308,9 +308,9 @@ MIT License - See [LICENSE](LICENSE) file for details.
 
 ## 🙏 Credits
 
+- [Piped](https://piped.video) - Public API for unblocked YouTube extraction
 - [Pyrogram](https://github.com/pyrogram/pyrogram) - Telegram MTProto client
 - [py-tgcalls](https://github.com/pytgcalls/pytgcalls) - Video Chat streaming
-- [yt-dlp](https://github.com/yt-dlp/yt-dlp) - Media extraction
 - [NTgCalls](https://github.com/telegramdesktop/tdesktop) - Native Telegram calls
 
 ---
