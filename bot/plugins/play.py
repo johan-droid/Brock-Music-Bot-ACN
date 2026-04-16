@@ -61,11 +61,7 @@ def _next_quote() -> str:
 # Source badges
 _SOURCE_BADGE = {
     "youtube": "▶️ YouTube",
-    "spotify": "🟢 Spotify",
-    "soundcloud": "☁️ SoundCloud",
-    "jiosaavn": "🎵 JioSaavn",
-    "ytmusic": "🎼 YT Music",
-    "audiomack": "🎵 Audiomack",
+    "piped": "▶️ YouTube",
     "telegram": "✈️ Telegram",
     "radio": "🔴 LIVE Radio",
 }
@@ -77,13 +73,9 @@ _progress_tasks: dict = {}
 _autoclean_tasks: dict = {}
 
 _SOURCE_PRIORITY = {
-    "ytmusic": 0,
     "youtube": 1,
-    "jiosaavn": 2,
-    "soundcloud": 3,
-    "audiomack": 4,
-    "spotify": 5,
-    "telegram": 6,
+    "piped": 2,
+    "telegram": 3,
 }
 
 
@@ -191,9 +183,7 @@ async def play_cmd(client: Client, message: Message):
 
     # URL detection
     _url_rx = re.compile(
-        r"^(https?://)?(www\.)?(youtube\.com|youtu\.be|"
-        r"open\.spotify\.com|soundcloud\.com|"
-        r"www\.jiosaavn\.com|open\.jiosaavn\.com)/.+$",
+        r"^(https?://)?(www\.)?(youtube\.com|youtu\.be)/.+$",
         re.IGNORECASE,
     )
 
@@ -643,10 +633,10 @@ async def on_track_end(chat_id: int) -> None:
         if last_played and last_played.get("id"):
             logger.info(f"Queue empty in {chat_id}, attempting Autoplay...")
             try:
-                from bot.platforms.ytmusic import ytmusic
+                from bot.platforms.piped import piped
 
-                related_tracks = await ytmusic.get_related(last_played["id"], limit=3)
-                logger.info(f"Fetched {len(related_tracks)} related tracks from YT Music autoplay")
+                related_tracks = await piped.get_related(last_played["id"], limit=3)
+                logger.info(f"Fetched {len(related_tracks)} related tracks from Piped autoplay")
 
                 if related_tracks:
                     filtered_related = [t for t in related_tracks if t.get("id") != last_played.get("id")]
@@ -662,9 +652,9 @@ async def on_track_end(chat_id: int) -> None:
                             duration=next_track.get("duration", 0),
                             thumb=next_track.get("thumbnail"),
                             requested_by=None,
-                            source="ytmusic",
+                            source="youtube",
                             track_id=next_track.get("id"),
-                            uploader=next_track.get("artist") or next_track.get("uploader") or "YouTube Music",
+                            uploader=next_track.get("artist") or next_track.get("uploader") or "YouTube",
                         )
 
                     if bot_module.bot_client:

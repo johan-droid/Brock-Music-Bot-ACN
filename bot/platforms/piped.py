@@ -41,10 +41,10 @@ class PipedUniversalExtractor:
                         cleaned.append(value)
             else:
                 for item in raw_instances:
-                    if not item:
+                    if not isinstance(item, str):
                         continue
-                    instance = str(item).strip().rstrip("/")
-                    if instance:
+                    instance = item.strip().rstrip("/")
+                    if instance.startswith("http"):
                         cleaned.append(instance)
 
         if not cleaned:
@@ -160,6 +160,14 @@ class PipedUniversalExtractor:
         if not video_id:
             return None
 
+        import re
+        if not re.fullmatch(r"[A-Za-z0-9_-]{11}", video_id):
+            logger.info(f"Target does not look like a video ID. Searching instead: {target}")
+            results = await self.search(target, limit=1)
+            if not results:
+                return None
+            video_id = results[0]["id"]
+
         instances = self.instances[:]
         random.shuffle(instances)
 
@@ -211,5 +219,59 @@ class PipedUniversalExtractor:
         logger.error(f"Piped extract failed across all nodes for {video_id}")
         return None
 
+    async def get_related(self, video_id: str, limit: int = 5) -> list:
+        """Fetch related videos for autoplay."""
+        if not self.instances:
+            return []
+
+        # It might be a full URL instead of a raw ID
+        video_id = self._extract_video_id(video_id) or video_id
+
+        instances = self.instances[:]
+        random.shuffle(instances)
+
+        timeout = aiohttp.ClientTimeout(total=8)
+
+        for instance in instances:
+            try:
+                async with aiohttp.ClientSession(timeout=timeout) as session:
+                    endpoint = f"{instance}/streams/{video_id}"
+                    async with session.get(endpoint) as response:
+                        if response.status != 200:
+                            continue
+
+                        stream_info = await response.json()
+                        related = stream_info.get("relatedStreams") or []
+                        
+                        tracks = []
+                        for item in related:
+                            if item.get("type") != "stream":
+                                continue
+                                
+                            url = item.get("url", "")
+                            rel_id = self._extract_video_id(url)
+                            if not rel_id:
+                                continue
+                                
+                            tracks.append({
+                                "id": rel_id,
+                                "title": item.get("title") or "Unknown",
+                                "uploader": item.get("uploaderName") or "Unknown",
+                                "duration": item.get("duration") or 0,
+                                "url": f"https://youtube.com/watch?v={rel_id}",
+                                "thumbnail": item.get("thumbnail") or None,
+                                "source": "youtube",
+                            })
+                            if len(tracks) >= limit:
+                                break
+
+                        if tracks:
+                            return tracks
+            except Exception as e:
+                logger.debug(f"Piped get_related failed on {instance}: {e}")
+
+        logger.warning(f"Piped get_related failed across all nodes for {video_id}")
+        return []
 
 piped = PipedUniversalExtractor()
+
