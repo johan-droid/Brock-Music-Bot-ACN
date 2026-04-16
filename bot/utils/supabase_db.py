@@ -3,6 +3,7 @@
 import os
 import json
 import logging
+import random
 import urllib.request
 from typing import Optional, Dict, Any, List
 from datetime import datetime
@@ -74,67 +75,32 @@ class SupabaseDatabase:
 
             
     def _init_tables(self):
-        """Initialize database tables if they don't exist."""
-        # Note: Tables should be created via Supabase dashboard or migrations
-        # This is just for reference of the schema
-        schema = """
-        -- groups table
-        CREATE TABLE IF NOT EXISTS groups (
-            id BIGINT PRIMARY KEY,
-            title TEXT,
-            lang TEXT DEFAULT 'en',
-            is_active BOOLEAN DEFAULT TRUE,
-            joined_at TIMESTAMP DEFAULT NOW(),
-            settings JSONB DEFAULT '{
-                "play_on_join": true,
-                "max_queue": 100,
-                "vol_default": 100,
-                "loop_mode": "none",
-                "quality": "high",
-                "thumb_mode": true
-            }'
-        );
+        """Initialize database tables if they don't exist.
 
-        -- sudo_users table
-        CREATE TABLE IF NOT EXISTS sudo_users (
-            id BIGINT PRIMARY KEY,
-            name TEXT,
-            added_by BIGINT,
-            added_at TIMESTAMP DEFAULT NOW()
-        );
+        NOTE: The canonical schema and migrations are managed in
+        `supabase_setup.sql` in the repository. Do NOT rely on an inline
+        multi-line SQL schema here. In particular, the `global_music_index`
+        table is defined in `supabase_setup.sql` and uses explicit `::jsonb`
+        casts for JSONB defaults (single-line JSON literals) to avoid SQL
+        parser issues in the Supabase SQL editor.
 
-        -- gbanned table
-        CREATE TABLE IF NOT EXISTS gbanned (
-            id BIGINT PRIMARY KEY,
-            reason TEXT,
-            banned_by BIGINT,
-            banned_at TIMESTAMP DEFAULT NOW()
-        );
+        Ensure that `global_music_index` exists with the expected columns;
+        for example (reference only):
 
-        -- group_bans table
-        CREATE TABLE IF NOT EXISTS group_bans (
-            chat_id BIGINT,
-            user_id BIGINT,
-            banned_at TIMESTAMP DEFAULT NOW(),
-            PRIMARY KEY (chat_id, user_id)
-        );
+          - id TEXT PRIMARY KEY
+          - metadata JSONB NOT NULL
+          - created_at TIMESTAMP DEFAULT NOW()
+          - last_seen TIMESTAMP
+          - sources JSONB DEFAULT '[]'::jsonb
 
-        -- playlists table (optional)
-        CREATE TABLE IF NOT EXISTS playlists (
-            id SERIAL PRIMARY KEY,
-            user_id BIGINT,
-            name TEXT,
-            tracks JSONB DEFAULT '[]',
-            created_at TIMESTAMP DEFAULT NOW()
-        );
-
-        -- Create indexes
-        CREATE INDEX IF NOT EXISTS idx_groups_active ON groups(is_active);
-        CREATE INDEX IF NOT EXISTS idx_gbanned_id ON gbanned(id);
-        CREATE INDEX IF NOT EXISTS idx_group_bans_chat ON group_bans(chat_id);
-        CREATE INDEX IF NOT EXISTS idx_group_bans_user ON group_bans(user_id);
+        This method does not execute DDL; run `supabase_setup.sql` in the
+        Supabase SQL editor or via migrations to apply the schema.
         """
-        logger.info("Supabase tables initialized (create tables via Supabase dashboard)")
+        # The repository script `supabase_setup.sql` is the source of truth
+        # for schema creation and includes the `global_music_index` table.
+        logger.info(
+            "Supabase schema is managed via supabase_setup.sql; ensure `global_music_index` exists."
+        )
     
     # Group management
     async def get_group(self, chat_id: int) -> dict:
@@ -390,6 +356,135 @@ class SupabaseDatabase:
                 "sudo_users": 0,
                 "gbanned_users": 0,
             }
+
+    async def save_track_to_index(self, query: str, track: dict):
+        """🟢 Saves a track to Supabase, but automatically deletes old ones to protect the Free Tier."""
+        try:
+            query_key = query.strip().lower()
+            data = {
+                "query_key": query_key,
+                "track_id": track.get("id") or track.get("track_id"),
+                "title": track.get("title", "Unknown"),
+                "artist": track.get("artist", "Unknown Artist"),
+                "duration": track.get("duration", 0),
+                "thumbnail": track.get("thumbnail", ""),
+                "source": track.get("source", "piped"),
+                "last_played": datetime.utcnow().isoformat()
+            }
+
+            # 1. Save or update the current track
+            self.client.table("global_music_index").upsert(data).execute()
+
+            # 2. Free Tier Protection: Randomly check the database size (10% chance)
+            if random.random() < 0.10:
+                try:
+                    # Use a head/select count without fetching rows when possible.
+                    count_result = self.client.table("global_music_index").select("query_key", count="exact", head=True).execute()
+                    total_songs = getattr(count_result, "count", 0) or 0
+                except Exception as count_exception:
+                    logger.debug(f"Supabase index size check failed: {count_exception}")
+                    total_songs = 0
+
+                MAX_SONGS = 50000
+                if total_songs > MAX_SONGS:
+                    # Attempt to acquire a Postgres advisory lock to serialize pruning
+                    # across multiple instances. Supabase RPC can only invoke SQL
+                    # functions, so we call wrapper RPCs (try_lock/try_unlock)
+                    # defined in supabase_setup.sql.
+                    LOCK_KEY = 987654321  # arbitrary stable lock id for pruning
+                    locked = False
+
+                    def _rpc_bool(response: Any) -> bool:
+                        """Best-effort bool extraction from Supabase RPC responses."""
+                        data = getattr(response, "data", None)
+                        if isinstance(data, bool):
+                            return data
+                        if isinstance(data, dict):
+                            for value in data.values():
+                                if isinstance(value, bool):
+                                    return value
+                            return False
+                        if isinstance(data, list) and data:
+                            first = data[0]
+                            if isinstance(first, bool):
+                                return first
+                            if isinstance(first, dict):
+                                for value in first.values():
+                                    if isinstance(value, bool):
+                                        return value
+                        return False
+
+                    try:
+                        # Try different client APIs depending on supabase-py version
+                        if hasattr(self.client, "rpc"):
+                            try:
+                                res = self.client.rpc("try_lock", {"p_key": LOCK_KEY}).execute()
+                                locked = _rpc_bool(res)
+                            except Exception:
+                                locked = False
+
+                        if not locked and hasattr(self.client, "postgrest") and hasattr(self.client.postgrest, "rpc"):
+                            try:
+                                res = self.client.postgrest.rpc("try_lock", {"p_key": LOCK_KEY}).execute()
+                                locked = _rpc_bool(res)
+                            except Exception:
+                                locked = False
+                    except Exception:
+                        locked = False
+
+                    try:
+                        if locked:
+                            # Inside the lock: re-check count to avoid over-deletion
+                            # Re-check count inside advisory lock using head=True
+                            count_result = self.client.table("global_music_index").select("query_key", count="exact", head=True).execute()
+                            total_songs_locked = getattr(count_result, "count", 0) or 0
+
+                            if total_songs_locked > MAX_SONGS:
+                                oldest = self.client.table("global_music_index") \
+                                    .select("query_key") \
+                                    .order("last_played", desc=False) \
+                                    .limit(1000) \
+                                    .execute()
+
+                                if getattr(oldest, "data", None):
+                                    old_keys = [item["query_key"] for item in oldest.data if item.get("query_key")]
+                                    if old_keys:
+                                        self.client.table("global_music_index").delete().in_("query_key", old_keys).execute()
+                                        logger.info("🧹 Free Tier Protection: Deleted 1,000 old songs from Supabase index.")
+                        else:
+                            # Could not acquire lock; perform a conservative re-check
+                            count_result2 = self.client.table("global_music_index").select("query_key", count="exact", head=True).execute()
+                            total_songs_2 = getattr(count_result2, "count", 0) or 0
+                            if total_songs_2 > MAX_SONGS:
+                                # Try to delete a small batch to reduce pressure without risking over-deletion
+                                oldest = self.client.table("global_music_index") \
+                                    .select("query_key") \
+                                    .order("last_played", desc=False) \
+                                    .limit(200) \
+                                    .execute()
+                                if getattr(oldest, "data", None):
+                                    old_keys = [item["query_key"] for item in oldest.data if item.get("query_key")]
+                                    if old_keys:
+                                        self.client.table("global_music_index").delete().in_("query_key", old_keys).execute()
+                                        logger.info("🧹 Free Tier Protection: Deleted a small batch of old songs from Supabase index (no advisory lock).")
+                    finally:
+                        # Release advisory lock if we acquired it
+                        if locked:
+                            try:
+                                if hasattr(self.client, "rpc"):
+                                    try:
+                                        self.client.rpc("try_unlock", {"p_key": LOCK_KEY}).execute()
+                                    except Exception:
+                                        pass
+                                elif hasattr(self.client, "postgrest") and hasattr(self.client.postgrest, "rpc"):
+                                    try:
+                                        self.client.postgrest.rpc("try_unlock", {"p_key": LOCK_KEY}).execute()
+                                    except Exception:
+                                        pass
+                            except Exception:
+                                pass
+        except Exception as e:
+            logger.error(f"Failed to index track in Supabase: {e}")
 
     async def prune_inactive_data(self) -> int:
         """🟢 Deletes kicked/inactive groups to free up Supabase database space."""
