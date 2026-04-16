@@ -195,6 +195,29 @@ async def sudolist_cmd(client: Client, message: Message):
     await message.reply("\n".join(lines))
 
 
+@Client.on_message(filters.command("prunedb") & (filters.private | filters.group))
+@require_sudo
+async def prune_db_cmd(client: Client, message: Message):
+    """Manually prune inactive Supabase groups to reclaim database space."""
+    caller = message.from_user.id if message.from_user else None
+    if not caller:
+        return
+
+    if not await is_sudo(caller):
+        await message.reply(_SUDO_WARN)
+        return
+
+    m = await message.reply_text("🧹 Pruning inactive groups from Supabase...")
+    try:
+        count = await app_db.db.prune_inactive_data()
+        await m.edit_text(f"✅ **Database Pruned!**\nDeleted `{count}` inactive group(s) to save space.")
+    except AttributeError:
+        await m.edit_text("❌ `prune_inactive_data` method not found. Please ensure you added it to the database class.")
+    except Exception as e:
+        logger.error(f"prunedb failed: {e}")
+        await m.edit_text(f"❌ Failed to prune database: `{e}`")
+
+
 # ─────────────────────────────────────────────
 # /gban — Sudo+, group + private
 # ─────────────────────────────────────────────

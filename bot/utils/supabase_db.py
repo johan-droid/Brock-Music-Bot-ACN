@@ -391,6 +391,17 @@ class SupabaseDatabase:
                 "gbanned_users": 0,
             }
 
+    async def prune_inactive_data(self) -> int:
+        """🟢 Deletes kicked/inactive groups to free up Supabase database space."""
+        try:
+            result = self.client.table("groups").delete().eq("is_active", False).execute()
+            deleted_count = len(result.data) if getattr(result, "data", None) else 0
+            logger.info(f"🧹 Auto-Prune: Freed space by deleting {deleted_count} inactive groups from Supabase.")
+            return deleted_count
+        except Exception as e:
+            logger.error(f"Failed to prune Supabase database: {e}")
+            return 0
+
     async def get_all_groups(self) -> list:
         """Return all active groups as list of dicts with '_id' key."""
         try:
