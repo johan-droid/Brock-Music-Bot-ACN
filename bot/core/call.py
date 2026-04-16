@@ -611,12 +611,25 @@ class CallManager:
         ffmpeg_params += "-reconnect 1 -reconnect_at_eof 1 -reconnect_streamed 1 -reconnect_delay_max 5 "
         
         if headers:
-            ua = headers.get("User-Agent")
+            ua = headers.get("User-Agent") or headers.get("user-agent")
             if ua:
                 ffmpeg_params += f'-user_agent "{ua}" '
-            referer = headers.get("Referer")
+            referer = headers.get("Referer") or headers.get("referer")
             if referer:
                 ffmpeg_params += f'-referer "{referer}" '
+
+            extra_headers = []
+            for key, value in headers.items():
+                if not value:
+                    continue
+                lower_key = key.lower()
+                if lower_key in ("user-agent", "referer"):
+                    continue
+                extra_headers.append(f"{key}: {value}")
+
+            if extra_headers:
+                headers_value = "\r\n".join(extra_headers) + "\r\n"
+                ffmpeg_params += f'-headers "{headers_value}" '
 
         if seek and seek > 0:
             ffmpeg_params += f"-ss {seek} "
