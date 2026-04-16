@@ -429,35 +429,57 @@ class MusicBackend:
         return None
 
     async def _resolve_fallback_payload(self, track: Track) -> Optional[Dict[str, Any]]:
-        """Resolve a playable URL from non-YouTube sources when primary extraction fails."""
+        """Resolve a playable URL using native yt-dlp search to bypass broken platform extractors."""
         query = self._build_fallback_query(track)
         if not query:
             return None
 
-        # Prioritize Heroku-friendly sources first to avoid JioSaavn IP blocking.
+        logger.info(f"Attempting native yt-dlp fallback search for: {query}")
+        
+        import yt_dlp
+        import asyncio
+        
+        # Configure yt-dlp to grab the best audio URL directly
+        ydl_opts = {
+            'format': 'bestaudio/best',
+            'noplaylist': True,
+            'quiet': True,
+            'no_warnings': True,
+            'extract_flat': False,
+        }
+        
+        # Priority 1: SoundCloud Search (Bypasses Heroku YouTube Blocks)
+        # Priority 2: YouTube Search (Just in case)
         fallback_chain = [
-            ("soundcloud", self.soundcloud.extract),
-            ("audiomack", self.audiomack.extract),
-            ("audius", self.audius.extract),
-            ("ytmusic", self.ytmusic.extract),
-            ("jiosaavn", self.jiosaavn.extract),
+            (f"scsearch1:{query}", "soundcloud"),
+            (f"ytsearch1:{query}", "youtube")
         ]
-
-        for source_name, resolver in fallback_chain:
+        
+        loop = asyncio.get_event_loop()
+        
+        for search_string, source_name in fallback_chain:
             try:
-                result = await resolver(query)
+                def fetch_stream():
+                    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                        return ydl.extract_info(search_string, download=False)
+                
+                # Run the blocking yt-dlp request safely in a background thread
+                info = await loop.run_in_executor(None, fetch_stream)
+                
+                if info and 'entries' in info and len(info['entries']) > 0:
+                    entry = info['entries'][0]
+                    stream_url = entry.get('url')
+                    
+                    if stream_url:
+                        logger.info(f"✅ Fallback stream successfully resolved via {source_name} native search")
+                        return {
+                            "url": stream_url,
+                            "source": source_name,
+                            "headers": None
+                        }
             except Exception as exc:
-                logger.debug(f"Fallback resolver error [{source_name}] for '{query}': {exc}")
+                logger.debug(f"yt-dlp fallback failed for {search_string}: {exc}")
                 continue
-
-            if result and result.get("url"):
-                headers = self.get_source_headers(source_name)
-                logger.info(f"Fallback stream resolved via {source_name}: {track.title[:60]}")
-                return {
-                    "url": result["url"],
-                    "source": source_name,
-                    "headers": headers,
-                }
 
         return None
 
