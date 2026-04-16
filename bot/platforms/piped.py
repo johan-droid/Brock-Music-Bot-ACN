@@ -15,13 +15,16 @@ class PipedUniversalExtractor:
     """Single extractor for all public content with automatic node failover."""
 
     _DEFAULT_INSTANCES = [
+        "https://pipedapi.adminforge.de",
+        "https://api.piped.yt",
         "https://pipedapi.kavin.rocks",
-        "https://pipedapi.tokhmi.xyz",
-        "https://pipedapi.syncpundit.io",
-        "https://api-piped.mha.fi",
-        "https://pipedapi.rivm.dev",
-        "https://piped-api.garudalinux.org",
-        "https://pipedapi.privacydev.net",
+        "https://pipedapi.lunar.icu",
+        "https://piapi.ggtyler.dev",
+        "https://api.piped.private.coffee",
+        "https://pipedapi.drgns.space",
+        "https://api.piped.privacydev.net",
+        "https://api.piped.minionflo.net",
+        "https://pipedapi-libre.kavin.rocks",
     ]
 
     def __init__(self):
