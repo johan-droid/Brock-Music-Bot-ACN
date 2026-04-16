@@ -26,7 +26,7 @@
 - ✅ Dark theme with gold and purple accents
 - ✅ Theatrical stage aesthetics
 - ✅ Rotatable Brook quotes for different states
-- ✅ Source badges (YouTube, Spotify, SoundCloud, etc.)
+- ✅ Source badges (VK Music, Deezer, Telegram)
 - ✅ Queue position and size info
 - ✅ Concert-style thumbnail generation
 

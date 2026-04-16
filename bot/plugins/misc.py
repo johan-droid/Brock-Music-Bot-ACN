@@ -17,7 +17,7 @@ async def help_cmd(client: Client, message: Message):
         "🍁 Commands & Authority List\n\n"
         "👥 Members Command\n"
         "🎸 /play [song/URL] — Play a song or add to queue\n"
-        "🎬 /vplay [video/URL] — Play a YouTube video (Admin)\n"
+        "🎬 /vplay [title/URL] — Play a VK or Deezer track (Admin)\n"
         "📋 /queue or /q — View the current setlist\n"
         "⏯ /pause — Pause the Soul King's performance\n"
         "▶️ /resume — Resume the performance\n"

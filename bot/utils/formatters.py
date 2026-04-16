@@ -60,7 +60,7 @@ def format_track_info(
     duration: int, 
     position: int = 0,
     requested_by: Optional[int] = None,
-    source: str = "youtube"
+    source: str = "unknown"
 ) -> str:
     """Format track information for display.
     
@@ -79,12 +79,10 @@ def format_track_info(
     total_str = format_duration(duration)
     
     source_emoji = {
-        "youtube": "🎬",
-        "spotify": "🎵",
-        "soundcloud": "☁️",
-        "jiosaavn": "🇮🇳",
+        "vk": "🟦",
+        "deezer": "🎧",
         "telegram": "📎",
-    }.get(source, "🎵")
+    }.get((source or "").lower(), "🎵")
     
     text = f"""
 {source_emoji} **{title}**

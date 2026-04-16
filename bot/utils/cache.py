@@ -286,6 +286,48 @@ class Cache:
         else:
             await sqlite_cache.set(key, value, ex=ex)
 
+    async def incr(self, key: str, amount: int = 1) -> int:
+        """Atomically increment a key and return the new integer value.
+
+        Uses Redis INCR semantics when available. Falls back to a best-effort
+        increment using the SQLite cache when Redis is not available.
+        """
+        if CACHE_MODE == "redis" and redis_client:
+            try:
+                # redis-py/aioredis supports incr(name, amount)
+                return int(await redis_client.incr(key, amount))
+            except TypeError:
+                # Some clients (Upstash) expose incr(key) without amount
+                return int(await redis_client.incr(key))
+        else:
+            # Best-effort (non-atomic) fallback for SQLite cache
+            val = await sqlite_cache.get(key)
+            try:
+                current = int(val) if val is not None else 0
+            except Exception:
+                current = 0
+            current += amount
+            # Persist new value (no TTL set here; caller should set TTL on first increment)
+            await sqlite_cache.set(key, str(current))
+            return current
+
+    async def expire(self, key: str, seconds: int) -> bool:
+        """Set TTL/expiry on a key. Returns True if the expiry was set (best-effort).
+
+        Uses Redis EXPIRE when available, otherwise updates the SQLite TTL.
+        """
+        if CACHE_MODE == "redis" and redis_client:
+            try:
+                return bool(await redis_client.expire(key, seconds))
+            except Exception:
+                return False
+        else:
+            try:
+                await sqlite_cache.expire(key, seconds)
+                return True
+            except Exception:
+                return False
+
     # ── Now Playing message tracking ─────────────────────────────────────────
 
     async def set_np_message(self, chat_id: int, msg_id: int) -> None:
@@ -301,14 +343,14 @@ class Cache:
         """Remove the NP message ID from cache."""
         await self.delete(f"np_msg:{chat_id}")
 
-    # ── YouTube CDN URL cache ─────────────────────────────────────────────────
+    # ── Resolved stream URL cache ─────────────────────────────────────────────
 
     async def cache_stream_url(self, video_id: str, data: str, ttl: int = 19800) -> None:
-        """Cache a resolved YouTube CDN stream URL (default TTL: 5.5 hours)."""
+        """Cache a resolved stream URL (default TTL: 5.5 hours)."""
         await self.set(f"yt_stream:{video_id}", data, ex=ttl)
 
     async def get_cached_stream_url(self, video_id: str) -> Optional[str]:
-        """Retrieve a cached YouTube CDN stream URL."""
+        """Retrieve a cached stream URL."""
         return await self.get(f"yt_stream:{video_id}")
 
     # ── Playback state cache (for ultra-responsive buttons) ──────────────────

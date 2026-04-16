@@ -59,7 +59,7 @@ class QueueManager:
         duration: int,
         thumb: Optional[str] = None,
         requested_by: Optional[int] = None,
-        source: str = "youtube",
+        source: str = "unknown",
         track_id: Optional[str] = None,
         uploader: Optional[str] = None
     ) -> int:
@@ -96,7 +96,7 @@ class QueueManager:
         duration: int,
         thumb: Optional[str] = None,
         requested_by: Optional[int] = None,
-        source: str = "youtube",
+        source: str = "unknown",
         track_id: Optional[str] = None,
         uploader: Optional[str] = None,
     ) -> int:

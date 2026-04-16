@@ -46,8 +46,8 @@ SOUL_KING_VIBES = {
 }
 
 SOURCE_BADGES = {
-    "youtube": ("📺 YouTube", "#FF0000"),
-    "piped": ("📺 YouTube", "#FF0000"),
+    "vk": ("🟦 VK Music", "#0077FF"),
+    "deezer": ("🎧 Deezer", "#00C7F2"),
     "telegram": ("✈️ Telegram", "#0088CC"),
 }
 
@@ -468,7 +468,7 @@ class SoulKingLiveUI:
                         duration=track.get("duration", 0),
                         position=0,
                         thumbnail_url=track.get("thumb"),
-                        source=track.get("source", "youtube")
+                        source=track.get("source", "unknown")
                     )
                 except Exception as e:
                     logger.debug(f"[Live UI] Could not generate Soul King thumbnail: {e}")

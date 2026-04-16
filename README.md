@@ -1,6 +1,6 @@
-# 🎵 Telegram Music Bot
+# 🎵 VK Music Bot
 
-A high-quality music streaming bot for Telegram Video Chats (formerly Voice Chats) with smart title detection, zero-cost deployment options, and professional audio quality.
+A VK-first Telegram music bot with a shared FastAPI resolver, smart title detection, zero-cost deployment options, and professional audio quality.
 
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![Docker](https://img.shields.io/badge/docker-ready-green.svg)](https://www.docker.com/)
@@ -8,18 +8,18 @@ A high-quality music streaming bot for Telegram Video Chats (formerly Voice Chat
 
 ## ✨ Features
 
-### � Audio Quality (Telegram 2025 Optimized)
+### 🎵 Audio Quality (Telegram 2025 Optimized)
 - **Professional-grade audio**: Opus codec at 48kHz stereo
 - **4 quality tiers**: Standard (128kbps), High (192kbps), Premium (256kbps), Lossless (320kbps)
 - **EBU R128 loudness normalization** for consistent volume
 - **FFmpeg audio filters**: Dynamic range compression, high-pass filter, limiter
 
-### 🎵 Piped Universal Extraction
-- **Unified Extraction Logic**: Uses Piped API (public instances) to resolve all music requests.
-- **Bypass IP Restrictions**: Successfully runs on Heroku and other blocked cloud IPs by proxying extraction.
-- **Smart Title Resolution**: Automatically resolves song names to high-quality YouTube audio.
-- **Autoplay & Related**: Dynamic discovery of related tracks via Piped API.
-- **Telegram Native**: Direct streaming support for Telegram audio files.
+### 🎵 VK + Deezer Aggregation
+- **Shared backend**: FastAPI resolver exposes the same search/resolve path used by the bot.
+- **Priority search order**: VK → Deezer, with cache reuse.
+- **Token rotation**: Deezer access is health-scored to reduce token block risk.
+- **Direct stream resolution**: Playback normalizes to stream URLs before VC streaming.
+- **Telegram native**: Direct streaming support for Telegram audio files.
 
 ### 👥 Enhanced Permissions
 - **VC participant access**: `/play` now works for Video Chat participants (not just admins)
@@ -31,7 +31,7 @@ A high-quality music streaming bot for Telegram Video Chats (formerly Voice Chat
 - **No external services required**: SQLite database + cache (no Redis/MongoDB needed)
 - **Free cloud deployment**: Railway, Render, Fly.io, Oracle Cloud Free Tier
 - **Optional backends**: MongoDB Atlas, Redis, or Supabase if preferred
-- **Docker support**: Single container with everything included
+- **Docker support**: Bot and backend services can run together in compose
 
 ### 📊 Database Options
 | Option | Cost | Best For |
@@ -77,6 +77,14 @@ OWNER_ID=your_telegram_user_id
 # Leave empty to use SQLite
 MONGO_URI=
 REDIS_HOST=
+
+# Optional VK/Deezer backend settings
+VK_API_BASE_URL=
+VK_API_TOKEN=
+VK_SEARCH_PATH=/search
+VK_RESOLVE_PATH=/resolve
+DEEZER_TOKENS=
+DEEZER_RESOLVE_URL=
 ```
 
 ### 3. Deploy
@@ -86,10 +94,17 @@ REDIS_HOST=
 docker-compose up -d
 ```
 
+This starts both the Telegram bot and the shared FastAPI backend.
+
 **Option B: Direct Python**
 ```bash
 pip install -r requirements.txt
 python -m bot
+```
+
+To run the backend separately:
+```bash
+uvicorn vk_music_backend:app --host 0.0.0.0 --port 8000
 ```
 
 **Option C: Free Cloud (Railway/Render/Fly.io)**
@@ -112,8 +127,8 @@ Heroku automatically provides `PORT` to the container, and the bot starts a heal
 ### Playback (Admin & VC Participants)
 | Command | Description | Permission |
 |---------|-------------|------------|
-| `/play <query>` | Play song or add to queue | Admin / VC Participant |
-| `/vplay <query>` | Play with video (if supported) | Admin |
+| `/play <query or URL>` | Play song or add to queue | Admin / VC Participant |
+| `/vplay <query>` | Play a VK or Deezer track from a URL or search | Admin |
 | `/pause` | Pause playback | Admin |
 | `/resume` | Resume playback | Admin |
 | `/skip` | Skip to next song | Admin |
@@ -186,9 +201,11 @@ SUPABASE_KEY=your-service-role-key
 Music-Bot/
 ├── bot/
 │   ├── core/           # Bot, Userbot, Video Chat (py-tgcalls)
+│   │   └── music_backend.py  # Shared bot-side aggregator
 │   ├── plugins/        # Command handlers (/play, /pause, etc.)
-│   ├── platforms/      # YouTube Music, YouTube, JioSaavn, SoundCloud, Audiomack
+│   ├── platforms/      # VK and Deezer extractors
 │   └── utils/          # Database, cache, permissions, audio config
+├── vk_music_backend.py # FastAPI backend service / provider API
 ├── config.py           # Pydantic settings
 ├── requirements.txt    # Python dependencies
 ├── docker-compose.yml  # Docker orchestration
@@ -207,11 +224,10 @@ Music-Bot/
 └─────────────────┘      └─────────────────┘      └─────────────────┘
                                 │
                                 ▼
-                       ┌─────────────────┐
-                       │ py-tgcalls 2.x  │
-                       │  NTgCalls 1.2   │
-                       │  (Userbot VC)   │
-                       └─────────────────┘
+                       ┌─────────────────┐      ┌────────────────────┐
+                       │ py-tgcalls 2.x  │◄────►│  Core backend       │
+                       │  NTgCalls 1.2   │      │  VK + Deezer + cache│
+                       │  (Userbot VC)   │      └────────────────────┘
                                 │
                                 ▼
                        ┌─────────────────┐
@@ -222,7 +238,7 @@ Music-Bot/
                        └─────────────────┘
 ```
 
-## � Development
+## Development
 
 ### Update .gitignore
 - Added `bot/.env.local` to avoid leaking local credentials.
@@ -234,7 +250,7 @@ Music-Bot/
 2. Run healthy CI commands: `flake8`, `pytest`.
 3. Verify startup imports: `python -c "from bot import db, call_manager, bot_client"`.
 
-## �🔄 Migration Guide
+## Migration Guide
 
 ### MongoDB → Supabase
 ```bash
@@ -289,13 +305,11 @@ See [DEPLOYMENT.md](DEPLOYMENT.md) for detailed instructions.
 
 ### No audio in Video Chat
 - Ensure userbot is admin with "Manage Video Chats" permission
-- **JioSaavn issues**: The bot uses `-user_agent` and `-referer` flags to bypass CDN blocks. If you still hear silence, ensure your server IP is not globally banned by JioSaavn.
 - Check FFmpeg is installed: `ffmpeg -version`
 - Verify session string is valid
 
 ### High CPU usage
 - Reduce `AUDIO_QUALITY` to `standard` or `high`
-- Lower `concurrent_fragments` in `bot/platforms/youtube.py`
 - Use SQLite instead of MongoDB for small deployments
 
 ### Database locked errors (SQLite)
@@ -308,7 +322,6 @@ MIT License - See [LICENSE](LICENSE) file for details.
 
 ## 🙏 Credits
 
-- [Piped](https://piped.video) - Public API for unblocked YouTube extraction
 - [Pyrogram](https://github.com/pyrogram/pyrogram) - Telegram MTProto client
 - [py-tgcalls](https://github.com/pytgcalls/pytgcalls) - Video Chat streaming
 - [NTgCalls](https://github.com/telegramdesktop/tdesktop) - Native Telegram calls

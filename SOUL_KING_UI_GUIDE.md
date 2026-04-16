@@ -23,12 +23,8 @@ The music bot now features a **Soul King concert-themed** Telegram interface wit
 - **Artist Name**: Secondary artist/uploader info
 - **Duration**: Total track length
 - **Source Badge**: Visual indicator which platform the song came from:
-  - 📺 YouTube
-  - 🎧 Spotify
-  - ☁️ SoundCloud
-  - 🎵 JioSaavn
-  - 🎼 YT Music
-  - 🎵 Audiomack
+  - 🟦 VK Music
+  - 🎧 Deezer
   - ✈️ Telegram
 - **Queue Position**: Shows where the track is in the queue
 - **Queue Size**: Total songs waiting
@@ -135,7 +131,7 @@ Simply tap the inline buttons below the now playing message:
 ─ 🎸 NOW ON STAGE 🎸 ─
 [Song Title]
 by [Artist Name]
-📺 YouTube
+🟦 VK Music
 
 ─ CONCERT PROGRESS ─
 [████████████░░] 50%

@@ -9,10 +9,15 @@ import re
 from typing import Optional, Dict, Any
 from pyrogram.types import Message
 
-from bot.platforms.piped import piped
 from bot.platforms.telegram import TelegramAudioHandler
 
 logger = logging.getLogger(__name__)
+
+
+def _get_music_backend():
+    from bot.core.music_backend import music_backend
+
+    return music_backend
 
 
 def _sanitize_query(query: str) -> str:
@@ -28,9 +33,7 @@ def _sanitize_query(query: str) -> str:
 
 
 async def extract_audio(query: str, message: Message = None) -> Optional[Dict[str, Any]]:
-    """
-    Extract audio from Piped with a hard 45s timeout.
-    """
+    """Extract audio using the shared VK-first aggregator with a hard 45s timeout."""
     query = _sanitize_query(query)
     if not query:
         return None
@@ -42,10 +45,9 @@ async def extract_audio(query: str, message: Message = None) -> Optional[Dict[st
             handler = TelegramAudioHandler()
             return await handler.extract_from_message(reply)
 
-    # 2. Piped public extraction
+    # 2. Shared backend resolution
     try:
-        async with asyncio.timeout(45.0):
-            return await piped.extract(query)
+        return await asyncio.wait_for(_get_music_backend().resolve(query), timeout=45.0)
     except asyncio.TimeoutError:
         logger.error(f"💀 Extraction TIMEOUT for {query}")
         return None
@@ -55,13 +57,13 @@ async def extract_audio(query: str, message: Message = None) -> Optional[Dict[st
 
 
 async def search_tracks(query: str, platform: str = "auto", limit: int = 5) -> list:
-    """Search tracks on Piped."""
+    """Search tracks using the shared VK-first aggregator."""
     query = _sanitize_query(query)
     if not query:
         return []
 
     try:
-        return await piped.search(query, limit)
+        return await _get_music_backend().search(query, limit)
     except Exception as e:
         logger.error(f"💀 Unified search failed: {e}")
         return []

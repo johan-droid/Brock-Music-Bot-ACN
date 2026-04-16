@@ -364,8 +364,8 @@ def detect_query_type(query: str) -> Dict[str, float]:
     - electronic: Electronic, remixes, EDM
     - hiphop: Hip-hop, rap, trap
     - live_acoustic: Live performances, acoustic versions
-    - official: Official releases (prioritize YT Music, Spotify)
-    - western_pop: Western pop/rock (default high for YT Music)
+    - official: Official releases (prioritize the most complete catalog match)
+    - western_pop: Western pop/rock (default balanced score)
     """
     if not query:
         return {"western_pop": 0.8, "indian": 0.3, "electronic": 0.5}
@@ -429,41 +429,32 @@ def get_source_weights_for_query(query: str) -> Dict[str, float]:
     """
     query_type = detect_query_type(query)
     
-    # Base weights
+    # Base weights for the supported sources.
     weights = {
-        "jiosaavn": 0.7,
-        "soundcloud": 0.6,
-        "ytmusic": 0.8,
-        "youtube": 0.5,
-        "audiomack": 0.5,
-        "spotify": 0.9,
+        "vk": 0.9,
+        "deezer": 0.85,
     }
     
     # Adjust based on query type
     if query_type["indian"] > 0.7:
-        weights["jiosaavn"] = 1.0
-        weights["ytmusic"] = 0.7
-        weights["soundcloud"] = 0.4
+        weights["vk"] = 1.0
+        weights["deezer"] = 0.8
     
     if query_type["electronic"] > 0.6:
-        weights["soundcloud"] = 1.0
-        weights["audiomack"] = 0.8
-        weights["jiosaavn"] = 0.4
+        weights["deezer"] = 1.0
+        weights["vk"] = 0.85
     
     if query_type["hiphop"] > 0.6:
-        weights["audiomack"] = 1.0
-        weights["soundcloud"] = 0.9
-        weights["ytmusic"] = 0.6
+        weights["vk"] = 1.0
+        weights["deezer"] = 0.9
     
     if query_type["official"] > 0.6:
-        weights["ytmusic"] = 1.0
-        weights["spotify"] = 0.95
-        weights["jiosaavn"] = 0.6
+        weights["vk"] = 0.95
+        weights["deezer"] = 0.95
     
     if query_type["live_acoustic"] > 0.5:
-        # Live versions often on YouTube
-        weights["youtube"] = 0.8
-        weights["ytmusic"] = 0.7
+        weights["vk"] = 1.0
+        weights["deezer"] = 0.8
     
     return weights
 

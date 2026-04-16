@@ -74,8 +74,6 @@ Generate session strings using: `python generate_session.py`
 | `UPSTASH_REDIS_REST_TOKEN` | `UPSTASH_REDIS_REST_TOKEN` | No* | *Or use regular Redis |
 | `SUPABASE_URL` | `SUPABASE_URL` | Yes* | *Or use MongoDB |
 | `SUPABASE_KEY` | `SUPABASE_KEY` | Yes* | *Or use MongoDB |
-| `SPOTIFY_CLIENT_ID` | `SPOTIFY_CLIENT_ID` | No | Optional |
-| `SPOTIFY_CLIENT_SECRET` | `SPOTIFY_CLIENT_SECRET` | No | Optional |
 | `GENIUS_TOKEN` | `GENIUS_TOKEN` | No | Optional |
 | `LOG_GROUP_ID` | `LOG_GROUP_ID` | No | Optional |
 
@@ -152,10 +150,6 @@ heroku config:set SESSION_STRING_2="your_session_string_2"  # optional
 heroku config:set SESSION_STRING_3="your_session_string_3"  # optional
 heroku config:set SESSION_STRING_4="your_session_string_4"  # optional
 heroku config:set SESSION_STRING_5="your_session_string_5"  # optional
-
-# Optional: Spotify
-heroku config:set SPOTIFY_CLIENT_ID=your_client_id
-heroku config:set SPOTIFY_CLIENT_SECRET=your_client_secret
 
 # Optional: Genius (for lyrics)
 heroku config:set GENIUS_TOKEN=your_genius_token
