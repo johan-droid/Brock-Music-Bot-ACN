@@ -77,11 +77,18 @@ ALTER TABLE sudo_users ENABLE ROW LEVEL SECURITY;
 ALTER TABLE gbanned ENABLE ROW LEVEL SECURITY;
 ALTER TABLE group_bans ENABLE ROW LEVEL SECURITY;
 
--- Create policies for service role access
-CREATE POLICY "Service role full access" ON groups FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "Service role full access" ON sudo_users FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "Service role full access" ON gbanned FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "Service role full access" ON group_bans FOR ALL USING (true) WITH CHECK (true);
+-- Create policies for service role access (Idempotent)
+DROP POLICY IF EXISTS "Service role full access" ON groups;
+CREATE POLICY "Service role full access" ON groups FOR ALL TO service_role USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Service role full access" ON sudo_users;
+CREATE POLICY "Service role full access" ON sudo_users FOR ALL TO service_role USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Service role full access" ON gbanned;
+CREATE POLICY "Service role full access" ON gbanned FOR ALL TO service_role USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Service role full access" ON group_bans;
+CREATE POLICY "Service role full access" ON group_bans FOR ALL TO service_role USING (true) WITH CHECK (true);
 
 -- global_music_index table: Custom universal catalog cache
 CREATE TABLE IF NOT EXISTS global_music_index (
@@ -152,5 +159,6 @@ CREATE INDEX IF NOT EXISTS idx_music_title_trgm ON global_music_index USING gin 
 -- Enable Row Level Security (RLS)
 ALTER TABLE global_music_index ENABLE ROW LEVEL SECURITY;
 
--- Create policies for service role access
-CREATE POLICY "Service role full access" ON global_music_index FOR ALL USING (true) WITH CHECK (true);
+-- Create policies for service role access (Idempotent)
+DROP POLICY IF EXISTS "Service role full access" ON global_music_index;
+CREATE POLICY "Service role full access" ON global_music_index FOR ALL TO service_role USING (true) WITH CHECK (true);
