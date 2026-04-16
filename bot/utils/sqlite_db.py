@@ -282,6 +282,16 @@ class SQLiteDatabase:
         rows = conn.execute("SELECT id FROM groups WHERE is_active = 1").fetchall()
         return [{"_id": row["id"]} for row in rows]
 
+    async def prune_inactive_data(self) -> int:
+        """Delete inactive groups from SQLite and return how many were removed."""
+        conn = self._get_conn()
+        cursor = conn.execute("DELETE FROM groups WHERE is_active = 0")
+        conn.commit()
+        deleted_count = cursor.rowcount if cursor is not None else 0
+        logger.info(f"🧹 Auto-Prune: Freed space by deleting {deleted_count} inactive groups from SQLite.")
+        return deleted_count
+
+
 
 
 # Global instance

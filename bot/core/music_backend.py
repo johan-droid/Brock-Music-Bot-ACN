@@ -54,12 +54,12 @@ class SourceRanker:
     
     # Base weights for sources (higher = better)
     _BASE_WEIGHTS = {
-        "jiosaavn": 1.0,
-        "soundcloud": 0.95,
+        "soundcloud": 1.0,
+        "audiomack": 0.95,
         "audius": 0.90,
         "ytmusic": 0.5,
         "youtube": 0.4,
-        "audiomack": 0.5,
+        "jiosaavn": 0.4,
         "spotify": 0.8,
     }
     
@@ -434,13 +434,13 @@ class MusicBackend:
         if not query:
             return None
 
-        # Legal/high-quality first to stay policy-safe and avoid repeated YT anti-bot hits.
+        # Prioritize Heroku-friendly sources first to avoid JioSaavn IP blocking.
         fallback_chain = [
-            ("jiosaavn", self.jiosaavn.extract),
             ("soundcloud", self.soundcloud.extract),
+            ("audiomack", self.audiomack.extract),
             ("audius", self.audius.extract),
             ("ytmusic", self.ytmusic.extract),
-            ("audiomack", self.audiomack.extract),
+            ("jiosaavn", self.jiosaavn.extract),
         ]
 
         for source_name, resolver in fallback_chain:

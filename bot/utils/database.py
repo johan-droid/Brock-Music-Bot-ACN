@@ -127,6 +127,18 @@ class MongoDatabase(Database):
         rows = await self.db.groups.find({"is_active": True}, {"_id": 1}).to_list(length=None)
         return [{"_id": row["_id"]} for row in rows]
 
+    async def prune_inactive_data(self) -> int:
+        """Delete inactive groups from MongoDB and return how many were removed."""
+        try:
+            result = await self.db.groups.delete_many({"is_active": False})
+            deleted_count = result.deleted_count if result else 0
+            logger.info(f"🧹 Auto-Prune: Freed space by deleting {deleted_count} inactive groups from MongoDB.")
+            return deleted_count
+        except Exception as e:
+            logger.error(f"MongoDB prune failed: {e}")
+            return 0
+
+
 
 
 async def init_database():
