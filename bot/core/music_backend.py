@@ -45,11 +45,6 @@ class SourceRanker:
         "global_index": 1.0,
         "youtube": 0.95,
         "piped": 0.9,
-        "soundcloud": 0.7,
-        "audiomack": 0.7,
-        "ytmusic": 0.65,
-        "jiosaavn": 0.6,
-        "spotify": 0.5,
         "telegram": 0.4,
         "unknown": 0.3,
     }

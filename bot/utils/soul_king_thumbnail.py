@@ -268,10 +268,8 @@ class SoulKingThumbnailGenerator:
             content_y += 60
             source_badges = {
                 "youtube": "📺 YouTube",
-                "spotify": "🎧 Spotify",
-                "soundcloud": "☁️ SoundCloud",
-                "jiosaavn": "🎵 JioSaavn",
-                "ytmusic": "🎵 YT Music",
+                "piped": "📺 YouTube",
+                "telegram": "✈️ Telegram",
             }
             source_text = source_badges.get(source.lower(), f"🎵 {source}")
             draw.text(

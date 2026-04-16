@@ -47,11 +47,7 @@ SOUL_KING_VIBES = {
 
 SOURCE_BADGES = {
     "youtube": ("📺 YouTube", "#FF0000"),
-    "spotify": ("🎧 Spotify", "#1DB954"),
-    "soundcloud": ("☁️ SoundCloud", "#FF7700"),
-    "jiosaavn": ("🎵 JioSaavn", "#003C75"),
-    "ytmusic": ("🎵 YT Music", "#1F2937"),
-    "audiomack": ("🎵 Audiomack", "#FF6B35"),
+    "piped": ("📺 YouTube", "#FF0000"),
     "telegram": ("✈️ Telegram", "#0088CC"),
 }
 
