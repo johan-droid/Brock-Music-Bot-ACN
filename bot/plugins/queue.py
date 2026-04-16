@@ -96,7 +96,7 @@ async def now_cmd(client: Client, message: Message):
         duration=duration,
         position=position,
         thumbnail_url=current.get("thumb"),
-        source=current.get("source", "youtube")
+        source=current.get("source", "unknown")
     )
     
     # Build text

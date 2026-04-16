@@ -177,3 +177,6 @@ ALTER TABLE global_music_index ENABLE ROW LEVEL SECURITY;
 -- Create policies for service role access (Idempotent)
 DROP POLICY IF EXISTS "Service role full access" ON global_music_index;
 CREATE POLICY "Service role full access" ON global_music_index FOR ALL TO service_role USING (true) WITH CHECK (true);
+
+-- Refresh PostgREST schema cache so new columns become visible without waiting for a restart.
+NOTIFY pgrst, 'reload schema';

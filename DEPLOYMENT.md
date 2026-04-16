@@ -14,7 +14,7 @@ This guide shows how to deploy the music bot completely free using various cloud
                          ┌─────────────────┐
                          │   SQLite/JSON   │
                          │   Data Store    │
-                         │ (YT Music / AM) │
+                         │   (VK / Deezer)  │
                          └─────────────────┘
 ```
 
@@ -48,7 +48,8 @@ This guide shows how to deploy the music bot completely free using various cloud
    # or SESSION_FILE_PATH_1=/app/sessions/userbot_1.session
    OWNER_ID=your_telegram_user_id
    MONGO_URI=mongodb+srv://... (optional - uses SQLite if not set)
-   # PIPED_INSTANCES=https://pipedapi.kavin.rocks,https://pipedapi.tokhmi.xyz (optional)
+   # VK_API_BASE_URL=https://your-vk-api.example.com (optional)
+   # DEEZER_TOKENS=token1,token2 (optional)
    ```
 6. Deploy!
 
@@ -216,7 +217,10 @@ MONGO_URI=mongodb+srv://username:password@cluster.mongodb.net/musicbot
 | `API_ID` | Telegram API ID | https://my.telegram.org |
 | `API_HASH` | Telegram API Hash | https://my.telegram.org |
 | `BOT_TOKEN` | Bot token | @BotFather on Telegram |
-| `PIPED_INSTANCES` | Piped API nodes | (Optional) comma-separated URLs |
+| `VK_API_BASE_URL` | VK API base URL | (Optional) resolver endpoint |
+| `VK_API_TOKEN` | VK API token | (Optional) if your resolver requires auth |
+| `DEEZER_TOKENS` | Deezer access tokens | (Optional) comma-separated tokens |
+| `DEEZER_RESOLVE_URL` | Deezer resolve webhook | (Optional) direct resolver endpoint |
 | `SESSION_FILE_B64_1` | Userbot session file (preferred) | Run `python generate_session.py` |
 | `SESSION_FILE_PATH_1` | Mounted `.session` file path | e.g. `/app/sessions/userbot_1.session` |
 | `SESSION_STRING_1` | Userbot session string (legacy) | Run `python generate_session.py` |
@@ -241,7 +245,7 @@ Use the output `SESSION_FILE_B64_1=...` in cloud environment variables.
 - Ensure bot is added to group and has admin rights
 
 ### No audio in voice chat
-- **Piped API**: The bot proxies all extraction through public Piped instances to avoid IP bans. If extraction fails, try adding different nodes to `PIPED_INSTANCES`.
+- **VK/Deezer resolution**: The bot resolves music through VK and Deezer only. Verify both resolvers are reachable and that Deezer tokens are valid.
 - Check FFmpeg is installed: `ffmpeg -version`
 
 ### SQLite locked errors

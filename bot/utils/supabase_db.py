@@ -29,6 +29,8 @@ class SupabaseDatabase:
         self.url = url
         self.key = key
         self.client: Client = create_client(url, key)
+        self._supports_stream_url_column: Optional[bool] = None
+        self._warned_stream_url_fallback = False
         self._init_tables()
         self._init_storage()
     
@@ -102,6 +104,33 @@ class SupabaseDatabase:
         logger.info(
             "Supabase schema is managed via supabase_setup.sql; ensure `global_music_index` exists."
         )
+
+    @staticmethod
+    def _global_music_index_select_fields(include_stream_url: bool) -> str:
+        base_fields = "query_key,track_id,title,artist,duration,thumbnail,source,metadata,sources,last_played"
+        if include_stream_url:
+            return base_fields.replace("source,", "source,stream_url,")
+        return base_fields
+
+    @staticmethod
+    def _is_missing_stream_url_column_error(exc: Exception) -> bool:
+        err_str = str(exc)
+        err_lower = err_str.lower()
+        return (
+            "stream_url" in err_lower
+            and (
+                "42703" in err_str
+                or "pgrst204" in err_lower
+                or "schema cache" in err_lower
+                or "does not exist" in err_lower
+            )
+        )
+
+    def _disable_stream_url_column(self, reason: str) -> None:
+        self._supports_stream_url_column = False
+        if not self._warned_stream_url_fallback:
+            logger.warning(reason)
+            self._warned_stream_url_fallback = True
     
     # Group management
     async def get_group(self, chat_id: int) -> dict:
@@ -377,11 +406,12 @@ class SupabaseDatabase:
 
         # Fallback path if RPC isn't deployed yet.
         if not rows:
+            include_stream_url = self._supports_stream_url_column is not False
             try:
                 like_query = f"%{q}%"
                 result = (
                     self.client.table("global_music_index")
-                    .select("query_key,track_id,title,artist,duration,thumbnail,source,stream_url,metadata,sources,last_played")
+                    .select(self._global_music_index_select_fields(include_stream_url))
                     .or_(f"title.ilike.{like_query},artist.ilike.{like_query}")
                     .order("last_played", desc=True)
                     .limit(max(1, limit))
@@ -389,11 +419,34 @@ class SupabaseDatabase:
                 )
                 rows = [r for r in (getattr(result, "data", None) or []) if isinstance(r, dict)]
             except Exception as e:
-                err_str = str(e)
-                if "PGRST205" in err_str:
-                    logger.warning("Supabase table 'global_music_index' is missing. Action required: Run the contents of 'supabase_setup.sql' in your Supabase SQL Editor.")
+                if include_stream_url and self._is_missing_stream_url_column_error(e):
+                    self._disable_stream_url_column(
+                        "Supabase global_music_index.stream_url is unavailable in the live schema; falling back to legacy index fields until migration is applied."
+                    )
+                    try:
+                        like_query = f"%{q}%"
+                        result = (
+                            self.client.table("global_music_index")
+                            .select(self._global_music_index_select_fields(False))
+                            .or_(f"title.ilike.{like_query},artist.ilike.{like_query}")
+                            .order("last_played", desc=True)
+                            .limit(max(1, limit))
+                            .execute()
+                        )
+                        rows = [r for r in (getattr(result, "data", None) or []) if isinstance(r, dict)]
+                    except Exception as retry_exc:
+                        err_str = str(retry_exc)
+                        if "PGRST205" in err_str:
+                            logger.warning("Supabase table 'global_music_index' is missing. Action required: Run the contents of 'supabase_setup.sql' in your Supabase SQL Editor.")
+                        else:
+                            logger.error(f"Failed to search global_music_index: {retry_exc}")
+                        return []
                 else:
-                    logger.error(f"Failed to search global_music_index: {e}")
+                    err_str = str(e)
+                    if "PGRST205" in err_str:
+                        logger.warning("Supabase table 'global_music_index' is missing. Action required: Run the contents of 'supabase_setup.sql' in your Supabase SQL Editor.")
+                    else:
+                        logger.error(f"Failed to search global_music_index: {e}")
                 return []
 
         tracks: List[Dict[str, Any]] = []
@@ -448,6 +501,8 @@ class SupabaseDatabase:
             stream_url = track.get("url") or track.get("stream_url") or ""
             saved_at = datetime.utcnow().isoformat()
 
+            include_stream_url = self._supports_stream_url_column is not False
+
             metadata = {
                 "title": track.get("title", "Unknown"),
                 "artist": track.get("artist") or track.get("uploader") or "Unknown Artist",
@@ -484,14 +539,29 @@ class SupabaseDatabase:
                 "duration": track.get("duration", 0),
                 "thumbnail": metadata.get("thumbnail", ""),
                 "source": source_name,
-                "stream_url": stream_url,
                 "metadata": metadata,
                 "sources": sources_payload,
                 "last_played": saved_at,
             }
 
+            if include_stream_url:
+                data["stream_url"] = stream_url
+
             # 1. Save or update the current track
-            self.client.table("global_music_index").upsert(data).execute()
+            try:
+                self.client.table("global_music_index").upsert(data).execute()
+                if include_stream_url:
+                    self._supports_stream_url_column = True
+            except Exception as upsert_exc:
+                if include_stream_url and self._is_missing_stream_url_column_error(upsert_exc):
+                    self._disable_stream_url_column(
+                        "Supabase global_music_index.stream_url is unavailable in the live schema; storing the resolved URL only in metadata/sources until migration is applied."
+                    )
+                    fallback_data = dict(data)
+                    fallback_data.pop("stream_url", None)
+                    self.client.table("global_music_index").upsert(fallback_data).execute()
+                else:
+                    raise
 
             # 2. Free Tier Protection: Randomly check the database size (10% chance)
             if random.random() < 0.10:

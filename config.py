@@ -67,10 +67,6 @@ class Config(BaseSettings):
     SUPABASE_URL: Optional[str] = None
     SUPABASE_KEY: Optional[str] = None
     
-    # Obsolete (Handled by Piped proxy now)
-    # SPOTIFY_CLIENT_ID: Optional[str] = None
-    # SPOTIFY_CLIENT_SECRET: Optional[str] = None
-    
     # Genius (optional - for lyrics)
     GENIUS_TOKEN: Optional[str] = None
     
@@ -97,8 +93,6 @@ class Config(BaseSettings):
     AUDIO_LOUDNORM: bool = True  # EBU R128 loudness normalization
 
     # Source policy settings
-    # Piped handles extraction - these flags are now internal/obsolete
-    PIPED_INSTANCES: Optional[str] = None
     LEGAL_SOURCES_FIRST: bool = True
 
     # Now Playing card auto-clean (seconds)

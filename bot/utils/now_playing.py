@@ -78,10 +78,8 @@ class NowPlayingUI:
         
         # Source emoji
         source_emoji = {
-            "YOUTUBE": "📺",
-            "JIOSAAVN": "🎵",
-            "SOUNDCLOUD": "☁️",
-            "SPOTIFY": "🎧",
+            "VK": "🟦",
+            "DEEZER": "🎧",
             "TELEGRAM": "📱",
         }.get(source, "🎵")
         

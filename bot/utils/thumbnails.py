@@ -83,7 +83,7 @@ class ThumbnailGenerator:
         duration: int = 0,
         position: int = 0,
         thumbnail_url: Optional[str] = None,
-        source: str = "youtube"
+        source: str = "unknown"
     ) -> Optional[bytes]:
         """Generate Now Playing card.
         
@@ -127,14 +127,10 @@ class ThumbnailGenerator:
             
             # Source emoji/icon
             source_emoji = {
-                "youtube": "▶️ YouTube",
-                "spotify": "🟢 Spotify",
-                "soundcloud": "☁️ SoundCloud",
-                "jiosaavn": "🎵 JioSaavn",
-                "ytmusic": "🎼 YT Music",
-                "audiomack": "🎵 Audiomack",
+                "vk": "🟦 VK Music",
+                "deezer": "🎧 Deezer",
                 "telegram": "✈️ Telegram",
-            }.get(source, "🎵 Music")
+            }.get((source or "").lower(), "🎵 Music")
             
             # Draw source badge
             draw.text((40, 40), source_emoji, fill=(255, 255, 255), font=self.font_small)
@@ -207,7 +203,7 @@ async def generate_np_thumbnail(
     duration: int = 0,
     position: int = 0,
     thumbnail_url: Optional[str] = None,
-    source: str = "youtube"
+    source: str = "unknown"
 ) -> Optional[bytes]:
     """Generate Now Playing thumbnail."""
     return await thumb_generator.generate_now_playing(

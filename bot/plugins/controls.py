@@ -215,7 +215,7 @@ async def seek_cmd(client: Client, message: Message):
             await message.reply(f"❌ Invalid seek position. Track duration is {format_duration(duration)}.")
             return
         
-        # Use optimized audio config instead of hardcoded AudioPiped
+        # Use the shared audio optimizer instead of hardcoded stream settings
         from bot.utils.audio_config import get_audio_optimizer
         optimizer = get_audio_optimizer()
         

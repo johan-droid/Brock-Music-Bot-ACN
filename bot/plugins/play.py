@@ -60,10 +60,9 @@ def _next_quote() -> str:
 
 # Source badges
 _SOURCE_BADGE = {
-    "youtube": "▶️ YouTube",
-    "piped": "▶️ YouTube",
+    "vk": "🟦 VK Music",
+    "deezer": "🎧 Deezer",
     "telegram": "✈️ Telegram",
-    "radio": "🔴 LIVE Radio",
 }
 
 # ── Background tasks ──────────────────────────────────────────────────────────
@@ -73,13 +72,14 @@ _progress_tasks: dict = {}
 _autoclean_tasks: dict = {}
 
 _SOURCE_PRIORITY = {
-    "youtube": 1,
-    "piped": 2,
+    "vk": 1,
+    "deezer": 2,
     "telegram": 3,
 }
 
-_YOUTUBE_PAGE_URL_RX = re.compile(
-    r"(?:^https?://)?(?:www\.)?(?:youtube\.com/watch|youtube-nocookie\.com/watch|youtu\.be/)",
+
+_SUPPORTED_PAGE_URL_RX = re.compile(
+    r"^(?:https?://)?(?:www\.)?(?:vk\.com|m\.vk\.com|vkvideo\.ru|deezer\.com|deezer\.page\.link)(?:[/?#].*)?$",
     re.IGNORECASE,
 )
 
@@ -90,11 +90,11 @@ def _cancel_task(task_dict: dict, chat_id: int) -> None:
         task.cancel()
 
 
-def _is_youtube_page_url(url: str) -> bool:
+def _looks_like_supported_page_url(url: str) -> bool:
     value = (url or "").strip()
     if not value:
         return False
-    return bool(_YOUTUBE_PAGE_URL_RX.search(value))
+    return bool(_SUPPORTED_PAGE_URL_RX.match(value))
 
 
 def _rank_candidates_for_selection(query: str, candidates: list) -> list:
@@ -195,7 +195,7 @@ async def play_cmd(client: Client, message: Message):
 
     # URL detection
     _url_rx = re.compile(
-        r"^(https?://)?(www\.)?(youtube\.com|youtu\.be)/.+$",
+        r"^(?:https?://|www\.|vk\.com|m\.vk\.com|vkvideo\.ru|deezer\.com|deezer\.page\.link).+$",
         re.IGNORECASE,
     )
 
@@ -206,45 +206,7 @@ async def play_cmd(client: Client, message: Message):
 
     try:
         if _url_rx.match(query):
-            # Direct URL
-            is_youtube_url = bool(
-                re.search(r"(?:youtube\.com|youtu\.be|youtube-nocookie\.com)", query, re.IGNORECASE)
-            )
-
-            if is_youtube_url:
-                # Enforce resilient Piped proxy path for YouTube inputs.
-                payload = await asyncio.wait_for(
-                    music_backend.get_stream_payload(
-                        Track(
-                            title="Unknown",
-                            artist="Unknown",
-                            duration=0,
-                            stream_url=query,
-                            source="youtube",
-                            track_id=None,
-                        )
-                    ),
-                    timeout=35,
-                )
-
-                resolved_url = (payload or {}).get("url") or (payload or {}).get("stream_url")
-                if payload and resolved_url:
-                    resolved_artist = payload.get("artist") or "Unknown"
-                    track = {
-                        "title": payload.get("title") or "Unknown",
-                        "uploader": resolved_artist,
-                        "artist": resolved_artist,
-                        "duration": int(payload.get("duration") or 0),
-                        "url": resolved_url,
-                        "thumbnail": payload.get("thumbnail"),
-                        "source": payload.get("source", "youtube"),
-                        "id": None,
-                    }
-                else:
-                    track = None
-            else:
-                # Non-YouTube URLs still use their dedicated extractors.
-                track = await asyncio.wait_for(extract_audio(query, message), timeout=35)
+            track = await asyncio.wait_for(extract_audio(query, message), timeout=35)
 
             if not track:
                 await search_msg.edit("❌ <b>Couldn't extract audio from that URL!</b>\n<i>\"Even I couldn't find treasure there! Yohohoho!\"</i>", parse_mode=ParseMode.HTML)
@@ -267,7 +229,7 @@ async def play_cmd(client: Client, message: Message):
                 )
                 return
 
-            # Always show a selectable menu for text queries, ranked with YT Music priority.
+            # Always show a selectable menu for text queries, ranked by source and match quality.
             candidates = result.get("tracks") or result.get("conflicts") or []
             ranked_candidates = _rank_candidates_for_selection(query, candidates)
             if ranked_candidates:
@@ -318,7 +280,7 @@ async def vplay_cmd(client: Client, message: Message):
             return
 
     if not query:
-        await message.reply("❌ Usage: <code>/vplay &lt;YouTube URL or title&gt;</code>", parse_mode=ParseMode.HTML)
+        await message.reply("❌ Usage: <code>/vplay &lt;music URL or title&gt;</code>", parse_mode=ParseMode.HTML)
         return
 
     search_msg = await message.reply("🎬 <i>The Soul King is loading the video stage...</i>", parse_mode=ParseMode.HTML)
@@ -375,7 +337,7 @@ async def add_track_and_play(
             duration=track.get("duration", 0),
             thumb=track.get("thumbnail") or track.get("thumb"),
             requested_by=user_id,
-            source=track.get("source", "youtube"),
+            source=track.get("source", "unknown"),
             track_id=track.get("id") or track.get("track_id"),
             uploader=track.get("uploader") or track.get("artist"),
         )
@@ -387,7 +349,7 @@ async def add_track_and_play(
             duration=track.get("duration", 0),
             thumb=track.get("thumbnail") or track.get("thumb"),
             requested_by=user_id,
-            source=track.get("source", "youtube"),
+            source=track.get("source", "unknown"),
             track_id=track.get("id") or track.get("track_id"),
             uploader=track.get("uploader") or track.get("artist"),
         )
@@ -398,7 +360,7 @@ async def add_track_and_play(
     if is_playing:
         # Show queue-added card
         duration_str = format_duration(track.get("duration", 0))
-        source = _SOURCE_BADGE.get(track.get("source", "youtube"), "🎵")
+        source = _SOURCE_BADGE.get(track.get("source", "unknown"), "🎵")
         requester = message.from_user.mention if message.from_user else "Someone"
 
         q_total = await queue_manager.get_queue_length(chat_id)
@@ -459,16 +421,16 @@ async def start_playback(chat_id: int, prefetched_track: Optional[Dict[str, Any]
             artist=track.get("uploader", ""),
             duration=track.get("duration", 0),
             stream_url=url,
-            source=track.get("source", "youtube"),
+            source=track.get("source", "unknown"),
             track_id=track.get("id")
         ))
 
         if stream_payload and stream_payload.get("url"):
             url = stream_payload["url"]
-            effective_source = stream_payload.get("source", track.get("source", "youtube"))
+            effective_source = stream_payload.get("source", track.get("source", "unknown"))
             track["source"] = effective_source
         else:
-            effective_source = track.get("source", "youtube")
+            effective_source = track.get("source", "unknown")
             
         if not url:
             logger.error(f"Track has no URL and resolution failed in chat {chat_id}: {track}")
@@ -477,15 +439,15 @@ async def start_playback(chat_id: int, prefetched_track: Optional[Dict[str, Any]
 
         is_video = track.get("is_video", False)
         
-        # Prepare source-specific headers (e.g. JioSaavn CDN referer requirement)
+        # Prepare source-specific headers for the supported providers.
         headers = (stream_payload or {}).get("headers") if stream_payload else None
         if headers is None:
             headers = music_backend.get_source_headers(effective_source)
 
-        # Never pass YouTube page URLs to py-tgcalls, otherwise it triggers an internal yt-dlp probe.
-        if _is_youtube_page_url(url):
+        # Never pass page URLs to py-tgcalls, otherwise it may trigger a probing fallback.
+        if _looks_like_supported_page_url(url):
             logger.warning(
-                f"Direct stream unresolved for '{track.get('title', 'unknown')}' in {chat_id}; attempting pre-play fallback"
+                f"Direct stream unresolved for '{track.get('title', 'unknown')}' in {chat_id}; attempting shared-backend fallback"
             )
 
             preplay_payload = await music_backend._resolve_fallback_payload(Track(
@@ -493,12 +455,12 @@ async def start_playback(chat_id: int, prefetched_track: Optional[Dict[str, Any]
                 artist=track.get("uploader", ""),
                 duration=track.get("duration", 0),
                 stream_url=url,
-                source=track.get("source", "youtube"),
+                source=track.get("source", "unknown"),
                 track_id=track.get("id")
             ))
 
             preplay_url = (preplay_payload or {}).get("url")
-            if preplay_url and not _is_youtube_page_url(preplay_url):
+            if preplay_url and not _looks_like_supported_page_url(preplay_url):
                 url = preplay_url
                 preplay_headers = preplay_payload.get("headers")
                 if preplay_headers is not None:
@@ -510,9 +472,7 @@ async def start_playback(chat_id: int, prefetched_track: Optional[Dict[str, Any]
                     f"Pre-play fallback resolved direct stream for '{track.get('title', 'unknown')}' in {chat_id}"
                 )
             else:
-                raise RuntimeError(
-                    "Could not resolve a direct stream URL via Piped right now. Please retry in a few seconds."
-                )
+                raise RuntimeError("Could not resolve a direct stream URL right now. Please retry in a few seconds.")
 
         # Use consolidated play method
         try:
@@ -526,12 +486,12 @@ async def start_playback(chat_id: int, prefetched_track: Optional[Dict[str, Any]
                 artist=track.get("uploader", ""),
                 duration=track.get("duration", 0),
                 stream_url=track.get("url", ""),
-                source=track.get("source", "youtube"),
+                source=track.get("source", "unknown"),
                 track_id=track.get("id")
             ))
 
             fallback_url = (fallback_payload or {}).get("url")
-            if fallback_url and not _is_youtube_page_url(fallback_url):
+            if fallback_url and not _looks_like_supported_page_url(fallback_url):
                 fallback_headers = fallback_payload.get("headers")
                 fallback_source = fallback_payload.get("source")
                 if fallback_source:
@@ -665,51 +625,10 @@ async def on_track_end(chat_id: int) -> None:
                 duration=current.get("duration"),
                 thumb=current.get("thumb"),
                 requested_by=current.get("requested_by"),
-                source=current.get("source", "youtube"),
+                    source=current.get("source", "unknown"),
                 track_id=current.get("id"),
                 uploader=current.get("uploader"),
             )
-
-    # --- NEW: ENDLESS RADIO (Autoplay) ---
-    q_len = await queue_manager.get_queue_length(chat_id)
-    if q_len == 0 and loop_mode != "track":
-        last_played = await queue_manager.get_current(chat_id)
-        if last_played and last_played.get("id"):
-            logger.info(f"Queue empty in {chat_id}, attempting Autoplay...")
-            try:
-                from bot.platforms.piped import piped
-
-                related_tracks = await piped.get_related(last_played["id"], limit=3)
-                logger.info(f"Fetched {len(related_tracks)} related tracks from Piped autoplay")
-
-                if related_tracks:
-                    filtered_related = [t for t in related_tracks if t.get("id") != last_played.get("id")]
-                    next_track = filtered_related[0] if filtered_related else None
-                    if not next_track and related_tracks and related_tracks[0].get("id") != last_played.get("id"):
-                        next_track = related_tracks[0]
-
-                    if next_track:
-                        await queue_manager.add_to_queue(
-                            chat_id=chat_id,
-                            title=next_track.get("title", "Unknown"),
-                            url=next_track.get("url", ""),
-                            duration=next_track.get("duration", 0),
-                            thumb=next_track.get("thumbnail"),
-                            requested_by=None,
-                            source="youtube",
-                            track_id=next_track.get("id"),
-                            uploader=next_track.get("artist") or next_track.get("uploader") or "YouTube",
-                        )
-
-                    if bot_module.bot_client:
-                        await bot_module.bot_client.send_message(
-                            chat_id,
-                            f"📻 <b>Autoplay:</b> Added <i>{next_track.get('title')}</i> to keep the party going! Yohoho!",
-                            parse_mode=ParseMode.HTML,
-                        )
-            except Exception as e:
-                logger.error(f"Autoplay resolution failed for {chat_id}: {e}")
-    # -------------------------------------
 
     track = await queue_manager.get_next(chat_id)
 
@@ -827,7 +746,7 @@ async def _progress_updater(chat_id: int, msg: Message, track: dict) -> None:
     duration = int(track.get("duration") or 0)
     title = truncate_text(track.get("title", "Unknown"), 52)
     uploader = track.get("uploader", track.get("artist", "Unknown Artist"))
-    source = _SOURCE_BADGE.get(track.get("source", "youtube"), "🎵")
+    source = _SOURCE_BADGE.get(track.get("source", "unknown"), "🎵")
     quote = _next_quote()
 
     interval = max(3, int(getattr(config, "NP_UPDATE_INTERVAL", 5) or 5))
@@ -858,7 +777,7 @@ async def _progress_updater(chat_id: int, msg: Message, track: dict) -> None:
                             artist=next_queued_track.get("uploader", next_queued_track.get("artist", "")),
                             duration=next_queued_track.get("duration", 0),
                             stream_url=next_queued_track.get("url", ""),
-                            source=next_queued_track.get("source", "youtube"),
+                            source=next_queued_track.get("source", "unknown"),
                             track_id=next_queued_track.get("id"),
                         )
                         asyncio.create_task(
@@ -929,11 +848,8 @@ _pending_conflicts: dict = {}  # chat_id → {token → {tracks, original_msg, u
 # Source number emojis for a clean numbered list
 _NUM_EMOJI = ["1️⃣", "2️⃣", "3️⃣", "4️⃣", "5️⃣"]
 _SOURCE_ICON = {
-    "youtube":    "▶️",
-    "ytmusic":    "🎼",
-    "jiosaavn":   "🎵",
-    "soundcloud": "☁️",
-    "spotify":    "🟢",
+    "vk":         "🟦",
+    "deezer":     "🎧",
     "telegram":   "✈️",
 }
 
@@ -984,14 +900,14 @@ def _get_track_fields(t) -> dict:
             "dur":     t.duration,
             "sim":     getattr(t, "_similarity", 0.0),
             "artist":  getattr(t, "artist", getattr(t, "uploader", "Unknown")),
-            "source":  getattr(t, "source", "youtube"),
+                "source":  getattr(t, "source", "unknown"),
         }
     return {
         "title":  t.get("title", "?"),
         "dur":    t.get("duration", 0),
         "sim":    t.get("_similarity", 0.0),
         "artist": t.get("uploader") or t.get("artist") or t.get("primary_artists") or "Unknown",
-        "source": t.get("source", "youtube"),
+            "source": t.get("source", "unknown"),
     }
 
 
@@ -1120,8 +1036,8 @@ async def resolve_conflict(chat_id: int, user_id: int, index: int, message: Mess
     else:
         track = dict(raw)
 
-    # For non-JioSaavn sources, try to fill in missing metadata via Piped resolver.
-    if track.get("source", "youtube") != "jiosaavn" and track.get("duration", 0) == 0:
+    # For supported sources, try to fill in missing metadata via the shared resolver.
+    if track.get("source", "unknown") in {"vk", "deezer"} and track.get("duration", 0) == 0:
         try:
             payload = await asyncio.wait_for(
                 music_backend.get_stream_payload(
@@ -1130,7 +1046,7 @@ async def resolve_conflict(chat_id: int, user_id: int, index: int, message: Mess
                         artist=track.get("uploader", track.get("artist", "")),
                         duration=int(track.get("duration") or 0),
                         stream_url=track.get("url", ""),
-                        source=track.get("source", "youtube"),
+                        source=track.get("source", "unknown"),
                         track_id=track.get("id") or track.get("track_id"),
                     )
                 ),

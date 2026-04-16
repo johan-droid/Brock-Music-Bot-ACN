@@ -39,7 +39,7 @@ class AudioConfig:
     
     # Advanced FFmpeg options
     use_loudnorm: bool = True  # EBU R128 loudness normalization
-    loudnorm_target: int = -14  # LUFS (Spotify/YouTube standard)
+    loudnorm_target: int = -14  # LUFS target for consistent Telegram playback
     
     # Network optimization
     buffer_size: int = 1024 * 1024  # 1MB buffer
@@ -91,7 +91,7 @@ class AudioOptimizer:
     def get_ffmpeg_params(self, input_url: str, seek: Optional[int] = None) -> Dict[str, Any]:
         """Generate optimized FFmpeg parameters for high-quality audio streaming.
         
-        Returns parameters compatible with py-tgcalls AudioPiped/AudioVideoPiped.
+        Returns parameters compatible with the py-tgcalls streaming pipeline.
         """
         # Base FFmpeg command optimized for Opus -> PCM s16le 48kHz
         # Note: py-tgcalls handles the Opus encoding internally
