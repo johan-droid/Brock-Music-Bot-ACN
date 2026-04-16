@@ -32,7 +32,53 @@ async def start_health_server():
     app = web.Application()
     app.router.add_get("/", health_check)
     app.router.add_get("/health", health_check)
-    
+
+    # Optional metrics endpoints (guarded by config flags)
+    try:
+        if getattr(config, "METRICS_HTTP_ENABLED", False):
+            async def _metrics_json(request):
+                # Token can be supplied via `Authorization: Bearer <token>` or ?token=<token>
+                token = None
+                auth = request.headers.get("Authorization")
+                if auth:
+                    if auth.lower().startswith("bearer "):
+                        token = auth.split(" ", 1)[1]
+                    else:
+                        token = auth
+                if token is None:
+                    token = request.rel_url.query.get("token")
+
+                if getattr(config, "METRICS_HTTP_TOKEN", None):
+                    if not token or token != config.METRICS_HTTP_TOKEN:
+                        return web.Response(status=401, text="Unauthorized")
+
+                payload = metrics_collector.export_json()
+                return web.Response(text=payload, content_type="application/json")
+
+            app.router.add_get("/metrics", _metrics_json)
+            logger.info("Metrics HTTP endpoint enabled at /metrics")
+
+        if getattr(config, "METRICS_PROMETHEUS_ENABLED", False):
+            async def _metrics_prom(request):
+                stats = metrics_collector.get_stats_by_action()
+                lines = []
+                lines.append('# HELP musicbot_callback_total Total callbacks received per action')
+                lines.append('# TYPE musicbot_callback_total counter')
+                for action, s in stats.items():
+                    count = s.get("count", 0)
+                    avg = s.get("avg_time_ms", 0)
+                    lines.append(f'musicbot_callback_total{{action="{action}"}} {count}')
+                    lines.append(f'musicbot_callback_avg_ms{{action="{action}"}} {avg}')
+                # Overall samples
+                lines.append(f'musicbot_total_samples {len(metrics_collector.metrics)}')
+                text = "\n".join(lines)
+                return web.Response(text=text, content_type="text/plain; version=0.0.4")
+
+            app.router.add_get("/metrics/prometheus", _metrics_prom)
+            logger.info("Prometheus metrics endpoint enabled at /metrics/prometheus")
+    except Exception:
+        logger.exception("Failed to register metrics endpoints")
+
     runner = web.AppRunner(app)
     await runner.setup()
     port = int(os.getenv("PORT", "8080"))
