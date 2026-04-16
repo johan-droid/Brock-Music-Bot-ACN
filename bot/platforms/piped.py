@@ -14,24 +14,57 @@ logger = logging.getLogger(__name__)
 class PipedUniversalExtractor:
     """Single extractor for all public content with automatic node failover."""
 
+    _DEFAULT_INSTANCES = [
+        "https://pipedapi.kavin.rocks",
+        "https://pipedapi.tokhmi.xyz",
+        "https://pipedapi.syncpundit.io",
+        "https://api-piped.mha.fi",
+    ]
+
     def __init__(self):
         raw_instances = getattr(config, "PIPED_INSTANCES", None)
         cleaned: list[str] = []
 
         if raw_instances:
-            for item in raw_instances:
-                if not item:
-                    continue
-                instance = item.strip().rstrip("/")
-                if instance:
-                    cleaned.append(instance)
+            if isinstance(raw_instances, str):
+                separators = [",", "\n", " "]
+                parts = [raw_instances]
+                for sep in separators:
+                    next_parts: list[str] = []
+                    for part in parts:
+                        next_parts.extend(part.split(sep))
+                    parts = next_parts
+
+                for item in parts:
+                    value = item.strip().rstrip("/")
+                    if value.startswith("http"):
+                        cleaned.append(value)
+            else:
+                for item in raw_instances:
+                    if not item:
+                        continue
+                    instance = str(item).strip().rstrip("/")
+                    if instance:
+                        cleaned.append(instance)
 
         if not cleaned:
             fallback = (getattr(config, "PIPED_API", "") or "").strip().rstrip("/")
             if fallback:
                 cleaned = [fallback]
 
+        if not cleaned:
+            cleaned = self._DEFAULT_INSTANCES[:]
+
+        # Keep order stable while removing duplicates.
+        deduped: list[str] = []
+        for instance in cleaned:
+            if instance not in deduped:
+                deduped.append(instance)
+
+        cleaned = deduped
+
         self.instances = cleaned
+        logger.info("Piped instances configured: %s", ", ".join(self.instances))
 
     def _extract_video_id(self, value: str | None) -> str | None:
         if not value:
