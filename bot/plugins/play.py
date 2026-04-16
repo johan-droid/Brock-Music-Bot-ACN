@@ -27,7 +27,6 @@ from bot.utils.live_ui import soul_king_ui
 from bot.utils.soul_king_thumbnail import soul_king_thumbnail
 from bot.utils.metrics import metrics_collector
 from bot.platforms import extract_audio
-from bot.platforms import youtube as yt_module
 from bot.core.queue import queue_manager
 from bot.core.call import call_manager
 from bot.core import bot as bot_module
@@ -206,7 +205,45 @@ async def play_cmd(client: Client, message: Message):
     try:
         if _url_rx.match(query):
             # Direct URL
-            track = await asyncio.wait_for(extract_audio(query, message), timeout=35)
+            is_youtube_url = bool(
+                re.search(r"(?:youtube\.com|youtu\.be|youtube-nocookie\.com)", query, re.IGNORECASE)
+            )
+
+            if is_youtube_url:
+                # Enforce resilient Piped proxy path for YouTube inputs.
+                payload = await asyncio.wait_for(
+                    music_backend.get_stream_payload(
+                        Track(
+                            title="Unknown",
+                            artist="Unknown",
+                            duration=0,
+                            stream_url=query,
+                            source="youtube",
+                            track_id=None,
+                        )
+                    ),
+                    timeout=35,
+                )
+
+                resolved_url = (payload or {}).get("url") or (payload or {}).get("stream_url")
+                if payload and resolved_url:
+                    resolved_artist = payload.get("artist") or "Unknown"
+                    track = {
+                        "title": payload.get("title") or "Unknown",
+                        "uploader": resolved_artist,
+                        "artist": resolved_artist,
+                        "duration": int(payload.get("duration") or 0),
+                        "url": resolved_url,
+                        "thumbnail": payload.get("thumbnail"),
+                        "source": payload.get("source", "youtube"),
+                        "id": None,
+                    }
+                else:
+                    track = None
+            else:
+                # Non-YouTube URLs still use their dedicated extractors.
+                track = await asyncio.wait_for(extract_audio(query, message), timeout=35)
+
             if not track:
                 await search_msg.edit("❌ <b>Couldn't extract audio from that URL!</b>\n<i>\"Even I couldn't find treasure there! Yohohoho!\"</i>", parse_mode=ParseMode.HTML)
                 return
@@ -1049,19 +1086,50 @@ async def resolve_conflict(chat_id: int, user_id: int, index: int, message: Mess
     else:
         track = dict(raw)
 
-    # For non-JioSaavn sources, try to fill in missing metadata via extract_audio
+    # For non-JioSaavn sources, try to fill in missing metadata via Piped resolver.
     if track.get("source", "youtube") != "jiosaavn" and track.get("duration", 0) == 0:
-        track_input = track.get("url") or track.get("id") or track.get("track_id")
-        if track_input:
-            try:
-                new_data = await asyncio.wait_for(
-                    extract_audio(track_input, None),
-                    timeout=35,
-                )
-                if new_data:
-                    track.update(new_data)
-            except Exception:
-                pass  # Non-critical — playback still works without pre-resolved metadata
+        try:
+            payload = await asyncio.wait_for(
+                music_backend.get_stream_payload(
+                    Track(
+                        title=track.get("title", ""),
+                        artist=track.get("uploader", track.get("artist", "")),
+                        duration=int(track.get("duration") or 0),
+                        stream_url=track.get("url", ""),
+                        source=track.get("source", "youtube"),
+                        track_id=track.get("id") or track.get("track_id"),
+                    )
+                ),
+                timeout=35,
+            )
+
+            if payload:
+                resolved_url = payload.get("url") or payload.get("stream_url")
+                if resolved_url:
+                    track["url"] = resolved_url
+
+                resolved_title = payload.get("title")
+                if resolved_title:
+                    track["title"] = resolved_title
+
+                resolved_artist = payload.get("artist")
+                if resolved_artist:
+                    track["uploader"] = resolved_artist
+                    track["artist"] = resolved_artist
+
+                resolved_duration = payload.get("duration")
+                if resolved_duration:
+                    track["duration"] = int(resolved_duration)
+
+                resolved_thumbnail = payload.get("thumbnail")
+                if resolved_thumbnail:
+                    track["thumbnail"] = resolved_thumbnail
+
+                resolved_source = payload.get("source")
+                if resolved_source:
+                    track["source"] = resolved_source
+        except Exception:
+            pass  # Non-critical — playback still works without pre-resolved metadata
 
     # Clean up pending conflict
     if token:
