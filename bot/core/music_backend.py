@@ -54,12 +54,13 @@ class SourceRanker:
     
     # Base weights for sources (higher = better)
     _BASE_WEIGHTS = {
-        "jiosaavn": 0.7,
-        "soundcloud": 0.6,
-        "ytmusic": 0.8,
-        "youtube": 0.5,
+        "jiosaavn": 1.0,
+        "soundcloud": 0.95,
+        "audius": 0.90,
+        "ytmusic": 0.5,
+        "youtube": 0.4,
         "audiomack": 0.5,
-        "spotify": 0.9,
+        "spotify": 0.8,
     }
     
     # Health tracking: source -> {success: int, fail: int}
@@ -213,27 +214,54 @@ class MusicBackend:
         self.jiosaavn: Optional[JioSaavnExtractor] = None
         self.youtube = None
         self.soundcloud = None
+        self.ytmusic = None
+        self.audiomack = None
+        self.audius = None
+        # Add request tracking for session rotation
+        self._request_count = 0
+        self._MAX_REQUESTS_PER_SESSION = 50
     
     async def init(self):
         """Initialize the shared HTTP session and platform extractors."""
         if not self.session:
-            self.session = aiohttp.ClientSession(
-                headers={"User-Agent": "Mozilla/5.0 (compatible; SoulKing/1.0; +https://github.com/johan-droid/Music-Bot)"}
-            )
+            await self._create_fresh_session()
             from bot.platforms.jiosaavn import jiosaavn
-            self.jiosaavn = jiosaavn
-            
-            # YouTube and SoundCloud extractors are already in bot/platforms/
             from bot.platforms.youtube import youtube
             from bot.platforms.soundcloud import soundcloud
             from bot.platforms.ytmusic import ytmusic
             from bot.platforms.audiomack import audiomack
+            from bot.platforms.audius import audius
             
+            self.jiosaavn = jiosaavn
             self.youtube = youtube
             self.soundcloud = soundcloud
             self.ytmusic = ytmusic
             self.audiomack = audiomack
+            self.audius = audius
             logger.info("MusicBackend persistent session initialized")
+
+    async def _create_fresh_session(self):
+        """Helper to create a fresh session to bypass provider cache blocks."""
+        if self.session:
+            await self.session.close()
+        self.session = aiohttp.ClientSession(
+            headers={
+                "User-Agent": (
+                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                    "AppleWebKit/537.36 (KHTML, like Gecko) "
+                    "Chrome/120.0.0.0 Safari/537.36"
+                )
+            }
+        )
+        self._request_count = 0
+        logger.info("Created a fresh HTTP session for MusicBackend")
+
+    async def _check_session_rotation(self):
+        """Check if session needs rotation to avoid stale cache blocks."""
+        self._request_count += 1
+        if self._request_count > self._MAX_REQUESTS_PER_SESSION:
+            logger.info("Rotating HTTP session to prevent provider blocks...")
+            await self._create_fresh_session()
 
     async def close(self):
         """Gracefully close the HTTP session."""
@@ -249,6 +277,9 @@ class MusicBackend:
         """
         if not self.session:
             await self.init()
+
+        # Check for rotation before searching
+        await self._check_session_rotation()
 
         # Determine search order based on query type
         from bot.utils.title_detector import detect_query_type
@@ -269,6 +300,11 @@ class MusicBackend:
         # Audiomack: Good for hip-hop
         tasks.append(asyncio.wait_for(self.audiomack.search(query, limit), timeout=10))
         source_order.append("audiomack")
+
+        # Audius: decentralized open-source catalog
+        if self.audius:
+            tasks.append(asyncio.wait_for(self.audius.search(query, limit), timeout=10))
+            source_order.append("audius")
         
         # YouTube Music: Best for official western releases
         if self.ytmusic and query_type.get("western_pop", 0) > 0.6:
@@ -287,6 +323,8 @@ class MusicBackend:
             if isinstance(result, Exception):
                 logger.warning(f"{source} search failed: {result}")
                 SourceRanker.record_failure(source)
+                if source in ("jiosaavn", "soundcloud"):
+                    asyncio.create_task(self._create_fresh_session())
                 continue
             
             SourceRanker.record_success(source)
@@ -332,6 +370,16 @@ class MusicBackend:
                         stream_url=item.get("url", ""),
                         thumbnail=item.get("thumbnail"),
                         source="ytmusic",
+                        track_id=item.get("id")
+                    )
+                elif source == "audius":
+                    track = Track(
+                        title=item.get("title", "Unknown"),
+                        artist=item.get("artist", "Unknown Artist"),
+                        duration=item.get("duration", 0),
+                        stream_url=item.get("url", ""),
+                        thumbnail=item.get("thumbnail"),
+                        source="audius",
                         track_id=item.get("id")
                     )
                 else:
@@ -388,9 +436,10 @@ class MusicBackend:
 
         # Legal/high-quality first to stay policy-safe and avoid repeated YT anti-bot hits.
         fallback_chain = [
-            ("ytmusic", self.ytmusic.extract),
             ("jiosaavn", self.jiosaavn.extract),
             ("soundcloud", self.soundcloud.extract),
+            ("audius", self.audius.extract),
+            ("ytmusic", self.ytmusic.extract),
             ("audiomack", self.audiomack.extract),
         ]
 
@@ -451,6 +500,15 @@ class MusicBackend:
             result = await self.audiomack.extract(tid)
             if result and result.get("url"):
                 return {"url": result["url"], "source": "audiomack", "headers": None}
+            return await self._resolve_fallback_payload(track)
+
+        if source == "audius":
+            if track.stream_url:
+                return {"url": track.stream_url, "source": "audius", "headers": None}
+            if track.track_id:
+                result = await self.audius.extract(track.track_id)
+                if result and result.get("url"):
+                    return {"url": result["url"], "source": "audius", "headers": None}
             return await self._resolve_fallback_payload(track)
 
         # Unknown source: try existing URL first, then legal-first fallback.
