@@ -19,6 +19,9 @@ class PipedUniversalExtractor:
         "https://pipedapi.tokhmi.xyz",
         "https://pipedapi.syncpundit.io",
         "https://api-piped.mha.fi",
+        "https://pipedapi.rivm.dev",
+        "https://piped-api.garudalinux.org",
+        "https://pipedapi.privacydev.net",
     ]
 
     def __init__(self):
@@ -110,7 +113,17 @@ class PipedUniversalExtractor:
                         if response.status != 200:
                             continue
 
-                        payload = await response.json()
+                        # Verify content-type before attempting to decode JSON
+                        if "application/json" not in (response.content_type or "").lower():
+                            logger.warning(f"Piped search node {instance} returned non-JSON content: {response.content_type}")
+                            continue
+
+                        try:
+                            payload = await response.json()
+                        except Exception as json_err:
+                            logger.warning(f"Failed to decode Piped search JSON from {instance}: {json_err}")
+                            continue
+
                         if isinstance(payload, dict):
                             items = payload.get("items") or []
                         elif isinstance(payload, list):
@@ -181,7 +194,16 @@ class PipedUniversalExtractor:
                         if response.status != 200:
                             continue
 
-                        stream_info = await response.json()
+                        if "application/json" not in (response.content_type or "").lower():
+                            logger.warning(f"Piped extract node {instance} returned non-JSON content: {response.content_type}")
+                            continue
+
+                        try:
+                            stream_info = await response.json()
+                        except Exception as json_err:
+                            logger.warning(f"Failed to decode Piped extract JSON from {instance}: {json_err}")
+                            continue
+
                         if not isinstance(stream_info, dict):
                             continue
 
@@ -240,7 +262,14 @@ class PipedUniversalExtractor:
                         if response.status != 200:
                             continue
 
-                        stream_info = await response.json()
+                        if "application/json" not in (response.content_type or "").lower():
+                            continue
+
+                        try:
+                            stream_info = await response.json()
+                        except Exception:
+                            continue
+
                         related = stream_info.get("relatedStreams") or []
                         
                         tracks = []

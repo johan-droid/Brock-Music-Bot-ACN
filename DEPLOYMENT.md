@@ -46,8 +46,9 @@ This guide shows how to deploy the music bot completely free using various cloud
    SESSION_STRING_1=your_session_string
    # or SESSION_FILE_B64_1=your_base64_encoded_session_file
    # or SESSION_FILE_PATH_1=/app/sessions/userbot_1.session
-   OWNER_ID=your_user_id
+   OWNER_ID=your_telegram_user_id
    MONGO_URI=mongodb+srv://... (optional - uses SQLite if not set)
+   # PIPED_INSTANCES=https://pipedapi.kavin.rocks,https://pipedapi.tokhmi.xyz (optional)
    ```
 6. Deploy!
 
@@ -215,6 +216,7 @@ MONGO_URI=mongodb+srv://username:password@cluster.mongodb.net/musicbot
 | `API_ID` | Telegram API ID | https://my.telegram.org |
 | `API_HASH` | Telegram API Hash | https://my.telegram.org |
 | `BOT_TOKEN` | Bot token | @BotFather on Telegram |
+| `PIPED_INSTANCES` | Piped API nodes | (Optional) comma-separated URLs |
 | `SESSION_FILE_B64_1` | Userbot session file (preferred) | Run `python generate_session.py` |
 | `SESSION_FILE_PATH_1` | Mounted `.session` file path | e.g. `/app/sessions/userbot_1.session` |
 | `SESSION_STRING_1` | Userbot session string (legacy) | Run `python generate_session.py` |
@@ -239,9 +241,7 @@ Use the output `SESSION_FILE_B64_1=...` in cloud environment variables.
 - Ensure bot is added to group and has admin rights
 
 ### No audio in voice chat
-- Check userbot session is valid
-- Ensure userbot is admin with "Manage Voice Chats" permission
-- **JioSaavn / CDNs**: The bot uses `-user_agent` and `-referer` flags to bypass 403 Forbidden errors. Ensure your server's IP is not rate-limited.
+- **Piped API**: The bot proxies all extraction through public Piped instances to avoid IP bans. If extraction fails, try adding different nodes to `PIPED_INSTANCES`.
 - Check FFmpeg is installed: `ffmpeg -version`
 
 ### SQLite locked errors

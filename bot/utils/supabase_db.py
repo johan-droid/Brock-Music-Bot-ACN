@@ -389,7 +389,11 @@ class SupabaseDatabase:
                 )
                 rows = [r for r in (getattr(result, "data", None) or []) if isinstance(r, dict)]
             except Exception as e:
-                logger.error(f"Failed to search global_music_index: {e}")
+                err_str = str(e)
+                if "PGRST205" in err_str:
+                    logger.warning("Supabase table 'global_music_index' is missing. Action required: Run the contents of 'supabase_setup.sql' in your Supabase SQL Editor.")
+                else:
+                    logger.error(f"Failed to search global_music_index: {e}")
                 return []
 
         tracks: List[Dict[str, Any]] = []
