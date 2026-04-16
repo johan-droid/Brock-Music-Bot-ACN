@@ -69,9 +69,20 @@ class Config(BaseSettings):
     
     # Genius (optional - for lyrics)
     GENIUS_TOKEN: Optional[str] = None
-    
+
     # Log group/channel ID (optional)
     LOG_GROUP_ID: Optional[int] = None
+
+    # Metrics HTTP endpoint (optional)
+    # When enabled, lightweight JSON metrics will be exposed on /metrics
+    # and a Prometheus text exporter on /metrics/prometheus if enabled.
+    METRICS_HTTP_ENABLED: bool = False
+    # Protect the HTTP metrics endpoint by setting a secret token here.
+    # The token can be provided as `Authorization: Bearer <token>` header
+    # or as a `?token=<token>` query parameter.
+    METRICS_HTTP_TOKEN: Optional[str] = None
+    # Enable a basic Prometheus text exporter at /metrics/prometheus
+    METRICS_PROMETHEUS_ENABLED: bool = False
 
     # Optional group binder: if set, only this group/chat ID may use the bot.
     BOUND_GROUP_ID: Optional[int] = None
