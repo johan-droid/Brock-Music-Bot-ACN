@@ -99,6 +99,7 @@ CREATE TABLE IF NOT EXISTS global_music_index (
     duration INTEGER,
     thumbnail TEXT,
     source TEXT,
+    stream_url TEXT,
     metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
     sources JSONB NOT NULL DEFAULT '[]'::jsonb,
     last_played TIMESTAMP DEFAULT NOW()
@@ -110,6 +111,18 @@ ALTER TABLE IF EXISTS global_music_index
 
 ALTER TABLE IF EXISTS global_music_index
     ADD COLUMN IF NOT EXISTS sources JSONB NOT NULL DEFAULT '[]'::jsonb;
+
+ALTER TABLE IF EXISTS global_music_index
+    ADD COLUMN IF NOT EXISTS stream_url TEXT;
+
+UPDATE global_music_index
+SET stream_url = COALESCE(
+    NULLIF(stream_url, ''),
+    NULLIF(metadata->>'stream_url', ''),
+    NULLIF(metadata->>'url', ''),
+    NULLIF(sources->0->>'url', '')
+)
+WHERE stream_url IS NULL OR stream_url = '';
 
 -- Enable trigram extension for substring/similarity indexes (if not already enabled)
 CREATE EXTENSION IF NOT EXISTS pg_trgm;
@@ -124,6 +137,7 @@ RETURNS TABLE (
     duration INTEGER,
     thumbnail TEXT,
     source TEXT,
+    stream_url TEXT,
     metadata JSONB,
     sources JSONB,
     last_played TIMESTAMP
@@ -138,6 +152,7 @@ AS $$
         g.duration,
         g.thumbnail,
         g.source,
+        g.stream_url,
         g.metadata,
         g.sources,
         g.last_played

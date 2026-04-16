@@ -32,6 +32,7 @@ class Track:
     def to_dict(self) -> Dict[str, Any]:
         d = asdict(self)
         d["url"] = self.stream_url
+        d["stream_url"] = self.stream_url
         d["uploader"] = self.artist
         d["id"] = self.track_id
         d["thumb"] = self.thumbnail
@@ -134,7 +135,7 @@ class MusicBackend:
 
         sources = row.get("sources") if isinstance(row.get("sources"), list) else []
         track_id = row.get("track_id")
-        stream_url = row.get("stream_url") or ""
+        stream_url = row.get("stream_url") or metadata.get("stream_url") or metadata.get("url") or ""
         source = row.get("source") or "global_index"
 
         if sources:
@@ -211,12 +212,14 @@ class MusicBackend:
         payload["metadata"] = {
             "duration": track.duration,
             "thumbnail": track.thumbnail,
+            "stream_url": track.stream_url,
         }
         payload["sources"] = [
             {
                 "source": "youtube",
                 "id": track.track_id,
                 "url": track.stream_url,
+                "stream_url": track.stream_url,
             }
         ]
 
@@ -295,6 +298,17 @@ class MusicBackend:
                 continue
 
             resolved_url = extracted.get("url")
+            if not isinstance(resolved_url, str):
+                continue
+
+            resolved_url = resolved_url.strip()
+            if not resolved_url.startswith("http"):
+                continue
+
+            if self._is_youtube_page_url(resolved_url):
+                logger.warning(f"Discarding non-direct URL from extractor candidate: {value}")
+                continue
+
             return {
                 "url": resolved_url,
                 "stream_url": resolved_url,
@@ -318,6 +332,18 @@ class MusicBackend:
     def get_source_headers(source: str) -> Optional[Dict[str, str]]:
         _ = source
         return None
+
+    @staticmethod
+    def _is_youtube_page_url(url: str) -> bool:
+        value = (url or "").strip().lower()
+        if not value:
+            return False
+        return (
+            "youtube.com/watch" in value
+            or "youtube-nocookie.com/watch" in value
+            or "youtu.be/" in value
+            or value.startswith("/watch")
+        )
 
     @staticmethod
     def _build_fallback_query(track: Track) -> str:

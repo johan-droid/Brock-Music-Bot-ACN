@@ -78,11 +78,23 @@ _SOURCE_PRIORITY = {
     "telegram": 3,
 }
 
+_YOUTUBE_PAGE_URL_RX = re.compile(
+    r"(?:^https?://)?(?:www\.)?(?:youtube\.com/watch|youtube-nocookie\.com/watch|youtu\.be/)",
+    re.IGNORECASE,
+)
+
 
 def _cancel_task(task_dict: dict, chat_id: int) -> None:
     task = task_dict.pop(chat_id, None)
     if task and not task.done():
         task.cancel()
+
+
+def _is_youtube_page_url(url: str) -> bool:
+    value = (url or "").strip()
+    if not value:
+        return False
+    return bool(_YOUTUBE_PAGE_URL_RX.search(value))
 
 
 def _rank_candidates_for_selection(query: str, candidates: list) -> list:
@@ -470,6 +482,38 @@ async def start_playback(chat_id: int, prefetched_track: Optional[Dict[str, Any]
         if headers is None:
             headers = music_backend.get_source_headers(effective_source)
 
+        # Never pass YouTube page URLs to py-tgcalls, otherwise it triggers an internal yt-dlp probe.
+        if _is_youtube_page_url(url):
+            logger.warning(
+                f"Direct stream unresolved for '{track.get('title', 'unknown')}' in {chat_id}; attempting pre-play fallback"
+            )
+
+            preplay_payload = await music_backend._resolve_fallback_payload(Track(
+                title=track.get("title", ""),
+                artist=track.get("uploader", ""),
+                duration=track.get("duration", 0),
+                stream_url=url,
+                source=track.get("source", "youtube"),
+                track_id=track.get("id")
+            ))
+
+            preplay_url = (preplay_payload or {}).get("url")
+            if preplay_url and not _is_youtube_page_url(preplay_url):
+                url = preplay_url
+                preplay_headers = preplay_payload.get("headers")
+                if preplay_headers is not None:
+                    headers = preplay_headers
+                preplay_source = preplay_payload.get("source")
+                if preplay_source:
+                    track["source"] = preplay_source
+                logger.info(
+                    f"Pre-play fallback resolved direct stream for '{track.get('title', 'unknown')}' in {chat_id}"
+                )
+            else:
+                raise RuntimeError(
+                    "Could not resolve a direct stream URL via Piped right now. Please retry in a few seconds."
+                )
+
         # Use consolidated play method
         try:
             await call_manager.play(chat_id, url, video=is_video, headers=headers)
@@ -486,8 +530,8 @@ async def start_playback(chat_id: int, prefetched_track: Optional[Dict[str, Any]
                 track_id=track.get("id")
             ))
 
-            if fallback_payload and fallback_payload.get("url"):
-                fallback_url = fallback_payload["url"]
+            fallback_url = (fallback_payload or {}).get("url")
+            if fallback_url and not _is_youtube_page_url(fallback_url):
                 fallback_headers = fallback_payload.get("headers")
                 fallback_source = fallback_payload.get("source")
                 if fallback_source:
