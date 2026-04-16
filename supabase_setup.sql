@@ -92,14 +92,60 @@ CREATE TABLE IF NOT EXISTS global_music_index (
     duration INTEGER,
     thumbnail TEXT,
     source TEXT,
+    metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
+    sources JSONB NOT NULL DEFAULT '[]'::jsonb,
     last_played TIMESTAMP DEFAULT NOW()
 );
+
+-- Backward-compatible schema evolution for existing projects.
+ALTER TABLE IF EXISTS global_music_index
+    ADD COLUMN IF NOT EXISTS metadata JSONB NOT NULL DEFAULT '{}'::jsonb;
+
+ALTER TABLE IF EXISTS global_music_index
+    ADD COLUMN IF NOT EXISTS sources JSONB NOT NULL DEFAULT '[]'::jsonb;
+
+-- Enable trigram extension for substring/similarity indexes (if not already enabled)
+CREATE EXTENSION IF NOT EXISTS pg_trgm;
+
+-- Fast fuzzy search RPC for catalog-first lookup.
+CREATE OR REPLACE FUNCTION public.search_music_index(p_query TEXT, p_limit INTEGER DEFAULT 5)
+RETURNS TABLE (
+    query_key TEXT,
+    track_id TEXT,
+    title TEXT,
+    artist TEXT,
+    duration INTEGER,
+    thumbnail TEXT,
+    source TEXT,
+    metadata JSONB,
+    sources JSONB,
+    last_played TIMESTAMP
+)
+LANGUAGE SQL
+AS $$
+    SELECT
+        g.query_key,
+        g.track_id,
+        g.title,
+        g.artist,
+        g.duration,
+        g.thumbnail,
+        g.source,
+        g.metadata,
+        g.sources,
+        g.last_played
+    FROM global_music_index g
+    WHERE
+        g.title ILIKE '%' || p_query || '%'
+        OR g.artist ILIKE '%' || p_query || '%'
+        OR similarity(g.title, p_query) > 0.2
+    ORDER BY similarity(g.title, p_query) DESC, g.last_played DESC
+    LIMIT GREATEST(1, COALESCE(p_limit, 5));
+$$;
 
 -- Create indexes for fast searching and auto-pruning
 CREATE INDEX IF NOT EXISTS idx_music_title ON global_music_index(title);
 CREATE INDEX IF NOT EXISTS idx_music_last_played ON global_music_index(last_played);
--- Enable trigram extension for substring/similarity indexes (if not already enabled)
-CREATE EXTENSION IF NOT EXISTS pg_trgm;
 -- GIN trigram index to accelerate LIKE '%%keyword%%' and similarity searches on title
 CREATE INDEX IF NOT EXISTS idx_music_title_trgm ON global_music_index USING gin (title gin_trgm_ops);
 

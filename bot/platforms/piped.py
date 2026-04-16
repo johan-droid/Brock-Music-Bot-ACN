@@ -1,106 +1,182 @@
-import aiohttp
-import asyncio
+"""Universal Piped extractor with multi-instance failover."""
+
 import logging
 import random
-from typing import Optional, Dict, Any
 from urllib.parse import parse_qs, urlparse
+
+import aiohttp
+
+from config import config
 
 logger = logging.getLogger(__name__)
 
 
-class PipedExtractor:
-    """Bypasses Commercial CDN blocks by utilizing decentralized proxy databases."""
+class PipedUniversalExtractor:
+    """Single extractor for all public content with automatic node failover."""
+
     def __init__(self):
-        self.instances = [
-            "https://pipedapi.kavin.rocks",
-            "https://pipedapi.tokhmi.xyz",
-            "https://pipedapi.syncpundit.io"
-        ]
+        raw_instances = getattr(config, "PIPED_INSTANCES", None)
+        cleaned: list[str] = []
 
-    def _get_node(self) -> str:
-        return random.choice(self.instances)
+        if raw_instances:
+            for item in raw_instances:
+                if not item:
+                    continue
+                instance = item.strip().rstrip("/")
+                if instance:
+                    cleaned.append(instance)
 
-    async def extract(self, query: str) -> Optional[Dict[str, Any]]:
-        """Searches Piped and returns a direct proxy audio stream, bypassing Heroku blocks."""
-        node = self._get_node()
-        search_url = f"{node}/search"
-        params = {"q": query, "filter": "music_songs"}
+        if not cleaned:
+            fallback = (getattr(config, "PIPED_API", "") or "").strip().rstrip("/")
+            if fallback:
+                cleaned = [fallback]
 
-        try:
-            async with aiohttp.ClientSession() as session:
-                # Perform search with a short timeout to fail fast
-                try:
-                    async with session.get(search_url, params=params, timeout=aiohttp.ClientTimeout(total=6)) as resp:
-                        if resp.status != 200:
-                            logger.debug("Piped search returned non-200 status: %s", resp.status)
-                            return None
-                        data = await resp.json()
-                except (asyncio.TimeoutError, aiohttp.ClientError) as exc:
-                    logger.debug(f"Piped search request failed: {exc}")
-                    return None
-                except Exception as exc:
-                    logger.error(f"Piped search parse failed: {exc}")
-                    return None
+        self.instances = cleaned
 
-                items = data.get("items", []) if isinstance(data, dict) else []
-                if not items:
-                    return None
+    def _extract_video_id(self, value: str | None) -> str | None:
+        if not value:
+            return None
 
-                # Find the first item with a usable URL and extract a video id.
-                video_id = None
-                for it in items:
-                    # Safely read url and skip falsy values
-                    video_url = it.get("url") if isinstance(it, dict) else None
-                    if not video_url or not isinstance(video_url, str) or not video_url.strip():
-                        continue
-                    # Prefer parsed query parameter 'v', fall back to last path segment.
-                    parsed = urlparse(video_url)
-                    query_v = parse_qs(parsed.query).get("v", [""])[0]
-                    if query_v:
-                        vid = query_v
-                    else:
-                        parts = parsed.path.rstrip("/").split("/")
-                        vid = parts[-1] if parts else ""
-                    if vid:
-                        video_id = vid
-                        break
+        raw = value.strip()
+        if not raw:
+            return None
 
-                if not video_id:
-                    logger.debug("Piped search returned items with no usable URL")
-                    return None
+        if "youtube.com/watch" in raw:
+            parsed = urlparse(raw)
+            video_id = parse_qs(parsed.query).get("v", [None])[0]
+            return video_id
 
-                stream_url = f"{node}/streams/{video_id}"
+        if raw.startswith("/watch"):
+            parsed = urlparse(raw)
+            video_id = parse_qs(parsed.query).get("v", [None])[0]
+            return video_id
 
-                # Fetch stream info with a slightly longer timeout
-                try:
-                    async with session.get(stream_url, timeout=aiohttp.ClientTimeout(total=8)) as resp:
-                        if resp.status != 200:
-                            logger.debug("Piped stream fetch returned non-200 status: %s", resp.status)
-                            return None
-                        stream_data = await resp.json()
-                except (asyncio.TimeoutError, aiohttp.ClientError) as exc:
-                    logger.debug(f"Piped stream request failed: {exc}")
-                    return None
-                except Exception as exc:
-                    logger.error(f"Piped stream parse failed: {exc}")
-                    return None
+        if "youtu.be/" in raw:
+            parsed = urlparse(raw)
+            last = (parsed.path or "").strip("/")
+            return last or None
 
-                audio_streams = stream_data.get("audioStreams", []) if isinstance(stream_data, dict) else []
+        return raw
 
-                # Pick the highest-bitrate stream that actually has a URL
-                valid_streams = [s for s in audio_streams if s and s.get("url")]
-                if not valid_streams:
-                    logger.debug("No valid audio streams found in piped response")
-                    return None
-                best_audio = max(valid_streams, key=lambda x: x.get("bitrate", 0))
-                url = best_audio.get("url")
-                if not url:
-                    logger.debug("Best audio stream has no URL")
-                    return None
-                return {"url": url, "source": "piped", "headers": None}
-        except Exception as e:
-            logger.error(f"Piped extraction failed: {e}")
+    async def search(self, query: str, limit: int = 10):
+        """Search against Piped instances, returning first successful result set."""
+        if not self.instances:
+            return []
+
+        instances = self.instances[:]
+        random.shuffle(instances)
+
+        timeout = aiohttp.ClientTimeout(total=8)
+
+        for instance in instances:
+            try:
+                async with aiohttp.ClientSession(timeout=timeout) as session:
+                    endpoint = f"{instance}/search"
+                    params = {"q": query, "filter": "videos"}
+                    async with session.get(endpoint, params=params) as response:
+                        if response.status != 200:
+                            continue
+
+                        payload = await response.json()
+                        if isinstance(payload, dict):
+                            items = payload.get("items") or []
+                        elif isinstance(payload, list):
+                            items = payload
+                        else:
+                            items = []
+
+                        tracks = []
+                        for item in items[:limit]:
+                            title = item.get("title") or "Unknown"
+                            uploader = item.get("uploaderName") or "Unknown"
+                            duration = item.get("duration") or 0
+                            url = item.get("url") or ""
+                            thumb = item.get("thumbnail") or None
+
+                            video_id = self._extract_video_id(url)
+                            if not video_id:
+                                continue
+
+                            tracks.append(
+                                {
+                                    "id": video_id,
+                                    "title": title,
+                                    "uploader": uploader,
+                                    "duration": duration,
+                                    "url": f"https://youtube.com/watch?v={video_id}",
+                                    "thumbnail": thumb,
+                                    "source": "youtube",
+                                }
+                            )
+
+                        if tracks:
+                            logger.info(f"Piped search ok via {instance} ({len(tracks)} result(s))")
+                            return tracks
+            except Exception as e:
+                logger.warning(f"Piped search failed on {instance}: {e}")
+
+        logger.warning("Piped search exhausted all nodes")
+        return []
+
+    async def extract(self, target: str):
+        """Resolve a playable audio stream URL using Piped failover."""
+        if not self.instances:
+            return None
+
+        video_id = self._extract_video_id(target)
+        if not video_id:
+            return None
+
+        instances = self.instances[:]
+        random.shuffle(instances)
+
+        timeout = aiohttp.ClientTimeout(total=8)
+
+        for instance in instances:
+            try:
+                async with aiohttp.ClientSession(timeout=timeout) as session:
+                    endpoint = f"{instance}/streams/{video_id}"
+                    async with session.get(endpoint) as response:
+                        if response.status != 200:
+                            continue
+
+                        stream_info = await response.json()
+                        if not isinstance(stream_info, dict):
+                            continue
+
+                        audio_streams = stream_info.get("audioStreams") or []
+                        if not audio_streams:
+                            continue
+
+                        valid_streams = [s for s in audio_streams if isinstance(s, dict) and s.get("url")]
+                        if not valid_streams:
+                            continue
+
+                        best_stream = max(valid_streams, key=lambda item: item.get("bitrate") or 0)
+                        stream_url = best_stream.get("url")
+                        if not stream_url:
+                            continue
+
+                        title = stream_info.get("title") or "Unknown"
+                        uploader = stream_info.get("uploader") or stream_info.get("uploaderName") or "Unknown"
+                        duration = stream_info.get("duration") or 0
+                        thumb = stream_info.get("thumbnailUrl") or None
+
+                        logger.info(f"Piped extract ok via {instance} ({video_id})")
+                        return {
+                            "id": video_id,
+                            "title": title,
+                            "uploader": uploader,
+                            "duration": duration,
+                            "url": stream_url,
+                            "thumbnail": thumb,
+                            "source": "youtube",
+                        }
+            except Exception as e:
+                logger.warning(f"Piped extract failed on {instance}: {e}")
+
+        logger.error(f"Piped extract failed across all nodes for {video_id}")
         return None
 
 
-piped = PipedExtractor()
+piped = PipedUniversalExtractor()

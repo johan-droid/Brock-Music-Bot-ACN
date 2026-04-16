@@ -87,11 +87,12 @@ class SupabaseDatabase:
         Ensure that `global_music_index` exists with the expected columns;
         for example (reference only):
 
-          - id TEXT PRIMARY KEY
-          - metadata JSONB NOT NULL
-          - created_at TIMESTAMP DEFAULT NOW()
-          - last_seen TIMESTAMP
+                    - query_key TEXT PRIMARY KEY
+                    - title TEXT
+                    - artist TEXT
+                    - metadata JSONB NOT NULL
           - sources JSONB DEFAULT '[]'::jsonb
+                    - last_played TIMESTAMP DEFAULT NOW()
 
         This method does not execute DDL; run `supabase_setup.sql` in the
         Supabase SQL editor or via migrations to apply the schema.
@@ -357,19 +358,129 @@ class SupabaseDatabase:
                 "gbanned_users": 0,
             }
 
+    async def search_global_music_index(self, query: str, limit: int = 5) -> List[Dict[str, Any]]:
+        """Search cached global catalog first to reduce external API calls."""
+        q = (query or "").strip()
+        if not q:
+            return []
+
+        rows: List[Dict[str, Any]] = []
+
+        # Prefer RPC search backed by pg_trgm/similarity ordering.
+        try:
+            rpc_result = self.client.rpc("search_music_index", {"p_query": q, "p_limit": max(1, limit)}).execute()
+            rpc_data = getattr(rpc_result, "data", None)
+            if isinstance(rpc_data, list):
+                rows = [r for r in rpc_data if isinstance(r, dict)]
+        except Exception as e:
+            logger.debug(f"search_music_index RPC unavailable, using fallback query: {e}")
+
+        # Fallback path if RPC isn't deployed yet.
+        if not rows:
+            try:
+                like_query = f"%{q}%"
+                result = (
+                    self.client.table("global_music_index")
+                    .select("query_key,track_id,title,artist,duration,thumbnail,source,metadata,sources,last_played")
+                    .or_(f"title.ilike.{like_query},artist.ilike.{like_query}")
+                    .order("last_played", desc=True)
+                    .limit(max(1, limit))
+                    .execute()
+                )
+                rows = [r for r in (getattr(result, "data", None) or []) if isinstance(r, dict)]
+            except Exception as e:
+                logger.error(f"Failed to search global_music_index: {e}")
+                return []
+
+        tracks: List[Dict[str, Any]] = []
+        for row in rows:
+            metadata = row.get("metadata") if isinstance(row.get("metadata"), dict) else {}
+            sources = row.get("sources") if isinstance(row.get("sources"), list) else []
+
+            title = row.get("title") or metadata.get("title") or q
+            artist = row.get("artist") or metadata.get("artist") or metadata.get("uploader") or "Unknown Artist"
+            duration_raw = row.get("duration") if row.get("duration") is not None else metadata.get("duration", 0)
+            try:
+                duration = int(duration_raw or 0)
+            except Exception:
+                duration = 0
+
+            track_id = row.get("track_id") or metadata.get("id") or metadata.get("track_id")
+            thumb = row.get("thumbnail") or metadata.get("thumbnail") or metadata.get("thumb")
+
+            stream_url = metadata.get("url") or metadata.get("stream_url") or ""
+            if not stream_url:
+                for src in sources:
+                    if isinstance(src, dict):
+                        stream_url = src.get("url") or src.get("stream_url") or ""
+                        if stream_url:
+                            break
+
+            tracks.append({
+                "title": title,
+                "artist": artist,
+                "uploader": artist,
+                "duration": duration,
+                "url": stream_url,
+                "stream_url": stream_url,
+                "thumbnail": thumb,
+                "source": "global_index",
+                "origin_source": row.get("source") or metadata.get("source") or "unknown",
+                "id": track_id,
+                "track_id": track_id,
+                "metadata": metadata,
+                "sources": sources,
+                "query_key": row.get("query_key"),
+            })
+
+        return tracks[: max(1, limit)]
+
     async def save_track_to_index(self, query: str, track: dict):
         """🟢 Saves a track to Supabase, but automatically deletes old ones to protect the Free Tier."""
         try:
             query_key = query.strip().lower()
+            track_id = track.get("id") or track.get("track_id")
+            source_name = track.get("source", "unknown")
+            stream_url = track.get("url") or track.get("stream_url") or ""
+            saved_at = datetime.utcnow().isoformat()
+
+            metadata = {
+                "title": track.get("title", "Unknown"),
+                "artist": track.get("artist") or track.get("uploader") or "Unknown Artist",
+                "duration": track.get("duration", 0),
+                "thumbnail": track.get("thumbnail") or track.get("thumb") or "",
+                "source": source_name,
+                "id": track_id,
+                "url": stream_url,
+                "saved_at": saved_at,
+            }
+
+            if isinstance(track.get("metadata"), dict):
+                # Keep any provider-specific metadata while preserving canonical keys.
+                metadata = {**track.get("metadata"), **metadata}
+
+            sources_payload: List[Dict[str, Any]] = []
+            if isinstance(track.get("sources"), list):
+                sources_payload.extend([s for s in track.get("sources") if isinstance(s, dict)])
+
+            sources_payload.append({
+                "source": source_name,
+                "track_id": track_id,
+                "url": stream_url,
+                "saved_at": saved_at,
+            })
+
             data = {
                 "query_key": query_key,
-                "track_id": track.get("id") or track.get("track_id"),
-                "title": track.get("title", "Unknown"),
-                "artist": track.get("artist", "Unknown Artist"),
+                "track_id": track_id,
+                "title": metadata.get("title", "Unknown"),
+                "artist": metadata.get("artist", "Unknown Artist"),
                 "duration": track.get("duration", 0),
-                "thumbnail": track.get("thumbnail", ""),
-                "source": track.get("source", "piped"),
-                "last_played": datetime.utcnow().isoformat()
+                "thumbnail": metadata.get("thumbnail", ""),
+                "source": source_name,
+                "metadata": metadata,
+                "sources": sources_payload,
+                "last_played": saved_at,
             }
 
             # 1. Save or update the current track
