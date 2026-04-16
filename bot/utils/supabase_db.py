@@ -381,7 +381,7 @@ class SupabaseDatabase:
                 like_query = f"%{q}%"
                 result = (
                     self.client.table("global_music_index")
-                    .select("query_key,track_id,title,artist,duration,thumbnail,source,metadata,sources,last_played")
+                    .select("query_key,track_id,title,artist,duration,thumbnail,source,stream_url,metadata,sources,last_played")
                     .or_(f"title.ilike.{like_query},artist.ilike.{like_query}")
                     .order("last_played", desc=True)
                     .limit(max(1, limit))
@@ -412,11 +412,11 @@ class SupabaseDatabase:
             track_id = row.get("track_id") or metadata.get("id") or metadata.get("track_id")
             thumb = row.get("thumbnail") or metadata.get("thumbnail") or metadata.get("thumb")
 
-            stream_url = metadata.get("url") or metadata.get("stream_url") or ""
+            stream_url = row.get("stream_url") or metadata.get("stream_url") or metadata.get("url") or ""
             if not stream_url:
                 for src in sources:
                     if isinstance(src, dict):
-                        stream_url = src.get("url") or src.get("stream_url") or ""
+                        stream_url = src.get("stream_url") or src.get("url") or ""
                         if stream_url:
                             break
 
@@ -456,6 +456,7 @@ class SupabaseDatabase:
                 "source": source_name,
                 "id": track_id,
                 "url": stream_url,
+                "stream_url": stream_url,
                 "saved_at": saved_at,
             }
 
@@ -471,6 +472,7 @@ class SupabaseDatabase:
                 "source": source_name,
                 "track_id": track_id,
                 "url": stream_url,
+                "stream_url": stream_url,
                 "saved_at": saved_at,
             })
 
@@ -482,6 +484,7 @@ class SupabaseDatabase:
                 "duration": track.get("duration", 0),
                 "thumbnail": metadata.get("thumbnail", ""),
                 "source": source_name,
+                "stream_url": stream_url,
                 "metadata": metadata,
                 "sources": sources_payload,
                 "last_played": saved_at,
