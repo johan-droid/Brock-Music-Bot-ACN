@@ -2,7 +2,7 @@ import asyncio
 import logging
 import aiohttp
 import html
-from typing import Optional, Dict, Any, List, TYPE_CHECKING
+from typing import Optional, Dict, Any, List, TYPE_CHECKING, Awaitable
 from dataclasses import dataclass, asdict
 
 if TYPE_CHECKING:
@@ -53,7 +53,13 @@ class SourceRanker:
     """
     
     # Base weights for sources (higher = better)
+    # Base weights for sources (higher = better)
+    # NOTE: `piped` is a fallback-only resolver (used when direct extraction
+    # fails). It is not part of the regular search pipeline and therefore
+    # should not influence search ranking. Set its weight to 0.0 so it
+    # doesn't contribute to SourceRanker priority calculations.
     _BASE_WEIGHTS = {
+        "piped": 0.0,
         "soundcloud": 1.0,
         "audiomack": 0.95,
         "audius": 0.90,
@@ -217,9 +223,14 @@ class MusicBackend:
         self.ytmusic = None
         self.audiomack = None
         self.audius = None
+        self.piped = None
         # Add request tracking for session rotation
         self._request_count = 0
         self._MAX_REQUESTS_PER_SESSION = 50
+        # Session concurrency primitives (initialized on first async call)
+        self._session_lock = None  # type: Optional[asyncio.Lock]
+        self._active_requests = 0
+        self._needs_rotation = False
     
     async def init(self):
         """Initialize the shared HTTP session and platform extractors."""
@@ -231,6 +242,7 @@ class MusicBackend:
             from bot.platforms.ytmusic import ytmusic
             from bot.platforms.audiomack import audiomack
             from bot.platforms.audius import audius
+            from bot.platforms.piped import piped
             
             self.jiosaavn = jiosaavn
             self.youtube = youtube
@@ -238,30 +250,58 @@ class MusicBackend:
             self.ytmusic = ytmusic
             self.audiomack = audiomack
             self.audius = audius
+            self.piped = piped
             logger.info("MusicBackend persistent session initialized")
 
     async def _create_fresh_session(self):
-        """Helper to create a fresh session to bypass provider cache blocks."""
-        if self.session:
-            await self.session.close()
-        self.session = aiohttp.ClientSession(
-            headers={
-                "User-Agent": (
-                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-                    "AppleWebKit/537.36 (KHTML, like Gecko) "
-                    "Chrome/120.0.0.0 Safari/537.36"
-                )
-            }
-        )
-        self._request_count = 0
-        logger.info("Created a fresh HTTP session for MusicBackend")
+        """Acquire session lock and create a fresh session.
+
+        This wrapper ensures session swaps are atomic. The actual work is
+        performed by `_do_create_fresh_session()` so callers that already
+        hold the lock can call the inner function directly.
+        """
+        if self._session_lock is None:
+            self._session_lock = asyncio.Lock()
+        async with self._session_lock:
+            await self._do_create_fresh_session()
+
+    async def _do_create_fresh_session(self):
+        """Create/replace the aiohttp session without acquiring the lock.
+
+        This function should only be called while holding `_session_lock`.
+        """
+        try:
+            if self.session:
+                try:
+                    await self.session.close()
+                except Exception:
+                    pass
+            self.session = aiohttp.ClientSession(
+                headers={
+                    "User-Agent": (
+                        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                        "AppleWebKit/537.36 (KHTML, like Gecko) "
+                        "Chrome/120.0.0.0 Safari/537.36"
+                    )
+                }
+            )
+            self._request_count = 0
+            logger.info("Created a fresh HTTP session for MusicBackend")
+        except Exception as e:
+            logger.error(f"Failed to create fresh HTTP session: {e}")
 
     async def _check_session_rotation(self):
-        """Check if session needs rotation to avoid stale cache blocks."""
+        """Check if session needs rotation to avoid stale cache blocks.
+
+        Instead of rotating immediately (which can close the session while
+        other coroutines are still using it), mark the session for rotation
+        and perform the actual rotation at a safe point when there are no
+        active requests.
+        """
         self._request_count += 1
         if self._request_count > self._MAX_REQUESTS_PER_SESSION:
-            logger.info("Rotating HTTP session to prevent provider blocks...")
-            await self._create_fresh_session()
+            logger.info("Marking session for rotation to prevent provider blocks...")
+            self._needs_rotation = True
 
     async def close(self):
         """Gracefully close the HTTP session."""
@@ -278,132 +318,176 @@ class MusicBackend:
         if not self.session:
             await self.init()
 
+        # Register this coroutine as an active request and check rotation.
+        self._active_requests += 1
         # Check for rotation before searching
         await self._check_session_rotation()
 
         # Determine search order based on query type
         from bot.utils.title_detector import detect_query_type
         query_type = detect_query_type(query)
-        
-        # Build task list with source-specific timeouts
-        tasks = []
-        source_order = []
-        
-        # JioSaavn: Fast, reliable for Indian music
-        tasks.append(asyncio.wait_for(self.jiosaavn.search(query, limit), timeout=8))
-        source_order.append("jiosaavn")
-        
-        # SoundCloud: Good for electronic/remixes
-        tasks.append(asyncio.wait_for(self.soundcloud.search(query, limit), timeout=12))
-        source_order.append("soundcloud")
-        
-        # Audiomack: Good for hip-hop
-        tasks.append(asyncio.wait_for(self.audiomack.search(query, limit), timeout=10))
-        source_order.append("audiomack")
 
-        # Audius: decentralized open-source catalog
-        if self.audius:
-            tasks.append(asyncio.wait_for(self.audius.search(query, limit), timeout=10))
+        # Local extractor references (avoid Optional member access warnings)
+        jiosaavn = self.jiosaavn
+        soundcloud = self.soundcloud
+        audiomack = self.audiomack
+        audius = self.audius
+        ytmusic = self.ytmusic
+
+        # Build task list with source-specific timeouts
+        tasks: List[Awaitable[Any]] = []
+        source_order = []
+
+        if jiosaavn and hasattr(jiosaavn, "search"):
+            tasks.append(asyncio.wait_for(jiosaavn.search(query, limit), timeout=8))
+            source_order.append("jiosaavn")
+
+        if soundcloud and hasattr(soundcloud, "search"):
+            tasks.append(asyncio.wait_for(soundcloud.search(query, limit), timeout=12))
+            source_order.append("soundcloud")
+
+        if audiomack and hasattr(audiomack, "search"):
+            tasks.append(asyncio.wait_for(audiomack.search(query, limit), timeout=10))
+            source_order.append("audiomack")
+
+        if audius and hasattr(audius, "search"):
+            tasks.append(asyncio.wait_for(audius.search(query, limit), timeout=10))
             source_order.append("audius")
-        
-        # YouTube Music: Best for official western releases
-        if self.ytmusic and query_type.get("western_pop", 0) > 0.6:
+
+        if ytmusic and hasattr(ytmusic, "search") and query_type.get("western_pop", 0) > 0.6:
             try:
-                tasks.append(asyncio.wait_for(self.ytmusic.search(query, limit), timeout=15))
+                tasks.append(asyncio.wait_for(ytmusic.search(query, limit), timeout=15))
                 source_order.append("ytmusic")
             except Exception:
-                pass  # ytmusic might not be available
-        
-        results = await asyncio.gather(*tasks, return_exceptions=True)
-        
-        tracks = []
-        source_stats = {source: {"found": 0, "added": 0} for source in source_order}
-        
-        for idx, (result, source) in enumerate(zip(results, source_order)):
-            if isinstance(result, Exception):
-                logger.warning(f"{source} search failed: {result}")
-                SourceRanker.record_failure(source)
-                if source in ("jiosaavn", "soundcloud"):
-                    asyncio.create_task(self._create_fresh_session())
-                continue
-            
-            SourceRanker.record_success(source)
-            source_stats[source]["found"] = len(result)
-            
-            for item in result:
-                # Create Track object
-                if source == "jiosaavn":
-                    track = Track(
-                        title=item.get("title", "Unknown"),
-                        artist=item.get("uploader", "Unknown Artist"),
-                        duration=item.get("duration", 0),
-                        stream_url=item.get("url", ""),
-                        thumbnail=item.get("thumbnail"),
-                        source="jiosaavn",
-                        track_id=item.get("id")
-                    )
-                elif source == "soundcloud":
-                    track = Track(
-                        title=item.get("title", "Unknown"),
-                        artist=item.get("artist", "Unknown"),
-                        duration=item.get("duration", 0),
-                        stream_url=item.get("stream_url", ""),
-                        thumbnail=item.get("thumbnail"),
-                        source="soundcloud",
-                        track_id=item.get("id")
-                    )
-                elif source == "audiomack":
-                    track = Track(
-                        title=item.get("title", "Unknown"),
-                        artist=item.get("uploader", "Unknown Artist"),
-                        duration=item.get("duration", 0),
-                        stream_url=item.get("url", ""),
-                        thumbnail=item.get("thumbnail"),
-                        source="audiomack",
-                        track_id=item.get("id")
-                    )
-                elif source == "ytmusic":
-                    track = Track(
-                        title=item.get("title", "Unknown"),
-                        artist=item.get("artist", "Unknown Artist"),
-                        duration=item.get("duration", 0),
-                        stream_url=item.get("url", ""),
-                        thumbnail=item.get("thumbnail"),
-                        source="ytmusic",
-                        track_id=item.get("id")
-                    )
-                elif source == "audius":
-                    track = Track(
-                        title=item.get("title", "Unknown"),
-                        artist=item.get("artist", "Unknown Artist"),
-                        duration=item.get("duration", 0),
-                        stream_url=item.get("url", ""),
-                        thumbnail=item.get("thumbnail"),
-                        source="audius",
-                        track_id=item.get("id")
-                    )
-                else:
+                # ytmusic might be flaky or unavailable
+                pass
+
+        try:
+            if not tasks:
+                return []
+
+            results = await asyncio.gather(*tasks, return_exceptions=True)
+
+            tracks: List[Track] = []
+            source_stats = {s: {"found": 0, "added": 0} for s in source_order}
+
+            for result, source in zip(results, source_order):
+                if isinstance(result, BaseException):
+                    logger.warning(f"{source} search failed: {result}")
+                    SourceRanker.record_failure(source)
+                    if source in ("jiosaavn", "soundcloud"):
+                        # Defer session rotation to a safe point
+                        self._needs_rotation = True
+                        logger.debug("Marked session for rotation after current operations due to source failure.")
                     continue
-                
-                # Fuzzy deduplication - check for similar tracks
-                if not is_duplicate_track(track, tracks, threshold=0.85):
-                    tracks.append(track)
-                    source_stats[source]["added"] += 1
-        
-        # Log source performance
-        for source, stats in source_stats.items():
-            if stats["found"] > 0:
-                logger.info(f"{source}: found {stats['found']}, added {stats['added']} (reliability: {SourceRanker.get_reliability(source):.2f})")
-        
-        # Rank by quality and source priority
-        def rank_key(track):
-            quality = calculate_track_quality(track)
-            source_priority = SourceRanker.get_source_priority(track.source, query)
-            return (source_priority, -quality)
-        
-        tracks.sort(key=rank_key)
-        
-        return tracks[:limit]
+
+                if not isinstance(result, list):
+                    logger.warning(f"{source} search returned unexpected payload type: {type(result).__name__}")
+                    SourceRanker.record_failure(source)
+                    continue
+
+                SourceRanker.record_success(source)
+                try:
+                    source_stats[source]["found"] = len(result)
+                except Exception:
+                    source_stats[source]["found"] = 0
+
+                for item in result:
+                    if not isinstance(item, dict):
+                        continue
+                    try:
+                        if source == "jiosaavn":
+                            track = Track(
+                                title=item.get("title", "Unknown"),
+                                artist=item.get("uploader", "Unknown Artist"),
+                                duration=item.get("duration", 0),
+                                stream_url=item.get("url", ""),
+                                thumbnail=item.get("thumbnail"),
+                                source="jiosaavn",
+                                track_id=item.get("id")
+                            )
+                        elif source == "soundcloud":
+                            track = Track(
+                                title=item.get("title", "Unknown"),
+                                artist=item.get("artist", "Unknown"),
+                                duration=item.get("duration", 0),
+                                stream_url=item.get("stream_url", ""),
+                                thumbnail=item.get("thumbnail"),
+                                source="soundcloud",
+                                track_id=item.get("id")
+                            )
+                        elif source == "audiomack":
+                            track = Track(
+                                title=item.get("title", "Unknown"),
+                                artist=item.get("uploader", "Unknown Artist"),
+                                duration=item.get("duration", 0),
+                                stream_url=item.get("url", ""),
+                                thumbnail=item.get("thumbnail"),
+                                source="audiomack",
+                                track_id=item.get("id")
+                            )
+                        elif source == "ytmusic":
+                            track = Track(
+                                title=item.get("title", "Unknown"),
+                                artist=item.get("artist", "Unknown Artist"),
+                                duration=item.get("duration", 0),
+                                stream_url=item.get("url", ""),
+                                thumbnail=item.get("thumbnail"),
+                                source="ytmusic",
+                                track_id=item.get("id")
+                            )
+                        elif source == "audius":
+                            track = Track(
+                                title=item.get("title", "Unknown"),
+                                artist=item.get("artist", "Unknown Artist"),
+                                duration=item.get("duration", 0),
+                                stream_url=item.get("url", ""),
+                                thumbnail=item.get("thumbnail"),
+                                source="audius",
+                                track_id=item.get("id")
+                            )
+                        else:
+                            continue
+
+                        if not is_duplicate_track(track, tracks, threshold=0.85):
+                            tracks.append(track)
+                            source_stats[source]["added"] += 1
+                    except Exception as e:
+                        logger.debug(f"Error processing search item for {source}: {e}")
+                        continue
+
+            # Log source performance
+            for source, stats in source_stats.items():
+                if stats["found"] > 0:
+                    logger.info(f"{source}: found {stats['found']}, added {stats['added']} (reliability: {SourceRanker.get_reliability(source):.2f})")
+
+            # Rank by quality and source priority
+            def rank_key(track: Track):
+                quality = calculate_track_quality(track)
+                source_priority = SourceRanker.get_source_priority(track.source, query)
+                return (source_priority, -quality)
+
+            tracks.sort(key=rank_key)
+            result_tracks = tracks[:limit]
+
+            return result_tracks
+        finally:
+            # Decrement active count and perform deferred rotation if this was the last active request.
+            try:
+                self._active_requests = max(0, self._active_requests - 1)
+            except Exception:
+                self._active_requests = 0
+
+            if self._needs_rotation:
+                if self._session_lock is None:
+                    self._session_lock = asyncio.Lock()
+                async with self._session_lock:
+                    if self._active_requests == 0 and self._needs_rotation:
+                        try:
+                            await self._do_create_fresh_session()
+                        except Exception as e:
+                            logger.error(f"Failed to rotate session: {e}")
+                        self._needs_rotation = False
 
     @staticmethod
     def _build_fallback_query(track: Track) -> str:
@@ -429,64 +513,32 @@ class MusicBackend:
         return None
 
     async def _resolve_fallback_payload(self, track: Track) -> Optional[Dict[str, Any]]:
-        """Resolve a playable URL using native yt-dlp search to bypass broken platform extractors."""
+        """Resolve a playable URL using the Piped Proxy database to avoid Heroku IP blocks."""
         query = self._build_fallback_query(track)
         if not query:
             return None
 
-        logger.info(f"Attempting native yt-dlp fallback search for: {query}")
-        
-        import yt_dlp
-        import asyncio
-        
-        # Configure yt-dlp to grab the best audio URL directly
-        ydl_opts = {
-            'format': 'bestaudio/best',
-            'noplaylist': True,
-            'quiet': True,
-            'no_warnings': True,
-            'extract_flat': False,
-        }
-        
-        # Priority 1: SoundCloud Search (Bypasses Heroku YouTube Blocks)
-        # Priority 2: YouTube Search (Just in case)
-        fallback_chain = [
-            (f"scsearch1:{query}", "soundcloud"),
-            (f"ytsearch1:{query}", "youtube")
-        ]
-        
-        loop = asyncio.get_event_loop()
-        
-        for search_string, source_name in fallback_chain:
-            try:
-                def fetch_stream():
-                    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                        return ydl.extract_info(search_string, download=False)
-                
-                # Run the blocking yt-dlp request safely in a background thread
-                info = await loop.run_in_executor(None, fetch_stream)
-                
-                if info and 'entries' in info and len(info['entries']) > 0:
-                    entry = info['entries'][0]
-                    stream_url = entry.get('url')
-                    
-                    if stream_url:
-                        logger.info(f"✅ Fallback stream successfully resolved via {source_name} native search")
-                        
-                        # 🟢 Dynamically grab the stealth headers yt-dlp used to get this link
-                        stream_headers = entry.get('http_headers', {
-                            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
-                        })
-                        
-                        return {
-                            "url": stream_url,
-                            "source": source_name,
-                            "headers": stream_headers
-                        }
-            except Exception as exc:
-                logger.debug(f"yt-dlp fallback failed for {search_string}: {exc}")
-                continue
+        logger.info(f"Attempting unblocked proxy fallback search for: {query}")
 
+        # Prefer the `self.piped` instance initialized by `init()` to avoid repeated imports.
+        if not self.piped:
+            logger.error("Piped extractor not initialized. Call MusicBackend.init() before using this resolver.")
+            return None
+
+        extractor = self.piped
+        if not hasattr(extractor, "extract"):
+            logger.error("Piped extractor missing `extract` method.")
+            return None
+
+        try:
+            result = await extractor.extract(query)
+            if result and result.get("url"):
+                logger.info("✅ Fallback stream successfully resolved via Piped Proxy")
+                return result
+        except Exception as exc:
+            logger.error(f"Piped fallback failed: {exc}")
+
+        logger.error("❌ All fallback proxies failed.")
         return None
 
     async def get_stream_payload(self, track: Track) -> Optional[Dict[str, Any]]:
@@ -495,14 +547,21 @@ class MusicBackend:
             await self.init()
 
         source = track.source or "unknown"
+        # Local extractor refs to avoid Optional member access issues
+        jiosaavn = self.jiosaavn
+        audiomack = self.audiomack
+        audius = self.audius
 
         if source == "jiosaavn":
+            if not jiosaavn or not hasattr(jiosaavn, "get_stream_url"):
+                logger.error("JioSaavn extractor not initialized. Falling back to proxy resolver.")
+                return await self._resolve_fallback_payload(track)
             tid = track.track_id or track.get("id")
             encrypted_url = track.stream_url or ""
             if not tid and not encrypted_url:
                 logger.error(f"JioSaavn track missing ID and encrypted URL: {track.title}")
                 return None
-            url = await self.jiosaavn.get_stream_url(tid or "", encrypted_url)
+            url = await jiosaavn.get_stream_url(tid or "", encrypted_url)
             if not url:
                 return await self._resolve_fallback_payload(track)
             return {"url": url, "source": "jiosaavn", "headers": self.get_source_headers("jiosaavn")}
@@ -513,19 +572,16 @@ class MusicBackend:
             return await self._resolve_fallback_payload(track)
 
         if source == "soundcloud":
-            if track.stream_url:
-                result = await self.soundcloud.extract(track.stream_url)
-                if result and result.get("url"):
-                    return {
-                        "url": result["url"],
-                        "source": "soundcloud",
-                        "headers": None,
-                    }
+            # Avoid SoundCloud extraction on Heroku; route directly through Piped proxy.
+            logger.debug(f"Bypassing SoundCloud extraction for: {track.title[:60]}")
             return await self._resolve_fallback_payload(track)
 
         if source == "audiomack":
+            if not audiomack or not hasattr(audiomack, "extract"):
+                logger.debug("Audiomack extractor not initialized; falling back to proxy resolver.")
+                return await self._resolve_fallback_payload(track)
             tid = track.track_id or track.get("id") or track.stream_url
-            result = await self.audiomack.extract(tid)
+            result = await audiomack.extract(tid)
             if result and result.get("url"):
                 return {"url": result["url"], "source": "audiomack", "headers": None}
             return await self._resolve_fallback_payload(track)
@@ -533,10 +589,17 @@ class MusicBackend:
         if source == "audius":
             if track.stream_url:
                 return {"url": track.stream_url, "source": "audius", "headers": None}
-            if track.track_id:
-                result = await self.audius.extract(track.track_id)
-                if result and result.get("url"):
-                    return {"url": result["url"], "source": "audius", "headers": None}
+            # Ensure the audius extractor is initialized and has an extract() method
+            if self.audius and hasattr(self.audius, "extract"):
+                if track.track_id:
+                    try:
+                        result = await self.audius.extract(track.track_id)
+                        if result and result.get("url"):
+                            return {"url": result["url"], "source": "audius", "headers": None}
+                    except Exception as e:
+                        logger.warning(f"audius.extract failed: {e}")
+            else:
+                logger.debug("Audius extractor not initialized; falling back to proxy resolver.")
             return await self._resolve_fallback_payload(track)
 
         # Unknown source: try existing URL first, then legal-first fallback.
