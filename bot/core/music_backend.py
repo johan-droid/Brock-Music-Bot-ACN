@@ -472,10 +472,16 @@ class MusicBackend:
                     
                     if stream_url:
                         logger.info(f"✅ Fallback stream successfully resolved via {source_name} native search")
+                        
+                        # 🟢 Dynamically grab the stealth headers yt-dlp used to get this link
+                        stream_headers = entry.get('http_headers', {
+                            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
+                        })
+                        
                         return {
                             "url": stream_url,
                             "source": source_name,
-                            "headers": None
+                            "headers": stream_headers
                         }
             except Exception as exc:
                 logger.debug(f"yt-dlp fallback failed for {search_string}: {exc}")
