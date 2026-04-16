@@ -437,24 +437,27 @@ def get_source_weights_for_query(query: str) -> Dict[str, float]:
     
     # Adjust based on query type
     if query_type["indian"] > 0.7:
-        weights["vk"] = 1.0
-        weights["deezer"] = 0.8
+        # Prefer Deezer for Indian/Bollywood content where available
+        weights["deezer"] = 1.0
+        weights["vk"] = 0.8
     
     if query_type["electronic"] > 0.6:
         weights["deezer"] = 1.0
         weights["vk"] = 0.85
     
     if query_type["hiphop"] > 0.6:
-        weights["vk"] = 1.0
-        weights["deezer"] = 0.9
+        # Prefer Deezer for hiphop/rap queries by default
+        weights["deezer"] = 1.0
+        weights["vk"] = 0.8
     
     if query_type["official"] > 0.6:
         weights["vk"] = 0.95
         weights["deezer"] = 0.95
     
     if query_type["live_acoustic"] > 0.5:
-        weights["vk"] = 1.0
-        weights["deezer"] = 0.8
+        # Prefer Deezer for live/acoustic recordings
+        weights["deezer"] = 1.0
+        weights["vk"] = 0.8
     
     return weights
 

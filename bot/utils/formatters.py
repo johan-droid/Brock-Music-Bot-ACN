@@ -81,7 +81,7 @@ def format_track_info(
     source_emoji = {
         "vk": "🟦",
         "deezer": "🎧",
-        "telegram": "📎",
+        "telegram": "✈️",
     }.get((source or "").lower(), "🎵")
     
     text = f"""
