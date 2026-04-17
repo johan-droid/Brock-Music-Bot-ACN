@@ -136,7 +136,6 @@ class ThumbnailGenerator:
             draw.text((40, 40), source_emoji, fill=(255, 255, 255), font=self.font_small)
             
             # Draw title (truncated if needed)
-            max_width = THUMB_WIDTH - 80
             title_text = title[:50] + "..." if len(title) > 50 else title
             
             # Calculate text position (centered vertically in top half)
