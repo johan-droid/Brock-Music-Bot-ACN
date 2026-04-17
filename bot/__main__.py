@@ -140,9 +140,32 @@ async def main():
         logger.exception("Failed to start bot")
         raise
     finally:
+        logger.info("Shutting down...")
+        
+        # Explicitly stop all components in order to avoid ghost sessions
+        try:
+            from bot.core.bot import stop_bot
+            await stop_bot()
+        except Exception as e:
+            logger.debug(f"Error during bot stop: {e}")
+
+        try:
+            from bot.core.call import call_manager
+            if call_manager:
+                await call_manager.stop()
+        except Exception as e:
+            logger.debug(f"Error during call manager stop: {e}")
+
+        try:
+            from bot.core.userbot import stop_userbots
+            await stop_userbots()
+        except Exception as e:
+            logger.debug(f"Error during userbot stop: {e}")
+
         # Avoid unclosed session warnings
         await music_backend.close()
         logger.info("Bot shutdown complete")
+
 
 
 if __name__ == "__main__":

@@ -63,6 +63,9 @@ class Config(BaseSettings):
     # SQLite cache path (used when Redis is not available)
     SQLITE_CACHE_PATH: str = "./data/cache.db"
     
+    # SQLite database path (fallback for MongoDB/Supabase)
+    SQLITE_DB_PATH: str = "./data/database.db"
+    
     # Supabase (alternative to MongoDB)
     SUPABASE_URL: Optional[str] = None
     SUPABASE_KEY: Optional[str] = None
@@ -105,6 +108,8 @@ class Config(BaseSettings):
 
     # Source policy settings
     LEGAL_SOURCES_FIRST: bool = True
+    PRIORITIZE_EXTRACTORS: bool = True     # Use VK/Deezer before Supabase Index
+    PARALLEL_SEARCH: bool = True          # Search all sources at once for speed
 
     # Now Playing card auto-clean (seconds)
     NP_AUTOCLEAN_DELAY: int = 30       # delete NP card N seconds after track ends / /stop
