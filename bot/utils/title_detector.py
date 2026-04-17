@@ -2,7 +2,7 @@
 
 import re
 import logging
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any
 from difflib import SequenceMatcher
 
 logger = logging.getLogger(__name__)
@@ -232,7 +232,6 @@ class TitleConflictResolver:
             }
         
         # Check for conflicts (similar titles)
-        query_normalized = normalize_text(query)
         conflicts = find_similar_titles(query, unique_results, threshold=0.75)
         
         if len(conflicts) > 1:
@@ -371,7 +370,6 @@ def detect_query_type(query: str) -> Dict[str, float]:
         return {"western_pop": 0.8, "indian": 0.3, "electronic": 0.5}
     
     query_lower = query.lower()
-    query_words = set(query_lower.split())
     
     scores = {
         "indian": 0.0,
