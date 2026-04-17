@@ -73,9 +73,30 @@ class SQLiteDatabase:
                 PRIMARY KEY (chat_id, user_id)
             )
         """)
+
+        # Global Music Index for local caching
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS global_music_index (
+                query_key TEXT PRIMARY KEY,
+                track_id TEXT,
+                title TEXT,
+                artist TEXT,
+                duration INTEGER,
+                thumbnail TEXT,
+                source TEXT,
+                stream_url TEXT,
+                metadata TEXT DEFAULT '{}',  -- JSON string
+                sources TEXT DEFAULT '[]',    -- JSON string
+                last_played TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+
+        # Indexes for SQLite performance
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_music_title ON global_music_index(title)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_music_last_played ON global_music_index(last_played)")
         
         conn.commit()
-        logger.info(f"SQLite database initialized at {self.db_path}")
+        logger.info(f"SQLite database initialized at {self.db_path} (with local index support)")
     
     # Group management
     async def get_group(self, chat_id: int) -> dict:
@@ -290,6 +311,95 @@ class SQLiteDatabase:
         deleted_count = cursor.rowcount if cursor is not None else 0
         logger.info(f"🧹 Auto-Prune: Freed space by deleting {deleted_count} inactive groups from SQLite.")
         return deleted_count
+
+    # Music Index Implementation for SQLite
+    async def search_global_music_index(self, query: str, limit: int = 5) -> List[Dict[str, Any]]:
+        """Search local SQLite index and return tracks as dicts."""
+        q = (query or "").strip()
+        if not q:
+            return []
+        
+        conn = self._get_conn()
+        like_query = f"%{q}%"
+        
+        rows = conn.execute("""
+            SELECT * FROM global_music_index 
+            WHERE title LIKE ? OR artist LIKE ?
+            ORDER BY last_played DESC 
+            LIMIT ?
+        """, (like_query, like_query, max(1, limit))).fetchall()
+        
+        tracks = []
+        for row in rows:
+            try:
+                metadata = json.loads(row["metadata"] or "{}")
+                sources = json.loads(row["sources"] or "[]")
+            except Exception:
+                metadata = {}
+                sources = []
+
+            tracks.append({
+                "title": row["title"],
+                "artist": row["artist"],
+                "uploader": row["artist"],
+                "duration": row["duration"] or 0,
+                "url": row["stream_url"] or "",
+                "stream_url": row["stream_url"] or "",
+                "thumbnail": row["thumbnail"],
+                "source": "global_index",
+                "origin_source": row["source"] or "unknown",
+                "id": row["track_id"],
+                "track_id": row["track_id"],
+                "metadata": metadata,
+                "sources": sources,
+                "query_key": row["query_key"],
+            })
+        
+        return tracks
+
+    async def save_track_to_index(self, query: str, track: dict):
+        """Save a track to the local SQLite global index."""
+        try:
+            query_key = query.strip().lower()
+            track_id = track.get("id") or track.get("track_id")
+            source_name = track.get("source", "unknown")
+            stream_url = track.get("url") or track.get("stream_url") or ""
+            saved_at = datetime.utcnow().isoformat()
+
+            metadata = track.get("metadata") or {}
+            sources = track.get("sources") or []
+            
+            # Ensure basic info is in metadata for portability
+            metadata.update({
+                "title": track.get("title"),
+                "artist": track.get("artist"),
+                "duration": track.get("duration"),
+                "thumbnail": track.get("thumbnail"),
+                "source": source_name,
+                "stream_url": stream_url
+            })
+
+            conn = self._get_conn()
+            conn.execute("""
+                INSERT OR REPLACE INTO global_music_index 
+                (query_key, track_id, title, artist, duration, thumbnail, source, stream_url, metadata, sources, last_played)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (
+                query_key,
+                track_id,
+                track.get("title"),
+                track.get("artist") or track.get("uploader"),
+                track.get("duration") or 0,
+                track.get("thumbnail"),
+                source_name,
+                stream_url,
+                json.dumps(metadata),
+                json.dumps(sources),
+                saved_at
+            ))
+            conn.commit()
+        except Exception as e:
+            logger.error(f"Failed to save track to SQLite index: {e}")
 
 
 

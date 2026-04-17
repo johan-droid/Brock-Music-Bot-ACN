@@ -645,7 +645,32 @@ class CallManager:
             
         return MediaStream(**kwargs)
 
+    async def stop(self):
+        """Gracefully stop all active py-tgcalls instances."""
+        if not self.calls:
+            return
+
+        logger.info(f"Stopping {len(self.calls)} py-tgcalls instance(s)...")
+        for idx, call in self.calls.items():
+            try:
+                # Leave all calls before stopping to ensure Telegram state is clean
+                for chat_id in list(self.active_chats.keys()):
+                    if self.active_chats.get(chat_id) == idx:
+                        try:
+                            await call.leave_call(chat_id)
+                        except Exception:
+                            pass
+                
+                await call.stop()
+            except Exception as exc:
+                logger.debug(f"Failed to stop py-tgcalls instance {idx}: {exc}")
+        
+        self.calls.clear()
+        self.active_chats.clear()
+        logger.info("All py-tgcalls instances stopped.")
+
     def on_stream_end(self, func: Callable) -> Callable:
+
         """Decorator to register a stream-end callback."""
         self.on_stream_end_handlers.append(func)
         return func

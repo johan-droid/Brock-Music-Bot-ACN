@@ -16,11 +16,14 @@ try:
 except Exception:
     deezer_extractor = None
 
-logger = logging.getLogger(__name__)
-
+# Limit the number of concurrent Supabase save requests
+_save_semaphore = asyncio.Semaphore(5)
 # Keep references to background tasks so they are not garbage-collected
-# and attach a done callback to surface exceptions.
 _background_tasks: set = set()
+# Max number of pending background tasks before we start dropping them
+_MAX_BACKGROUND_TASKS = 25
+
+logger = logging.getLogger(__name__)
 
 
 def _background_task_done(task: asyncio.Task) -> None:
@@ -153,9 +156,9 @@ class SourceRanker:
     """Compatibility ranking helper used by the selection logic in play.py."""
 
     _BASE_WEIGHTS = {
-        "global_index": 1.0,
-        "vk": 0.98,
-        "deezer": 0.94,
+        "vk": 1.0,
+        "deezer": 0.98,
+        "global_index": 0.95,
         "telegram": 0.4,
         "unknown": 0.3,
         "direct": 0.5,
@@ -219,7 +222,9 @@ class MusicBackend:
     """
 
     async def init(self):
-        logger.info("MusicBackend initialized (VK + Deezer priority)")
+        self._index_misses = 0
+        self._index_skip_until = 0.0
+        logger.info("MusicBackend initialized (VK + Deezer priority + Index Circuit Breaker)")
         if not vk_extractor:
             logger.warning("VK extractor not available")
         if not deezer_extractor:
@@ -328,6 +333,11 @@ class MusicBackend:
         )
 
     async def _search_index(self, query: str, limit: int) -> List[Track]:
+        import time
+        if time.time() < self._index_skip_until:
+            logger.debug("Skipping unreliable global index (circuit breaker active)")
+            return []
+
         app_db = getattr(database_module, "db", None)
         if app_db is None or not hasattr(app_db, "search_global_music_index"):
             return []
@@ -336,6 +346,10 @@ class MusicBackend:
             rows = await app_db.search_global_music_index(query, limit)
         except Exception as exc:
             logger.warning("Global index lookup failed for %r: %s", query, exc)
+            self._index_misses += 1
+            if self._index_misses >= 3:
+                self._index_skip_until = time.time() + 300
+                logger.warning("Global index circuit breaker triggered! Bypassing for 5 minutes.")
             return []
 
         tracks: List[Track] = []
@@ -357,20 +371,28 @@ class MusicBackend:
 
         if tracks:
             logger.info("Global index hit for %r with %s track(s)", query, len(tracks))
+            self._index_misses = 0 # Reset miss counter on success
+        else:
+            self._index_misses += 1
+            if self._index_misses >= 3:
+                self._index_skip_until = time.time() + 300
+                logger.info("Global index is repeatedly empty; bypassing for 5 minutes.")
 
         return tracks
 
-    async def _save_to_supabase(self, query: str, tracks: List[Track]) -> None:
+    async def _cache_to_index(self, query: str, tracks: List[Track]) -> None:
+        """Background task to save track results to the active database index."""
         app_db = getattr(database_module, "db", None)
         if app_db is None or not hasattr(app_db, "save_track_to_index") or not tracks:
             return
 
-        try:
-            best_track = tracks[0]
-            await app_db.save_track_to_index(self._normalize_query_key(query), best_track.to_dict())
-            logger.debug("Cached %r to Supabase index", best_track.title)
-        except Exception as exc:
-            logger.warning("Failed to cache to Supabase: %s", exc)
+        async with _save_semaphore:
+            try:
+                best_track = tracks[0]
+                await app_db.save_track_to_index(self._normalize_query_key(query), best_track.to_dict())
+                logger.debug("Cached %r to database index", best_track.title)
+            except Exception as exc:
+                logger.warning("Failed to cache to database: %s", exc)
 
     async def _search_with_extractor(self, extractor: Any, query: str, limit: int, default_source: str) -> List[Track]:
         if not extractor or not hasattr(extractor, "search"):
@@ -399,23 +421,83 @@ class MusicBackend:
         if not query:
             return []
 
-        indexed = await self._search_index(query, limit)
-        if indexed:
-            return indexed[:limit]
+        from bot.config import config
+
+        # 1. Parallel Search Path (optimized for Heroku/Production)
+        if config.PARALLEL_SEARCH:
+            tasks = [
+                self._search_index(query, limit),
+                self._search_with_extractor(vk_extractor, query, limit, "vk"),
+                self._search_with_extractor(deezer_extractor, query, limit, "deezer"),
+            ]
+            
+            raw_results = await asyncio.gather(*tasks, return_exceptions=True)
+            
+            # Safely unpack results
+            idx_res = raw_results[0] if not isinstance(raw_results[0], Exception) else []
+            vk_res = raw_results[1] if not isinstance(raw_results[1], Exception) else []
+            dz_res = raw_results[2] if not isinstance(raw_results[2], Exception) else []
+            
+            # Define priority tiers
+            if config.PRIORITIZE_EXTRACTORS:
+                tiers = [vk_res, dz_res, idx_res]
+            else:
+                tiers = [idx_res, vk_res, dz_res]
+            
+            combined: List[Track] = []
+            seen: set[str] = set()
+            
+            for tier in tiers:
+                for track in tier:
+                    key = (track.track_id or track.stream_url or track.title).strip().lower()
+                    if key not in seen:
+                        seen.add(key)
+                        combined.append(track)
+                    if len(combined) >= limit:
+                        break
+                if len(combined) >= limit:
+                    break
+            
+            # Schedule background caching for new extractor hits
+            if not idx_res and (vk_res or dz_res):
+                new_tracks = vk_res or dz_res
+                if len(_background_tasks) < _MAX_BACKGROUND_TASKS:
+                    try:
+                        task = asyncio.create_task(self._cache_to_index(query, new_tracks))
+                        _background_tasks.add(task)
+                        task.add_done_callback(_background_task_done)
+                    except Exception:
+                        pass
+
+            return combined[:limit]
+
+        # 2. Sequential Fallback Path
+        if not config.PRIORITIZE_EXTRACTORS:
+            indexed = await self._search_index(query, limit)
+            if indexed:
+                return indexed[:limit]
 
         tracks = await self._search_with_extractor(vk_extractor, query, limit, "vk")
         if not tracks:
             tracks = await self._search_with_extractor(deezer_extractor, query, limit, "deezer")
 
-        if tracks:
-            try:
-                task = asyncio.create_task(self._save_to_supabase(query, tracks))
-                _background_tasks.add(task)
-                task.add_done_callback(_background_task_done)
-            except Exception as exc:
-                logger.debug("Failed to schedule background Supabase save: %s", exc)
+        # If prioritize was off, we already checked index. If it was on, we check it now as fallback.
+        if not tracks and config.PRIORITIZE_EXTRACTORS:
+            tracks = await self._search_index(query, limit)
+
+        if tracks and not (not config.PRIORITIZE_EXTRACTORS and indexed): # If it's a fresh hit
+            if len(_background_tasks) < _MAX_BACKGROUND_TASKS:
+                try:
+                    task = asyncio.create_task(self._cache_to_index(query, tracks))
+                    _background_tasks.add(task)
+                    task.add_done_callback(_background_task_done)
+                except Exception as exc:
+                    logger.debug("Failed to schedule background index save: %s", exc)
+            else:
+                logger.debug("Background task limit reached; skipping index cache save.")
 
         return tracks[:limit]
+
 
     def _coerce_track(self, target: Any) -> Track:
         if isinstance(target, Track):

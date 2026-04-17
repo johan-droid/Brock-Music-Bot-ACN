@@ -188,4 +188,19 @@ def get_available_userbot() -> Client:
     # Fallback to round-robin if call manager is not ready.
     idx = _rr_cursor % len(userbot_clients)
     _rr_cursor += 1
-    return userbot_clients[idx]
+async def stop_userbots():
+    """Stop for all initialized userbot clients."""
+    global userbot_clients
+    if not userbot_clients:
+        return
+
+    logger.info(f"Stopping {len(userbot_clients)} userbot(s)...")
+    for client in userbot_clients:
+        try:
+            await client.stop()
+        except Exception as exc:
+            logger.debug(f"Failed to stop userbot: {exc}")
+    
+    userbot_clients.clear()
+    logger.info("All userbots stopped.")
+
