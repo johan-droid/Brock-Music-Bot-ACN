@@ -457,8 +457,8 @@ async def stats_cmd(client: Client, message: Message):
     )
 
     await message.reply(text, parse_mode=ParseMode.HTML)
-# /broadcast — Owner/Sudo, group + private
 # ─────────────────────────────────────────────
+# /broadcast — Owner/Sudo, group + private
 
 @Client.on_message(filters.command("broadcast") & (filters.group | filters.private))
 @require_sudo
