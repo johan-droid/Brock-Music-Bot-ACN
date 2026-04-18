@@ -150,6 +150,14 @@ async def set_aggressive_cmd(client: Client, message: Message):
         return
 
     enabled = value == "on"
+
+    if not getattr(app_db, "db", None) or not hasattr(app_db.db, "update_group"):
+        logger.error("Database service unavailable in set_aggressive_cmd for chat %s", chat_id)
+        await message.reply(
+            "💀 Service unavailable: could not update aggressive play preferences right now. Please try again later."
+        )
+        return
+
     try:
         await app_db.db.update_group(chat_id, {"settings.aggressive_play": enabled})
         await message.reply(
