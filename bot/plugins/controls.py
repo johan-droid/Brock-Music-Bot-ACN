@@ -2,6 +2,7 @@
 
 import logging
 from pyrogram import Client, filters
+from pyrogram.enums import ParseMode
 from pyrogram.types import Message
 from bot.utils.permissions import require_admin, require_member, rate_limit
 from bot.utils.formatters import format_duration
@@ -41,7 +42,7 @@ async def pause_cmd(client: Client, message: Message):
         await message.reply(
             "💀 <b>Nothing is playing right now, Yohoho!</b>\n"
             "Use /play to start the music!",
-            parse_mode="html"
+            parse_mode=ParseMode.HTML
         )
         return
 
@@ -54,7 +55,7 @@ async def pause_cmd(client: Client, message: Message):
         await message.reply(
             "⏸ <b>Paused!</b> The Soul King takes a breath...\n"
             "<i>Use /resume to continue the concert, Yohoho!</i>",
-            parse_mode="html"
+            parse_mode=ParseMode.HTML
         )
         logger.info(f"Paused playback in chat {chat_id}")
     except Exception as e:
@@ -87,7 +88,7 @@ async def resume_cmd(client: Client, message: Message):
         await message.reply(
             "▶️ <b>Resumed!</b> The Soul King is back on stage!\n"
             "<i>YOHOHOHO! The concert continues! 🎸</i>",
-            parse_mode="html"
+            parse_mode=ParseMode.HTML
         )
         logger.info(f"Resumed playback in chat {chat_id}")
     except Exception as e:
@@ -122,7 +123,7 @@ async def forceresume_cmd(client: Client, message: Message):
         await message.reply(
             "🔄 <b>Force Resumed!</b> Cleaned up and restarted the concert!\n"
             "<i>YOHOHOHO! The Soul King is back! 🎸</i>",
-            parse_mode="html"
+            parse_mode=ParseMode.HTML
         )
         logger.info(f"Force resumed playback in chat {chat_id}")
     except Exception as e:
@@ -237,7 +238,7 @@ async def stop_cmd(client: Client, message: Message):
         await cleanup_vc_session(chat_id, send_message=False)
         await message.reply(
             "🧹 <b>Session cleaned!</b> All queues wiped and ready for a new concert! Yohoho! 🎸",
-            parse_mode="html"
+            parse_mode=ParseMode.HTML
         )
         return
     
@@ -249,7 +250,7 @@ async def stop_cmd(client: Client, message: Message):
         await message.reply(
             "⏹ <b>Stopped!</b> The Soul King bows and exits the stage! Yohoho!\n"
             "<i>🧹 All queues cleared - fresh session ready!</i>",
-            parse_mode="html"
+            parse_mode=ParseMode.HTML
         )
         logger.info(f"Stopped and cleaned up playback in chat {chat_id}")
     except Exception as e:
@@ -467,5 +468,6 @@ async def vcdebug_cmd(client: Client, message: Message):
         "If userbot is not admin, run /userbotjoin after promotion."
     )
 
-    await message.reply(text, parse_mode="html")
+    await message.reply(text, parse_mode=ParseMode.HTML)
+
 

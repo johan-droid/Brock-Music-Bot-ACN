@@ -423,7 +423,7 @@ class MusicBackend:
         if not query:
             return []
 
-        from bot.config import config
+        from config import config
 
         # 1. Parallel Search Path (optimized for Heroku/Production)
         if config.PARALLEL_SEARCH:
