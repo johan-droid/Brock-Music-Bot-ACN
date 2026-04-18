@@ -12,7 +12,61 @@ import asyncio
 import logging
 import os
 import random
+import re
 from typing import Dict, Optional, Callable, List, Any
+
+# URL validation for stream sources - prevent SSRF attacks
+_ALLOWED_URL_SCHEMES = {"http", "https", "vk", "deezer"}
+_BLOCKED_URL_PATTERNS = [
+    r"^.*://127\.\d+\.\d+\.\d+.*$",  # Loopback addresses
+    r"^.*://10\.\d+\.\d+\.\d+.*$",    # Private Class A
+    r"^.*://172\.(1[6-9]|2[0-9]|3[01])\.\d+\.\d+.*$",  # Private Class B
+    r"^.*://192\.168\.\d+\.\d+.*$",    # Private Class C
+    r"^.*://169\.254\.\d+\.\d+.*$",   # Link-local
+    r"^.*://0\.0\.0\.0.*$",            # Wildcard
+    r"^.*://localhost.*$",               # localhost
+    r"^.*://.*\.internal.*$",          # internal domains
+    r"^.*://.*\.local.*$",              # .local domains
+    r"^file://.*$",                    # file:// scheme
+    r"^ftp://.*$",                     # ftp:// scheme
+    r"^ssh://.*$",                     # ssh:// scheme
+    r"^telnet://.*$",                  # telnet:// scheme
+]
+
+
+def validate_stream_url(url: str) -> bool:
+    """
+    Validate stream URL to prevent SSRF attacks.
+    
+    Returns True if URL is safe, False otherwise.
+    """
+    if not url or not isinstance(url, str):
+        return False
+    
+    url = url.strip()
+    
+    # Check URL scheme
+    try:
+        scheme_match = re.match(r'^([a-zA-Z][a-zA-Z0-9+.-]*)://', url)
+        if not scheme_match:
+            logger.warning(f"URL validation failed: no scheme found in {url[:50]}")
+            return False
+        
+        scheme = scheme_match.group(1).lower()
+        if scheme not in _ALLOWED_URL_SCHEMES:
+            logger.warning(f"URL validation failed: disallowed scheme '{scheme}'")
+            return False
+    except Exception as e:
+        logger.warning(f"URL scheme validation error: {e}")
+        return False
+    
+    # Check against blocked patterns (SSRF prevention)
+    for pattern in _BLOCKED_URL_PATTERNS:
+        if re.match(pattern, url, re.IGNORECASE):
+            logger.warning(f"URL validation failed: matched blocked pattern {pattern}")
+            return False
+    
+    return True
 
 from pytgcalls import PyTgCalls
 from pytgcalls.types import MediaStream
@@ -250,6 +304,10 @@ class CallManager:
             if not call:
                 raise RuntimeError(f"No call instance for userbot {selected_idx}")
 
+            # Validate stream URL to prevent SSRF attacks
+            if not validate_stream_url(stream_url):
+                raise RuntimeError(f"Invalid stream URL: {stream_url[:50]}... URL failed security validation")
+            
             stream = self._build_stream(stream_url, video=video, seek=seek, headers=headers)
             timeout_s = max(5, int(getattr(config, "VC_PLAY_TIMEOUT", 20) or 20))
 

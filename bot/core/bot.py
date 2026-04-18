@@ -38,19 +38,37 @@ async def start_health_server():
         if getattr(config, "METRICS_HTTP_ENABLED", False):
             async def _metrics_json(request):
                 # Token can be supplied via `Authorization: Bearer <token>` or ?token=<token>
+                import hmac
+                import secrets
+                
                 token = None
                 auth = request.headers.get("Authorization")
                 if auth:
-                    if auth.lower().startswith("bearer "):
-                        token = auth.split(" ", 1)[1]
+                    # Extract Bearer token or use full header
+                    auth_stripped = auth.strip()
+                    if auth_stripped.lower().startswith("bearer "):
+                        token = auth_stripped[7:].strip()  # Remove "bearer " prefix
                     else:
-                        token = auth
+                        # Reject non-Bearer auth schemes for security
+                        return web.Response(status=401, text="Unauthorized: Use Bearer token")
+                
                 if token is None:
-                    token = request.rel_url.query.get("token")
+                    # Check query parameter as fallback
+                    token = request.rel_url.query.get("token", "").strip()
 
-                if getattr(config, "METRICS_HTTP_TOKEN", None):
-                    if not token or token != config.METRICS_HTTP_TOKEN:
-                        return web.Response(status=401, text="Unauthorized")
+                # Validate token using constant-time comparison to prevent timing attacks
+                expected_token = getattr(config, "METRICS_HTTP_TOKEN", None)
+                if expected_token:
+                    if not token:
+                        return web.Response(status=401, text="Unauthorized: Token required")
+                    
+                    # Use secrets.compare_digest for timing-safe comparison
+                    try:
+                        if not secrets.compare_digest(token, expected_token):
+                            return web.Response(status=401, text="Unauthorized: Invalid token")
+                    except Exception:
+                        # secrets.compare_digest requires same-length strings
+                        return web.Response(status=401, text="Unauthorized: Invalid token")
 
                 payload = metrics_collector.export_json()
                 return web.Response(text=payload, content_type="application/json")
