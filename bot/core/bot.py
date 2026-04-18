@@ -7,6 +7,7 @@ import os
 from aiohttp import web
 from pyrogram.client import Client
 from pyrogram.sync import idle
+from pyrogram.types import BotCommand
 from config import config
 from bot.utils.metrics import metrics_collector, log_metrics_periodically
 
@@ -21,6 +22,61 @@ _health_runner = None
 async def health_check(request):
     """Simple health check endpoint for Railway."""
     return web.Response(text="OK", status=200)
+
+
+def _build_bot_commands() -> list[BotCommand]:
+    """Build the bot command menu shown in Telegram clients."""
+    return [
+        BotCommand("play", "Play music or add to queue"),
+        BotCommand("next", "Skip to the next track"),
+        BotCommand("prev", "Play the previous track"),
+        BotCommand("ping", "Check bot latency"),
+        BotCommand("off", "Stop playback and clear the queue"),
+        BotCommand("help", "Show the command list"),
+        BotCommand("queue", "Show the current queue"),
+        BotCommand("now", "Show the currently playing track"),
+        BotCommand("pause", "Pause playback"),
+        BotCommand("resume", "Resume playback"),
+        BotCommand("skip", "Skip the current track"),
+        BotCommand("stop", "Stop playback and clear the queue"),
+        BotCommand("seek", "Seek within the current track"),
+        BotCommand("volume", "Set playback volume"),
+        BotCommand("replay", "Replay the current track"),
+        BotCommand("vplay", "Play a VK or Deezer track"),
+        BotCommand("clearqueue", "Clear the queue"),
+        BotCommand("remove", "Remove a queued track"),
+        BotCommand("shuffle", "Shuffle the queue"),
+        BotCommand("loop", "Toggle loop mode"),
+        BotCommand("setaggressive", "Toggle aggressive play mode"),
+        BotCommand("userbotjoin", "Join or create the voice chat"),
+        BotCommand("vcdebug", "Inspect voice chat state"),
+        BotCommand("addsudo", "Grant sudo access"),
+        BotCommand("delsudo", "Revoke sudo access"),
+        BotCommand("sudolist", "List sudo users"),
+        BotCommand("gban", "Globally ban a user"),
+        BotCommand("ungban", "Remove a global ban"),
+        BotCommand("block", "Block a user in the current group"),
+        BotCommand("unblock", "Unblock a user in the current group"),
+        BotCommand("stats", "Show bot statistics"),
+        BotCommand("broadcast", "Broadcast a message"),
+        BotCommand("maintenance", "Toggle maintenance mode"),
+        BotCommand("restart", "Restart the bot"),
+    ]
+
+
+async def _register_bot_commands(client: Client) -> None:
+    """Register Telegram bot commands, with compatibility fallback."""
+    commands = _build_bot_commands()
+    setter = getattr(client, "set_bot_commands", None) or getattr(client, "set_my_commands", None)
+    if setter is None:
+        logger.debug("Bot command registration is unavailable on this Pyrogram build")
+        return
+
+    try:
+        await setter(commands)
+        logger.info("Registered %d Telegram bot commands", len(commands))
+    except Exception as exc:
+        logger.warning(f"Failed to register Telegram bot commands: {exc}")
 
 async def start_health_server():
     """Start health check server on port 8080."""
@@ -164,6 +220,8 @@ async def init_bot():
 
     if bot_info.username and config.BOT_USERNAME_ALT and bot_info.username.lower() == config.BOT_USERNAME_ALT.lower().strip("@"):
         logger.info("Bot username matches configured BOT_USERNAME_ALT")
+
+    await _register_bot_commands(bot_client)
 
     # Start metrics collection background task
     metrics_task = getattr(bot_client, "metrics_task", None)

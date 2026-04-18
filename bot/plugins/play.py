@@ -10,6 +10,7 @@ Brook/One Piece themed Now Playing card with:
 import re
 import asyncio
 import logging
+from datetime import datetime
 from typing import Optional, Dict, Any
 
 from pyrogram import Client, filters
@@ -78,6 +79,42 @@ _SOURCE_PRIORITY = {
 }
 
 
+async def persist_playback_state(
+    chat_id: int,
+    status: str,
+    track: Optional[Dict[str, Any]] = None,
+) -> None:
+    """Persist the current playback state into the database settings JSON."""
+    import bot.utils.database as app_db
+
+    db = getattr(app_db, "db", None)
+    if db is None:
+        return
+
+    settings: Dict[str, Any] = {
+        "playback_status": status,
+        "last_state_update": datetime.utcnow().isoformat(),
+    }
+
+    if track:
+        settings["now_playing"] = {
+            "title": track.get("title", "Unknown"),
+            "artist": track.get("uploader") or track.get("artist") or "Unknown Artist",
+            "duration": int(track.get("duration", 0) or 0),
+            "source": track.get("source", "unknown"),
+            "track_id": track.get("id") or track.get("track_id"),
+            "url": track.get("url") or track.get("stream_url"),
+            "is_video": bool(track.get("is_video", False)),
+        }
+    elif status in {"idle", "stopped"}:
+        settings["now_playing"] = None
+
+    try:
+        await db.update_group(chat_id, {"settings": settings})
+    except Exception as exc:
+        logger.debug("Failed to persist playback state for %s: %s", chat_id, exc)
+
+
 _SUPPORTED_PAGE_URL_RX = re.compile(
     r"^(?:https?://)?(?:www\.)?(?:vk\.com|m\.vk\.com|vkvideo\.ru|deezer\.com|deezer\.page\.link)(?:[/?#].*)?$",
     re.IGNORECASE,
@@ -88,6 +125,21 @@ def _cancel_task(task_dict: dict, chat_id: int) -> None:
     task = task_dict.pop(chat_id, None)
     if task and not task.done():
         task.cancel()
+
+
+async def _is_aggressive_play_enabled(chat_id: int) -> bool:
+    import bot.utils.database as app_db
+
+    db = getattr(app_db, "db", None)
+    if db is None:
+        return False
+
+    try:
+        group = await db.get_group(chat_id)
+        return bool((group or {}).get("settings", {}).get("aggressive_play", False))
+    except Exception as exc:
+        logger.debug("Failed to read aggressive_play setting for %s: %s", chat_id, exc)
+        return False
 
 
 def _looks_like_supported_page_url(url: str) -> bool:
@@ -329,7 +381,44 @@ async def add_track_and_play(
         is_playing = False
 
     # Ensure selected song starts immediately when player is idle/stale.
+    # Privileged users (admins/sudo/owner) invoke an "aggressive" action:
+    # add the track to the front and immediately start playback (preempting current stream).
     if is_playing:
+        try:
+            level = await get_permission_level(user_id, chat_id)
+            aggressive_enabled = await _is_aggressive_play_enabled(chat_id)
+        except Exception:
+            level = 1
+            aggressive_enabled = False
+        aggressive = level >= 3 and aggressive_enabled
+
+        if aggressive:
+            position = await queue_manager.add_to_front(
+                chat_id=chat_id,
+                title=track.get("title", "Unknown"),
+                url=track.get("url", ""),
+                duration=track.get("duration", 0),
+                thumb=track.get("thumbnail") or track.get("thumb"),
+                requested_by=user_id,
+                source=track.get("source", "unknown"),
+                track_id=track.get("id") or track.get("track_id"),
+                uploader=track.get("uploader") or track.get("artist"),
+            )
+
+            try:
+                await message.reply(
+                    "⚔️ <b>Aggressive play:</b> Your requested track will start immediately (preempting current playback).",
+                    parse_mode=ParseMode.HTML,
+                )
+            except Exception:
+                pass
+
+            try:
+                await start_playback(chat_id)
+            except Exception as exc:
+                logger.warning(f"Aggressive start_playback failed for {chat_id}: {exc}")
+            return
+
         position = await queue_manager.add_to_queue(
             chat_id=chat_id,
             title=track.get("title", "Unknown"),
@@ -435,6 +524,7 @@ async def start_playback(chat_id: int, prefetched_track: Optional[Dict[str, Any]
         if not url:
             logger.error(f"Track has no URL and resolution failed in chat {chat_id}: {track}")
             await queue_manager.set_status(chat_id, "idle")
+            await persist_playback_state(chat_id, "idle")
             return
 
         is_video = track.get("is_video", False)
@@ -510,6 +600,21 @@ async def start_playback(chat_id: int, prefetched_track: Optional[Dict[str, Any]
                 logger.error(f"No fallback URL resolved for '{track.get('title','unknown')}' in {chat_id}")
                 raise
 
+        track["url"] = url
+        track["source"] = track.get("source", effective_source) or effective_source
+        await persist_playback_state(chat_id, "playing", track)
+
+        try:
+            import bot.utils.database as app_db
+
+            db = getattr(app_db, "db", None)
+            if db is not None and hasattr(db, "save_track_to_index"):
+                track_key = track.get("track_id") or track.get("id") or track.get("url") or track.get("title")
+                if track_key:
+                    await db.save_track_to_index(str(track_key), track)
+        except Exception as exc:
+            logger.debug("Failed to persist played track into the music index for %s: %s", chat_id, exc)
+
         # Start progress tracking
         progress_tracker.start(chat_id, seek=seek if seek > 0 else int(track.get("position", 0)))
 
@@ -522,6 +627,7 @@ async def start_playback(chat_id: int, prefetched_track: Optional[Dict[str, Any]
     except RuntimeError as exc:
         # User-friendly VC errors
         await queue_manager.set_status(chat_id, "idle")
+        await persist_playback_state(chat_id, "idle")
         try:
             if bot_module.bot_client:
                 await bot_module.bot_client.send_message(chat_id, f"💀 <b>{exc}</b>", parse_mode=ParseMode.HTML)
@@ -531,6 +637,7 @@ async def start_playback(chat_id: int, prefetched_track: Optional[Dict[str, Any]
     except Exception as exc:
         logger.exception(f"start_playback failed in {chat_id}")
         await queue_manager.set_status(chat_id, "idle")
+        await persist_playback_state(chat_id, "idle")
 
 
 async def cleanup_vc_session(chat_id: int, send_message: bool = False, preserve_queue: bool = False) -> None:
@@ -552,6 +659,7 @@ async def cleanup_vc_session(chat_id: int, send_message: bool = False, preserve_
         else:
             logger.info(f"Preserving queue for chat {chat_id} during cleanup")
         await queue_manager.set_status(chat_id, "idle")
+        await persist_playback_state(chat_id, "idle")
     except Exception as e:
         logger.error(f"Failed to clear queue for {chat_id}: {e}")
     
@@ -635,6 +743,7 @@ async def on_track_end(chat_id: int) -> None:
     if not track:
         # No queue, no autoplay, or autoplay failed
         await queue_manager.set_status(chat_id, "idle")
+        await persist_playback_state(chat_id, "idle")
         # If no more tracks are queued, auto-leave VC to keep the call assistant clean.
         try:
             await call_manager.leave_call(chat_id)

@@ -326,7 +326,6 @@ MIT License - See [LICENSE](LICENSE) file for details.
 - [py-tgcalls](https://github.com/pytgcalls/pytgcalls) - Video Chat streaming
 - [NTgCalls](https://github.com/telegramdesktop/tdesktop) - Native Telegram calls
 
----
 
 **Made with ❤️ for the Telegram community**
 
