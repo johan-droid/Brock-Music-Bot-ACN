@@ -11,6 +11,7 @@ import platform
 import sys
 
 from pyrogram import Client, filters
+from pyrogram.enums import ParseMode
 from pyrogram.types import Message
 from pyrogram.errors import FloodWait, UserNotParticipant, PeerIdInvalid, BadRequest
 
@@ -265,7 +266,7 @@ async def gban_cmd(client: Client, message: Message):
             f"🚫 **Globally Banned** `{name or user_id}` (`{user_id}`) from the Soul King's seas!\n"
             f"📝 **Reason:** {reason}\n\n"
             f"<i>Yohoho! This scoundrel shall never play music again!</i>",
-            parse_mode="html"
+            parse_mode=ParseMode.HTML
         )
         logger.warning(f"GBan: {user_id} by {caller} reason='{reason}'")
     except Exception as e:
@@ -308,7 +309,7 @@ async def ungban_cmd(client: Client, message: Message):
         await message.reply(
             f"✅ Freed! `{name or user_id}` (`{user_id}`) can sail the Soul King's seas once more!\n"
             f"<i>Yohohoho! Welcome back to the music!</i>",
-            parse_mode="html"
+            parse_mode=ParseMode.HTML
         )
         logger.info(f"UnGBan: {user_id} by {caller}")
     except Exception as e:
@@ -358,7 +359,7 @@ async def block_cmd(client: Client, message: Message):
         await message.reply(
             f"🚫 `{name or user_id}` (`{user_id}`) has been **blocked** from the music den in this group!\n"
             f"<i>Yohoho! No music for you!</i>",
-            parse_mode="html"
+            parse_mode=ParseMode.HTML
         )
         logger.info(f"Blocked {user_id} in {chat_id} by {caller}")
     except Exception as e:
@@ -403,7 +404,7 @@ async def unblock_cmd(client: Client, message: Message):
         await message.reply(
             f"✅ `{name or user_id}` (`{user_id}`) is **welcome back** in the music den!\n"
             f"<i>YOHOHOHO! Come listen to the Soul King!</i>",
-            parse_mode="html"
+            parse_mode=ParseMode.HTML
         )
         logger.info(f"Unblocked {user_id} in {chat_id} by {caller}")
     except Exception as e:
@@ -455,10 +456,7 @@ async def stats_cmd(client: Client, message: Message):
         "<i>\"I may be a skeleton, but these stats are very much alive! YOHOHOHO!\"</i>"
     )
 
-    await message.reply(text, parse_mode="html")
-
-
-# ─────────────────────────────────────────────
+    await message.reply(text, parse_mode=ParseMode.HTML)
 # /broadcast — Owner/Sudo, group + private
 # ─────────────────────────────────────────────
 
@@ -521,7 +519,7 @@ async def broadcast_cmd(client: Client, message: Message):
             f"<b>📢 Broadcast complete! Yohohoho!</b>\n\n"
             f"✅ Delivered: <code>{success}</code> groups\n"
             f"❌ Failed: <code>{failed}</code> groups",
-            parse_mode="html"
+            parse_mode=ParseMode.HTML
         )
     except Exception:
         pass
@@ -546,7 +544,7 @@ async def restart_cmd(client: Client, message: Message):
     await message.reply(
         "🔄 **Restarting the Soul King's ship!**\n"
         "<i>BRB... adjusting my violin strings! Yohoho!</i>",
-        parse_mode="html"
+        parse_mode=ParseMode.HTML
     )
     logger.info(f"Restart requested by {caller}")
 
@@ -588,7 +586,7 @@ async def maintenance_cmd(client: Client, message: Message):
             "🔧 **Maintenance mode ON!**\n"
             "<i>The Soul King is taking a break to polish his violin...\n"
             "Only sudo users may command the bot for now.</i>",
-            parse_mode="html"
+            parse_mode=ParseMode.HTML
         )
         logger.warning(f"Maintenance mode ENABLED by {caller}")
 
@@ -597,9 +595,10 @@ async def maintenance_cmd(client: Client, message: Message):
         await message.reply(
             "✅ **Maintenance mode OFF!**\n"
             "<i>The Soul King is back on stage — YOHOHOHO! 🎸🎵</i>",
-            parse_mode="html"
+            parse_mode=ParseMode.HTML
         )
         logger.info(f"Maintenance mode DISABLED by {caller}")
 
     else:
         await message.reply("❌ Invalid argument. Use `on` or `off`.")
+

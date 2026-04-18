@@ -1,9 +1,12 @@
 """Logging setup with file and Telegram log channel support."""
 
+import asyncio
 import logging
 import logging.handlers
 import os
 from datetime import datetime
+from pyrogram.enums import ParseMode
+
 from config import config
 from bot.core import bot as bot_module
 
@@ -35,9 +38,8 @@ class TelegramLogHandler(logging.Handler):
             
             # Send async - fire and forget
             if self._bot and self._bot.is_connected:
-                import asyncio
                 asyncio.create_task(
-                    self._bot.send_message(self.chat_id, f"`{msg}`", parse_mode="markdown")
+                    self._bot.send_message(self.chat_id, f"`{msg}`", parse_mode=ParseMode.MARKDOWN)
                 )
         except Exception:
             pass  # Don't let logging errors crash the bot

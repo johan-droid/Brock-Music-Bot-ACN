@@ -14,6 +14,7 @@ from typing import Optional, Dict, Any
 from datetime import datetime, timedelta
 import random
 from pyrogram import Client
+from pyrogram.enums import ParseMode
 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton, Message
 from pyrogram.errors import MessageNotModified, FloodWait
 from io import BytesIO
@@ -400,7 +401,7 @@ class SoulKingLiveUI:
                         message_id=msg_id,
                         text=new_text,
                         reply_markup=controls,
-                        parse_mode="html"
+                        parse_mode=ParseMode.HTML
                     )
                     session["last_update"] = datetime.now()
                     session["last_position"] = position
@@ -480,7 +481,7 @@ class SoulKingLiveUI:
                     photo=thumb_data,
                     caption=text,
                     reply_markup=controls,
-                    parse_mode="html",
+                    parse_mode=ParseMode.HTML,
                     reply_to_message_id=message.id if message else None
                 )
             else:
@@ -488,7 +489,7 @@ class SoulKingLiveUI:
                     chat_id=chat_id,
                     text=text,
                     reply_markup=controls,
-                    parse_mode="html",
+                    parse_mode=ParseMode.HTML,
                     reply_to_message_id=message.id if message else None
                 )
             
@@ -518,3 +519,4 @@ class SoulKingLiveUI:
 
 # Global instance
 soul_king_ui = SoulKingLiveUI()
+
