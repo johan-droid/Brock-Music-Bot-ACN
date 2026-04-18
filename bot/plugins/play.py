@@ -267,13 +267,16 @@ async def play_cmd(client: Client, message: Message):
 
         else:
             # Text search with conflict detection using unified backend
+            logger.info("Searching music for query: %s", query)
             result = await conflict_resolver.search_with_conflicts(
                 query,
                 lambda q: music_backend.search(q, limit=20),
                 max_results=20,
             )
+            logger.info("Search finished for query=%s status=%s tracks=%s", query, result.get("status"), len(result.get("tracks", [])))
 
             if result["status"] == "not_found":
+                logger.warning("No search results for query: %s", query)
                 await search_msg.edit(
                     "💀 <b>No songs found!</b>\n"
                     "<i>\"The seas are empty of that melody... Yohohoho!\"</i>",
