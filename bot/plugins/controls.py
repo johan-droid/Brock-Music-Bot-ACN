@@ -11,9 +11,22 @@ import bot.utils.database as app_db
 from bot.core.call import call_manager
 from bot.core.queue import queue_manager
 from bot.core import bot as bot_module
+from bot.plugins.play import persist_playback_state
 from config import config
 
 logger = logging.getLogger(__name__)
+
+
+async def _play_previous_track(chat_id: int) -> dict | None:
+    """Restore the previous track and start it immediately."""
+    prev = await queue_manager.get_previous(chat_id)
+    if not prev:
+        return None
+
+    from bot.plugins.play import start_playback
+
+    await start_playback(chat_id, prefetched_track=prev)
+    return prev
 
 
 @Client.on_message(filters.command("pause") & filters.group)
@@ -36,6 +49,8 @@ async def pause_cmd(client: Client, message: Message):
         await queue_manager.set_status(chat_id, "paused")
         await call_manager.pause(chat_id)
         progress_tracker.pause(chat_id)
+        current = await queue_manager.get_current(chat_id)
+        await persist_playback_state(chat_id, "paused", current)
         await message.reply(
             "⏸ <b>Paused!</b> The Soul King takes a breath...\n"
             "<i>Use /resume to continue the concert, Yohoho!</i>",
@@ -67,6 +82,8 @@ async def resume_cmd(client: Client, message: Message):
         await queue_manager.set_status(chat_id, "playing")
         await call_manager.resume(chat_id)
         progress_tracker.resume(chat_id)
+        current = await queue_manager.get_current(chat_id)
+        await persist_playback_state(chat_id, "playing", current)
         await message.reply(
             "▶️ <b>Resumed!</b> The Soul King is back on stage!\n"
             "<i>YOHOHOHO! The concert continues! 🎸</i>",
@@ -113,7 +130,39 @@ async def forceresume_cmd(client: Client, message: Message):
         await message.reply("💀 Even Brook couldn't force a resume! Try /play or /cleanup instead.")
 
 
-@Client.on_message(filters.command("skip") & filters.group)
+@Client.on_message(filters.command(["setaggressive"]) & filters.group)
+@require_admin
+@rate_limit
+async def set_aggressive_cmd(client: Client, message: Message):
+    """Toggle aggressive play mode for this group."""
+    chat_id = message.chat.id
+
+    if len(message.command) < 2:
+        await message.reply(
+            "📌 Usage: `/setaggressive on|off`\n"
+            "Example: `/setaggressive on` to let admins preempt current playback."
+        )
+        return
+
+    value = message.command[1].lower()
+    if value not in {"on", "off"}:
+        await message.reply("❌ Invalid value. Use `on` or `off`.")
+        return
+
+    enabled = value == "on"
+    try:
+        await app_db.db.update_group(chat_id, {"settings.aggressive_play": enabled})
+        await message.reply(
+            f"⚔️ Aggressive play has been {'enabled' if enabled else 'disabled'} for this group.\n"
+            "Admins can now preempt playback only when enabled."
+        )
+        logger.info(f"Set aggressive_play={enabled} for chat {chat_id}")
+    except Exception as e:
+        logger.error(f"setaggressive failed: {e}")
+        await message.reply("💀 Could not update aggressive play setting. Try again.")
+
+
+@Client.on_message(filters.command(["skip", "next"]) & filters.group)
 @require_admin
 @rate_limit
 async def skip_cmd(client: Client, message: Message):
@@ -146,7 +195,27 @@ async def skip_cmd(client: Client, message: Message):
         await message.reply("💀 Even a skeleton stumbles sometimes! Skip failed.")
 
 
-@Client.on_message(filters.command(["stop", "end", "cleanup"]) & filters.group)
+@Client.on_message(filters.command(["prev", "previous"]) & filters.group)
+@require_member
+@rate_limit
+async def prev_cmd(client: Client, message: Message):
+    """Return to the previous track."""
+    chat_id = message.chat.id
+
+    try:
+        restored = await _play_previous_track(chat_id)
+        if not restored:
+            await message.reply("💀 No previous track in history yet, Yohoho!")
+            return
+
+        await message.reply("⏮ Previous track restored! Yohohoho!")
+        logger.info(f"Restored previous track in chat {chat_id}")
+    except Exception as e:
+        logger.error(f"Previous track failed: {e}")
+        await message.reply("💀 Even Brook can't rewind time on this one! Previous track failed.")
+
+
+@Client.on_message(filters.command(["stop", "end", "cleanup", "off"]) & filters.group)
 @require_admin
 @rate_limit
 async def stop_cmd(client: Client, message: Message):

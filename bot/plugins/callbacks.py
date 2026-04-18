@@ -217,6 +217,9 @@ async def handle_pause(client: Client, callback: CallbackQuery, chat_id: int):
         manager = _get_call_manager()
         await manager.pause(chat_id)
         progress_tracker.pause(chat_id)
+        current = await queue_manager.get_current(chat_id)
+        from bot.plugins.play import persist_playback_state
+        await persist_playback_state(chat_id, "paused", current)
     
     asyncio.create_task(_pause_bg())
 
@@ -246,6 +249,9 @@ async def handle_resume(client: Client, callback: CallbackQuery, chat_id: int):
         manager = _get_call_manager()
         await manager.resume(chat_id)
         progress_tracker.resume(chat_id)
+        current = await queue_manager.get_current(chat_id)
+        from bot.plugins.play import persist_playback_state
+        await persist_playback_state(chat_id, "playing", current)
     
     asyncio.create_task(_resume_bg())
 
@@ -301,6 +307,8 @@ async def handle_stop(client: Client, callback: CallbackQuery, chat_id: int):
         await manager.leave_call(chat_id)
         await queue_manager.clear_queue(chat_id)
         progress_tracker.stop(chat_id)
+        from bot.plugins.play import persist_playback_state
+        await persist_playback_state(chat_id, "idle")
 
         # Trigger NP card auto-clean
         np_msg_id = await cache.get_np_message(chat_id)
@@ -510,8 +518,8 @@ async def handle_help_info(client: Client, callback: CallbackQuery, chat_id: int
     """Handle help callback prompt by editing the message."""
     text = (
         "🍁 <b>Commands &amp; Authority List</b>\n\n"
-        "<b>👥 Members:</b> /play, /queue (/q), /pause, /resume, /seek, /replay, /now (/np), /volume\n"
-        "<b>🛡 Admins:</b> /vplay, /clearqueue, /skip, /stop, /remove, /shuffle, /loop\n"
+        "<b>👥 Members:</b> /play, /queue (/q), /pause, /resume, /next (/skip), /prev (/previous), /seek, /replay, /now (/np), /volume\n"
+        "<b>🛡 Admins:</b> /vplay, /clearqueue, /stop (/off), /remove, /shuffle, /loop\n"
         "<b>👑 Owner/Sudo:</b> /addsudo, /delsudo, /sudolist, /gban, /ungban, /block, /unblock, /stats, /broadcast, /restart, /maintenance\n\n"
         "<i>Authority is strictly role-based.</i>"
     )
@@ -636,23 +644,16 @@ async def handle_previous(client: Client, callback: CallbackQuery, chat_id: int)
         await callback.answer("⏮️ Previous track feature is disabled by admin.", show_alert=True)
         return
 
-    prev = await queue_manager.get_previous(chat_id)
+    from bot.plugins.controls import _play_previous_track
+
+    prev = await _play_previous_track(chat_id)
     if not prev:
         await callback.answer("⏮️ No previous track in history yet.", show_alert=True)
         return
 
-    await queue_manager.set_status(chat_id, "playing")
-    progress_tracker.stop(chat_id)
-    progress_tracker.start(chat_id, 0)
-
-    is_video = prev.get("is_video", False)
-    try:
-        manager = _get_call_manager()
-        await manager.change_stream(chat_id, prev["url"], video=is_video, seek=0)
-        await callback.answer(f"⏮️ Playing previous track: {prev.get('title','Unknown')[:40]}", show_alert=False)
-    except Exception as e:
-        logger.error(f"Previous track failed: {e}")
-        await callback.answer("Failed to play previous track.", show_alert=True)
+    title = prev.get("title") if isinstance(prev, dict) else None
+    display_title = title[:40] if title else "Unknown"
+    await callback.answer(f"⏮️ Playing previous track: {display_title}", show_alert=False)
 
 
 async def handle_export_queue(client: Client, callback: CallbackQuery, chat_id: int):
