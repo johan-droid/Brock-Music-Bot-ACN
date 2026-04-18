@@ -396,8 +396,10 @@ class MusicBackend:
 
     async def _search_with_extractor(self, extractor: Any, query: str, limit: int, default_source: str) -> List[Track]:
         if not extractor or not hasattr(extractor, "search"):
+            logger.info("Skipping extractor %s for query=%s because it is unavailable", default_source, query)
             return []
 
+        logger.info("Calling %s extractor for query=%s", default_source, query)
         try:
             raw_results = await extractor.search(query, limit)
         except Exception as exc:
@@ -425,6 +427,7 @@ class MusicBackend:
 
         # 1. Parallel Search Path (optimized for Heroku/Production)
         if config.PARALLEL_SEARCH:
+            logger.info("MusicBackend search starting: query=%s limit=%s", query, limit)
             tasks = [
                 self._search_index(query, limit),
                 self._search_with_extractor(vk_extractor, query, limit, "vk"),
@@ -437,6 +440,13 @@ class MusicBackend:
             idx_res = raw_results[0] if not isinstance(raw_results[0], Exception) else []
             vk_res = raw_results[1] if not isinstance(raw_results[1], Exception) else []
             dz_res = raw_results[2] if not isinstance(raw_results[2], Exception) else []
+            logger.info(
+                "MusicBackend search results query=%s idx=%s vk=%s deezer=%s",
+                query,
+                len(idx_res),
+                len(vk_res),
+                len(dz_res),
+            )
             
             # Define priority tiers
             if config.PRIORITIZE_EXTRACTORS:
