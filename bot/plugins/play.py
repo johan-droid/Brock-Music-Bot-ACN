@@ -610,7 +610,7 @@ async def start_playback(chat_id: int, prefetched_track: Optional[Dict[str, Any]
             db = getattr(app_db, "db", None)
             if db is not None and hasattr(db, "save_track_to_index"):
                 track_key = track.get("track_id") or track.get("id") or track.get("url") or track.get("title")
-                if track_key:
+                if track_key is not None and track_key != "":
                     await db.save_track_to_index(str(track_key), track)
         except Exception as exc:
             logger.debug("Failed to persist played track into the music index for %s: %s", chat_id, exc)
