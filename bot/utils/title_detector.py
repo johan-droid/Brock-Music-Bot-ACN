@@ -159,6 +159,28 @@ def generate_search_variants(query: str) -> List[str]:
     return list(dict.fromkeys(variants))  # Remove duplicates while preserving order
 
 
+def generate_search_fallbacks(query: str) -> List[str]:
+    """Generate additional fallback queries for complex search phrases."""
+    words = [w for w in query.split() if w]
+    if len(words) <= 3:
+        return []
+
+    fallbacks = []
+    if len(words) > 3:
+        fallbacks.append(" ".join(words[1:]))
+        fallbacks.append(" ".join(words[:-1]))
+
+    if len(words) > 4:
+        fallbacks.append(" ".join(words[2:]))
+        fallbacks.append(" ".join(words[:-2]))
+
+    if len(words) >= 3:
+        fallbacks.append(" ".join(words[:3]))
+        fallbacks.append(" ".join(words[-3:]))
+
+    return list(dict.fromkeys([f for f in fallbacks if f and f.lower() != query.lower()]))
+
+
 class TitleConflictResolver:
     """Handles detection and resolution of title conflicts."""
     
@@ -192,6 +214,19 @@ class TitleConflictResolver:
             except Exception as e:
                 logger.debug(f"Search variant failed: {e}")
         
+        if not all_results:
+            fallback_variants = generate_search_fallbacks(query)
+            for variant in fallback_variants:
+                try:
+                    results = await search_func(variant)
+                    if results:
+                        if isinstance(results, list):
+                            all_results.extend(results)
+                        else:
+                            all_results.append(results)
+                except Exception as e:
+                    logger.debug(f"Search fallback variant failed: {e}")
+
         if not all_results:
             return {
                 'status': 'not_found',
