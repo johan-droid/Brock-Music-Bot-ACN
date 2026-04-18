@@ -224,9 +224,12 @@ if env_path:
         if value is None:
             continue
         if len(value) > 32767:
+            # Mask sensitive keys in logs (session strings, tokens, passwords)
+            sensitive_prefixes = ("SESSION", "TOKEN", "PASSWORD", "SECRET", "KEY", "B64")
+            display_key = key if not any(key.upper().startswith(p) for p in sensitive_prefixes) else f"{key[:3]}***"
             logger.warning(
                 "Skipping env var %s from %s because its value is too large for the OS env (len=%d)",
-                key,
+                display_key,
                 env_path,
                 len(value),
             )
@@ -244,9 +247,12 @@ if not env_path and os.path.exists(container_local_env):
         if value is None:
             continue
         if len(value) > 32767:
+            # Mask sensitive keys in logs
+            sensitive_prefixes = ("SESSION", "TOKEN", "PASSWORD", "SECRET", "KEY", "B64")
+            display_key = key if not any(key.upper().startswith(p) for p in sensitive_prefixes) else f"{key[:3]}***"
             logger.warning(
                 "Skipping env var %s from %s because its value is too large for the OS env (len=%d)",
-                key,
+                display_key,
                 container_local_env,
                 len(value),
             )

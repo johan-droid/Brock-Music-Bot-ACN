@@ -57,10 +57,33 @@ def _build_client_from_session(index: int, auth: dict) -> Client:
         if not isinstance(auth_value, str) or not auth_value.strip():
             raise RuntimeError("SESSION_FILE_B64_* values must be valid base64-encoded data.")
 
+        # Sanitize and validate base64 input
+        # Remove whitespace and common formatting characters
+        sanitized = "".join(auth_value.strip().split())
+        
+        # Validate base64 characters only (A-Z, a-z, 0-9, +, /, =)
+        import re
+        if not re.match(r'^[A-Za-z0-9+/=]+$', sanitized):
+            raise RuntimeError("SESSION_FILE_B64_* contains invalid characters. Only base64 characters allowed.")
+        
+        # Check for reasonable length (prevent DoS with huge inputs)
+        if len(sanitized) > 100000:  # ~75KB decoded max
+            raise RuntimeError("SESSION_FILE_B64_* value too large.")
+        
+        # Validate base64 by attempting decode
+        try:
+            decoded = base64.b64decode(sanitized, validate=True)
+        except Exception as e:
+            raise RuntimeError(f"SESSION_FILE_B64_* is not valid base64: {e}")
+        
+        # Validate decoded content looks like a session file (SQLite header)
+        if not decoded.startswith(b'SQLite format 3'):
+            raise RuntimeError("SESSION_FILE_B64_* does not contain a valid SQLite session file.")
+
         tmp_dir = Path(tempfile.gettempdir())
         tmp_dir.mkdir(parents=True, exist_ok=True)
         session_file = tmp_dir / f"userbot_{index}.session"
-        session_file.write_bytes(base64.b64decode(auth_value))
+        session_file.write_bytes(decoded)
         return Client(
             str(session_file),
             api_id=api_id,
