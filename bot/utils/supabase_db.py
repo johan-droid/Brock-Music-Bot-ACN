@@ -694,6 +694,119 @@ class SupabaseDatabase:
             logger.error(f"Error getting all groups: {e}")
             return []
 
+    # Mini app sessions
+    async def get_mini_app_session(self, user_id: int) -> Optional[Dict[str, Any]]:
+        try:
+            result = (
+                self.client.table("mini_app_sessions")
+                .select("user_id,recent_tracks,preferences,last_chat_id,updated_at,created_at")
+                .eq("user_id", user_id)
+                .limit(1)
+                .execute()
+            )
+            if result.data:
+                row = result.data[0]
+                return {
+                    "user_id": row.get("user_id"),
+                    "recent_tracks": row.get("recent_tracks") if isinstance(row.get("recent_tracks"), list) else [],
+                    "preferences": row.get("preferences") if isinstance(row.get("preferences"), dict) else {},
+                    "last_chat_id": row.get("last_chat_id"),
+                    "updated_at": row.get("updated_at"),
+                    "created_at": row.get("created_at"),
+                }
+            return None
+        except Exception as e:
+            err = str(e)
+            if "PGRST205" in err or "lookup_failed" in err.lower():
+                logger.warning(
+                    "Supabase table 'mini_app_sessions' missing. Run docs/mini_app/02_DATABASE_SCHEMA.sql."
+                )
+            else:
+                logger.error(f"Error getting mini app session: {e}")
+            return None
+
+    async def upsert_mini_app_session(
+        self,
+        user_id: int,
+        recent_tracks: Optional[List[Dict[str, Any]]] = None,
+        preferences: Optional[Dict[str, Any]] = None,
+        last_chat_id: Optional[int] = None,
+    ) -> None:
+        try:
+            existing = await self.get_mini_app_session(user_id) or {}
+            data = {
+                "user_id": user_id,
+                "recent_tracks": recent_tracks if recent_tracks is not None else existing.get("recent_tracks", []),
+                "preferences": preferences if preferences is not None else existing.get("preferences", {}),
+                "last_chat_id": last_chat_id if last_chat_id is not None else existing.get("last_chat_id"),
+                "updated_at": datetime.utcnow().isoformat(),
+            }
+            self.client.table("mini_app_sessions").upsert(data).execute()
+        except Exception as e:
+            err = str(e)
+            if "PGRST205" in err or "lookup_failed" in err.lower():
+                logger.warning(
+                    "Supabase table 'mini_app_sessions' missing. Run docs/mini_app/02_DATABASE_SCHEMA.sql."
+                )
+            else:
+                logger.error(f"Error upserting mini app session: {e}")
+
+    # Lobby snapshots
+    async def get_lobby_snapshot(self, chat_id: int) -> Optional[Dict[str, Any]]:
+        try:
+            result = (
+                self.client.table("lobby_snapshots")
+                .select("chat_id,now_playing,queue,status,position_seconds,participants,version,updated_at,created_at")
+                .eq("chat_id", chat_id)
+                .limit(1)
+                .execute()
+            )
+            if result.data:
+                row = result.data[0]
+                return {
+                    "chat_id": row.get("chat_id"),
+                    "now_playing": row.get("now_playing") if isinstance(row.get("now_playing"), dict) else None,
+                    "queue": row.get("queue") if isinstance(row.get("queue"), list) else [],
+                    "status": row.get("status") or "idle",
+                    "position_seconds": int(row.get("position_seconds") or 0),
+                    "participants": row.get("participants") if isinstance(row.get("participants"), list) else [],
+                    "version": int(row.get("version") or 1),
+                    "updated_at": row.get("updated_at"),
+                    "created_at": row.get("created_at"),
+                }
+            return None
+        except Exception as e:
+            err = str(e)
+            if "PGRST205" in err or "lookup_failed" in err.lower():
+                logger.warning(
+                    "Supabase table 'lobby_snapshots' missing. Run docs/mini_app/02_DATABASE_SCHEMA.sql."
+                )
+            else:
+                logger.error(f"Error getting lobby snapshot: {e}")
+            return None
+
+    async def upsert_lobby_snapshot(self, chat_id: int, snapshot: Dict[str, Any]) -> None:
+        try:
+            data = {
+                "chat_id": chat_id,
+                "now_playing": snapshot.get("now_playing"),
+                "queue": snapshot.get("queue") if isinstance(snapshot.get("queue"), list) else [],
+                "status": snapshot.get("status") or "idle",
+                "position_seconds": int(snapshot.get("position_seconds") or 0),
+                "participants": snapshot.get("participants") if isinstance(snapshot.get("participants"), list) else [],
+                "version": int(snapshot.get("version") or 1),
+                "updated_at": datetime.utcnow().isoformat(),
+            }
+            self.client.table("lobby_snapshots").upsert(data).execute()
+        except Exception as e:
+            err = str(e)
+            if "PGRST205" in err or "lookup_failed" in err.lower():
+                logger.warning(
+                    "Supabase table 'lobby_snapshots' missing. Run docs/mini_app/02_DATABASE_SCHEMA.sql."
+                )
+            else:
+                logger.error(f"Error upserting lobby snapshot: {e}")
+
     # Migration helper
     async def migrate_from_mongodb(self, mongo_db):
         """Migrate data from MongoDB to Supabase."""

@@ -94,6 +94,35 @@ class SQLiteDatabase:
         # Indexes for SQLite performance
         conn.execute("CREATE INDEX IF NOT EXISTS idx_music_title ON global_music_index(title)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_music_last_played ON global_music_index(last_played)")
+
+        # Mini app session persistence
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS mini_app_sessions (
+                user_id INTEGER PRIMARY KEY,
+                recent_tracks TEXT DEFAULT '[]',
+                preferences TEXT DEFAULT '{}',
+                last_chat_id INTEGER,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_mini_app_sessions_updated_at ON mini_app_sessions(updated_at)")
+
+        # Lobby snapshots for cold-start recovery
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS lobby_snapshots (
+                chat_id INTEGER PRIMARY KEY,
+                now_playing TEXT,
+                queue TEXT DEFAULT '[]',
+                status TEXT DEFAULT 'idle',
+                position_seconds INTEGER DEFAULT 0,
+                participants TEXT DEFAULT '[]',
+                version INTEGER DEFAULT 1,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_lobby_snapshots_updated_at ON lobby_snapshots(updated_at)")
         
         conn.commit()
         logger.info(f"SQLite database initialized at {self.db_path} (with local index support)")
@@ -400,6 +429,133 @@ class SQLiteDatabase:
             conn.commit()
         except Exception as e:
             logger.error(f"Failed to save track to SQLite index: {e}")
+
+    # Mini app sessions
+    async def get_mini_app_session(self, user_id: int) -> Optional[Dict[str, Any]]:
+        conn = self._get_conn()
+        row = conn.execute(
+            "SELECT user_id,recent_tracks,preferences,last_chat_id,updated_at,created_at FROM mini_app_sessions WHERE user_id = ?",
+            (user_id,),
+        ).fetchone()
+        if not row:
+            return None
+        try:
+            recent_tracks = json.loads(row["recent_tracks"] or "[]")
+        except Exception:
+            recent_tracks = []
+        try:
+            preferences = json.loads(row["preferences"] or "{}")
+        except Exception:
+            preferences = {}
+        return {
+            "user_id": row["user_id"],
+            "recent_tracks": recent_tracks if isinstance(recent_tracks, list) else [],
+            "preferences": preferences if isinstance(preferences, dict) else {},
+            "last_chat_id": row["last_chat_id"],
+            "updated_at": row["updated_at"],
+            "created_at": row["created_at"],
+        }
+
+    async def upsert_mini_app_session(
+        self,
+        user_id: int,
+        recent_tracks: Optional[List[Dict[str, Any]]] = None,
+        preferences: Optional[Dict[str, Any]] = None,
+        last_chat_id: Optional[int] = None,
+    ) -> None:
+        existing = await self.get_mini_app_session(user_id) or {
+            "recent_tracks": [],
+            "preferences": {},
+            "last_chat_id": None,
+        }
+        merged_tracks = recent_tracks if recent_tracks is not None else existing.get("recent_tracks", [])
+        merged_prefs = preferences if preferences is not None else existing.get("preferences", {})
+        merged_chat_id = last_chat_id if last_chat_id is not None else existing.get("last_chat_id")
+
+        conn = self._get_conn()
+        conn.execute(
+            """
+            INSERT INTO mini_app_sessions (user_id,recent_tracks,preferences,last_chat_id,updated_at,created_at)
+            VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+            ON CONFLICT(user_id) DO UPDATE SET
+                recent_tracks=excluded.recent_tracks,
+                preferences=excluded.preferences,
+                last_chat_id=excluded.last_chat_id,
+                updated_at=CURRENT_TIMESTAMP
+            """,
+            (
+                user_id,
+                json.dumps(merged_tracks or []),
+                json.dumps(merged_prefs or {}),
+                merged_chat_id,
+            ),
+        )
+        conn.commit()
+
+    # Lobby snapshots
+    async def get_lobby_snapshot(self, chat_id: int) -> Optional[Dict[str, Any]]:
+        conn = self._get_conn()
+        row = conn.execute(
+            """
+            SELECT chat_id,now_playing,queue,status,position_seconds,participants,version,updated_at,created_at
+            FROM lobby_snapshots
+            WHERE chat_id = ?
+            """,
+            (chat_id,),
+        ).fetchone()
+        if not row:
+            return None
+        try:
+            now_playing = json.loads(row["now_playing"]) if row["now_playing"] else None
+        except Exception:
+            now_playing = None
+        try:
+            queue = json.loads(row["queue"] or "[]")
+        except Exception:
+            queue = []
+        try:
+            participants = json.loads(row["participants"] or "[]")
+        except Exception:
+            participants = []
+        return {
+            "chat_id": row["chat_id"],
+            "now_playing": now_playing,
+            "queue": queue if isinstance(queue, list) else [],
+            "status": row["status"] or "idle",
+            "position_seconds": int(row["position_seconds"] or 0),
+            "participants": participants if isinstance(participants, list) else [],
+            "version": int(row["version"] or 1),
+            "updated_at": row["updated_at"],
+            "created_at": row["created_at"],
+        }
+
+    async def upsert_lobby_snapshot(self, chat_id: int, snapshot: Dict[str, Any]) -> None:
+        conn = self._get_conn()
+        conn.execute(
+            """
+            INSERT INTO lobby_snapshots
+            (chat_id,now_playing,queue,status,position_seconds,participants,version,updated_at,created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+            ON CONFLICT(chat_id) DO UPDATE SET
+                now_playing=excluded.now_playing,
+                queue=excluded.queue,
+                status=excluded.status,
+                position_seconds=excluded.position_seconds,
+                participants=excluded.participants,
+                version=excluded.version,
+                updated_at=CURRENT_TIMESTAMP
+            """,
+            (
+                chat_id,
+                json.dumps(snapshot.get("now_playing")) if snapshot.get("now_playing") is not None else None,
+                json.dumps(snapshot.get("queue") or []),
+                snapshot.get("status") or "idle",
+                int(snapshot.get("position_seconds") or 0),
+                json.dumps(snapshot.get("participants") or []),
+                int(snapshot.get("version") or 1),
+            ),
+        )
+        conn.commit()
 
 
 
