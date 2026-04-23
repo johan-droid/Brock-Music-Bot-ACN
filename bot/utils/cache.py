@@ -3,7 +3,8 @@
 import logging
 import os
 import time
-from typing import Optional
+import json
+from typing import Any, Dict, Optional
 from config import config
 
 logger = logging.getLogger(__name__)
@@ -464,6 +465,39 @@ return out
     async def invalidate_queue_snapshot(self, chat_id: int) -> None:
         """Invalidate queue snapshot when queue changes."""
         await self.delete(f"queue_snapshot:{chat_id}")
+
+    # ── Mini App cache helpers ───────────────────────────────────────────────
+
+    async def set_lobby_state(self, chat_id: int, state: Dict[str, Any], ttl: int = 300) -> None:
+        """Cache mini app lobby snapshot for fast cold-start recovery."""
+        key = f"mini:lobby:{chat_id}"
+        await self.set(key, json.dumps(state, default=str), ex=ttl)
+
+    async def get_lobby_state(self, chat_id: int) -> Optional[Dict[str, Any]]:
+        """Fetch mini app lobby snapshot, if available."""
+        key = f"mini:lobby:{chat_id}"
+        raw = await self.get(key)
+        if not raw:
+            return None
+        try:
+            data = json.loads(raw)
+            return data if isinstance(data, dict) else None
+        except json.JSONDecodeError:
+            return None
+
+    async def get_user_preferences(self, user_id: int) -> Dict[str, Any]:
+        """Fetch mini app user preferences from cached session document."""
+        key = f"mini:session:{user_id}"
+        raw = await self.get(key)
+        if not raw:
+            return {}
+        try:
+            data = json.loads(raw)
+            if isinstance(data, dict) and isinstance(data.get("preferences"), dict):
+                return data["preferences"]
+            return {}
+        except json.JSONDecodeError:
+            return {}
 
 
 # Global cache instance
