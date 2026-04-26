@@ -1,0 +1,17 @@
+name: Keep Render Service Alive
+
+on:
+  schedule:
+    # Run every 10 minutes
+    - cron: '*/10 * * * *'
+  workflow_dispatch:  # Allow manual trigger
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping Render Service
+        run: |
+          echo "Pinging YouTube wrapper service..."
+          curl -s -o /dev/null -w "%{http_code}" https://youtube-music-wrapper.onrender.com/ || echo "Ping failed"
+        continue-on-error: true
