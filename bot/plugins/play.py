@@ -510,17 +510,23 @@ async def start_playback(chat_id: int, prefetched_track: Optional[Dict[str, Any]
         await cache.cache_playback_state(chat_id, status="playing")
 
         url = track.get("url", "")
+        track_id = track.get("id")
+        source = track.get("source", "unknown")
+        logger.info(f"DEBUG start_playback: source={source}, track_id={track_id}, has_url={bool(url)}")
+        
         # Always try to resolve/refresh stream URL for stability
         stream_payload = await music_backend.get_stream_payload(Track(
             title=track.get("title", ""),
             artist=track.get("uploader", ""),
             duration=track.get("duration", 0),
             stream_url=url,
-            source=track.get("source", "unknown"),
-            track_id=track.get("id")
+            source=source,
+            track_id=track_id
         ))
+        logger.info(f"DEBUG start_playback: stream_payload={stream_payload is not None}")
         if stream_payload and stream_payload.get("url"):
             url = stream_payload["url"]
+            logger.info(f"DEBUG start_playback: resolved_url={url[:50]}...")
             effective_source = stream_payload.get("source", track.get("source", "unknown"))
             track["source"] = effective_source
         else:
