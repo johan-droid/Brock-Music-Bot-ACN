@@ -32,6 +32,12 @@ except Exception as e:
     logger.error(f"Failed to load YouTube wrapper extractor: {e}")
     youtube_wrapper_extractor = None
 
+try:
+    from bot.platforms.jiosaavn import jiosaavn_extractor
+except Exception as e:
+    logger.error(f"Failed to load JioSaavn extractor: {e}")
+    jiosaavn_extractor = None
+
 # Limit the number of concurrent Supabase save requests
 _save_semaphore = asyncio.Semaphore(5)
 # Keep references to background tasks so they are not garbage-collected
@@ -170,7 +176,8 @@ class SourceRanker:
     """Compatibility ranking helper used by the selection logic in play.py."""
 
     _BASE_WEIGHTS = {
-        "youtube": 1.0,  # YouTube Music - highest priority, works globally
+        "youtube": 1.0,      # YouTube - highest priority, works globally
+        "jiosaavn": 0.99,    # JioSaavn - Indian music specialist
         "vk": 0.98,
         "deezer": 0.96,
         "global_index": 0.95,
@@ -232,18 +239,20 @@ def calculate_track_quality(track: Track) -> float:
 
 class MusicBackend:
     """
-    YouTube Music primary extractor with VK/Deezer fallback and database cache.
-    Search order: YouTube -> Deezer -> VK -> Database Index (when PRIORITIZE_EXTRACTORS=True)
-                  Database Index -> YouTube -> Deezer -> VK (when PRIORITIZE_EXTRACTORS=False)
-    YouTube Music works globally without geo-blocking; no API tokens needed.
+    YouTube Music primary extractor with VK/Deezer/JioSaavn fallback and database cache.
+    Search order: YouTube -> JioSaavn (Indian) -> Deezer -> VK -> Database Index (when PRIORITIZE_EXTRACTORS=True)
+                  Database Index -> YouTube -> JioSaavn -> Deezer -> VK (when PRIORITIZE_EXTRACTORS=False)
+    YouTube Music works globally; JioSaavn specializes in Indian/Bollywood music.
     """
 
     async def init(self):
         self._index_misses = 0
         self._index_skip_until = 0.0
-        logger.info("MusicBackend initialized (YouTube Wrapper Primary + Fallback Chain + Index CB)")
+        logger.info("MusicBackend initialized (YouTube Wrapper Primary + JioSaavn Indian + Fallback Chain)")
         if not youtube_wrapper_extractor:
             logger.warning("YouTube wrapper not available - falling back to direct YouTube (may fail on Heroku)")
+        if not jiosaavn_extractor:
+            logger.info("JioSaavn extractor not available (Indian music)")
         if not deezer_extractor:
             logger.info("Deezer extractor not available")
         if not vk_extractor:
@@ -448,9 +457,10 @@ class MusicBackend:
         # YouTube is primary, then Deezer, VK as fallback, index as last resort
         if config.PARALLEL_SEARCH:
             logger.info("MusicBackend search starting: query=%s limit=%s", query, limit)
-            # YouTube Wrapper is primary (avoids Heroku IP blocks), then direct YouTube, Deezer, VK
+            # YouTube Wrapper primary, JioSaavn (Indian), Deezer, VK, index
             tasks = [
                 self._search_with_extractor(youtube_wrapper_extractor, query, limit, "youtube"),
+                self._search_with_extractor(jiosaavn_extractor, query, limit, "jiosaavn"),
                 self._search_with_extractor(deezer_extractor, query, limit, "deezer"),
                 self._search_with_extractor(vk_extractor, query, limit, "vk"),
                 self._search_index(query, limit),
@@ -458,11 +468,12 @@ class MusicBackend:
 
             raw_results = await asyncio.gather(*tasks, return_exceptions=True)
 
-            # Safely unpack results - YouTube Wrapper first, Deezer, VK, index
+            # Safely unpack results - YouTube, JioSaavn, Deezer, VK, index
             ytw_res = raw_results[0] if not isinstance(raw_results[0], Exception) else []
-            dz_res = raw_results[1] if not isinstance(raw_results[1], Exception) else []
-            vk_res = raw_results[2] if not isinstance(raw_results[2], Exception) else []
-            idx_res = raw_results[3] if not isinstance(raw_results[3], Exception) else []
+            js_res = raw_results[1] if not isinstance(raw_results[1], Exception) else []
+            dz_res = raw_results[2] if not isinstance(raw_results[2], Exception) else []
+            vk_res = raw_results[3] if not isinstance(raw_results[3], Exception) else []
+            idx_res = raw_results[4] if not isinstance(raw_results[4], Exception) else []
 
             # Fallback to direct YouTube if wrapper returns nothing
             yt_res = ytw_res
@@ -474,19 +485,20 @@ class MusicBackend:
                     logger.debug(f"Direct YouTube fallback failed: {e}")
 
             logger.info(
-                "MusicBackend search results query=%s yt=%s dz=%s vk=%s idx=%s",
+                "MusicBackend search results query=%s yt=%s js=%s dz=%s vk=%s idx=%s",
                 query,
                 len(yt_res),
+                len(js_res),
                 len(dz_res),
                 len(vk_res),
                 len(idx_res),
             )
 
-            # Define priority tiers - YouTube (wrapper) first, then Deezer, VK, then index
+            # Define priority tiers - YouTube first, JioSaavn (Indian), Deezer, VK, then index
             if config.PRIORITIZE_EXTRACTORS:
-                tiers = [yt_res, dz_res, vk_res, idx_res]
+                tiers = [yt_res, js_res, dz_res, vk_res, idx_res]
             else:
-                tiers = [idx_res, yt_res, dz_res, vk_res]
+                tiers = [idx_res, yt_res, js_res, dz_res, vk_res]
             
             combined: List[Track] = []
             seen: set[str] = set()
@@ -529,7 +541,9 @@ class MusicBackend:
         if not tracks and youtube_extractor:
             tracks = await self._search_with_extractor(youtube_extractor, query, limit, "youtube")
 
-        # Then Deezer, then VK
+        # Then JioSaavn (Indian music), Deezer, VK
+        if not tracks:
+            tracks = await self._search_with_extractor(jiosaavn_extractor, query, limit, "jiosaavn")
         if not tracks:
             tracks = await self._search_with_extractor(deezer_extractor, query, limit, "deezer")
         if not tracks:
@@ -598,6 +612,12 @@ class MusicBackend:
                 "Accept": "*/*",
                 "Accept-Language": "en-US,en;q=0.9",
                 "Referer": "https://www.youtube.com/",
+            }
+        if source_name == "jiosaavn":
+            return {
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+                "Accept": "*/*",
+                "Referer": "https://www.jiosaavn.com/",
             }
         if source_name == "deezer":
             return {
