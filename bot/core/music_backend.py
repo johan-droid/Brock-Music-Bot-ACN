@@ -730,18 +730,68 @@ class MusicBackend:
         elif source == "youtube" and youtube_wrapper_extractor and hasattr(youtube_wrapper_extractor, "extract"):
             try:
                 resolved = await youtube_wrapper_extractor.extract(track.track_id)
-                logger.info(f"DEBUG: YouTube extract for {track.title}: {resolved is not None}")
+                logger.info(f"YouTube extract for {track.title}: {resolved is not None}")
             except Exception as exc:
                 logger.warning("YouTube resolve failed for %r: %s", track.title, exc)
+
+        # FALLBACK CHAIN: If primary source failed, try other sources with same track_id
+        if not resolved and track.track_id:
+            logger.info(f"Primary source {source} failed for {track.title}, trying fallback sources...")
+            
+            # Try JioSaavn as fallback (good for Indian music)
+            if source != "jiosaavn" and jiosaavn_wrapper_extractor and hasattr(jiosaavn_wrapper_extractor, "extract"):
+                try:
+                    resolved = await jiosaavn_wrapper_extractor.extract(track.track_id)
+                    if resolved:
+                        logger.info(f"Fallback JioSaavn success for {track.title}")
+                        source = "jiosaavn"  # Update source for payload
+                except Exception as exc:
+                    logger.debug(f"Fallback JioSaavn failed: {exc}")
+            
+            # Try Deezer as fallback
+            if not resolved and source != "deezer" and deezer_extractor and hasattr(deezer_extractor, "extract"):
+                try:
+                    resolved = await deezer_extractor.extract(track.track_id)
+                    if resolved:
+                        logger.info(f"Fallback Deezer success for {track.title}")
+                        source = "deezer"
+                except Exception as exc:
+                    logger.debug(f"Fallback Deezer failed: {exc}")
+            
+            # Try VK as last fallback
+            if not resolved and source != "vk" and vk_extractor and hasattr(vk_extractor, "extract"):
+                try:
+                    resolved = await vk_extractor.extract(track.track_id)
+                    if resolved:
+                        logger.info(f"Fallback VK success for {track.title}")
+                        source = "vk"
+                except Exception as exc:
+                    logger.debug(f"Fallback VK failed: {exc}")
 
         if resolved:
             payload = self._build_payload(track, resolved, source)
             if payload["url"] and not _looks_like_unsupported_page_url(payload["url"]):
+                logger.info(f"Successfully resolved stream URL for {track.title} from {source}")
                 return payload
 
         if track.stream_url and track.stream_url.startswith("http") and _infer_source_from_url(track.stream_url) == "direct":
             return self._build_payload(track, None, source or "direct")
 
+        # FINAL FALLBACK: Search for the track by title across all sources
+        if not resolved and track.title:
+            logger.info(f"All ID-based extractions failed for '{track.title}', trying search fallback...")
+            search_query = f"{track.title} {track.artist}" if track.artist and track.artist != "Unknown Artist" else track.title
+            
+            # Search and get first result
+            search_results = await self.search(search_query, limit=1)
+            if search_results and len(search_results) > 0:
+                alt_track = search_results[0]
+                if alt_track.track_id and alt_track.track_id != track.track_id:
+                    logger.info(f"Found alternative track from search: {alt_track.title} [{alt_track.source}]")
+                    # Try to extract from alternative track
+                    return await self.get_stream_payload(alt_track)
+
+        logger.error(f"All sources failed to resolve stream URL for {track.title}")
         return None
 
     async def _resolve_from_search(self, query: str) -> Optional[Dict[str, Any]]:
