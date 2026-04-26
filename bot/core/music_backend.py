@@ -526,11 +526,11 @@ class MusicBackend:
                 len(idx_res),
             )
 
-            # Define priority tiers - YouTube first, JioSaavn (Indian), Deezer, VK, then index
+            # Define priority tiers - JioSaavn first (Indian music, no bot detection), then others
             if config.PRIORITIZE_EXTRACTORS:
-                tiers = [yt_res, js_res, dz_res, vk_res, idx_res]
+                tiers = [js_res, dz_res, yt_res, vk_res, idx_res]  # JioSaavn prioritized over YouTube
             else:
-                tiers = [idx_res, yt_res, js_res, dz_res, vk_res]
+                tiers = [idx_res, js_res, dz_res, yt_res, vk_res]
             
             combined: List[Track] = []
             seen: set[str] = set()
