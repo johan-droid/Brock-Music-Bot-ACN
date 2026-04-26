@@ -26,6 +26,12 @@ except Exception as e:
     logger.error(f"Failed to load YouTube extractor: {e}")
     youtube_extractor = None
 
+try:
+    from bot.platforms.youtube_wrapper import youtube_wrapper_extractor
+except Exception as e:
+    logger.error(f"Failed to load YouTube wrapper extractor: {e}")
+    youtube_wrapper_extractor = None
+
 # Limit the number of concurrent Supabase save requests
 _save_semaphore = asyncio.Semaphore(5)
 # Keep references to background tasks so they are not garbage-collected
@@ -235,13 +241,13 @@ class MusicBackend:
     async def init(self):
         self._index_misses = 0
         self._index_skip_until = 0.0
-        logger.info("MusicBackend initialized (YouTube Primary + Deezer/VK Fallback + Index Circuit Breaker)")
-        if not youtube_extractor:
-            logger.warning("YouTube extractor not available - music search will be limited")
+        logger.info("MusicBackend initialized (YouTube Wrapper Primary + Fallback Chain + Index CB)")
+        if not youtube_wrapper_extractor:
+            logger.warning("YouTube wrapper not available - falling back to direct YouTube (may fail on Heroku)")
         if not deezer_extractor:
-            logger.info("Deezer extractor not available - will use YouTube/VK")
+            logger.info("Deezer extractor not available")
         if not vk_extractor:
-            logger.info("VK extractor not available - will use YouTube/Deezer")
+            logger.info("VK extractor not available")
 
     async def close(self):
         return None
@@ -442,8 +448,9 @@ class MusicBackend:
         # YouTube is primary, then Deezer, VK as fallback, index as last resort
         if config.PARALLEL_SEARCH:
             logger.info("MusicBackend search starting: query=%s limit=%s", query, limit)
+            # YouTube Wrapper is primary (avoids Heroku IP blocks), then direct YouTube, Deezer, VK
             tasks = [
-                self._search_with_extractor(youtube_extractor, query, limit, "youtube"),
+                self._search_with_extractor(youtube_wrapper_extractor, query, limit, "youtube"),
                 self._search_with_extractor(deezer_extractor, query, limit, "deezer"),
                 self._search_with_extractor(vk_extractor, query, limit, "vk"),
                 self._search_index(query, limit),
@@ -451,11 +458,21 @@ class MusicBackend:
 
             raw_results = await asyncio.gather(*tasks, return_exceptions=True)
 
-            # Safely unpack results - YouTube first, Deezer second, VK third, index fourth
-            yt_res = raw_results[0] if not isinstance(raw_results[0], Exception) else []
+            # Safely unpack results - YouTube Wrapper first, Deezer, VK, index
+            ytw_res = raw_results[0] if not isinstance(raw_results[0], Exception) else []
             dz_res = raw_results[1] if not isinstance(raw_results[1], Exception) else []
             vk_res = raw_results[2] if not isinstance(raw_results[2], Exception) else []
             idx_res = raw_results[3] if not isinstance(raw_results[3], Exception) else []
+
+            # Fallback to direct YouTube if wrapper returns nothing
+            yt_res = ytw_res
+            if not yt_res and youtube_extractor:
+                try:
+                    yt_res = await self._search_with_extractor(youtube_extractor, query, limit, "youtube")
+                    logger.info("Fell back to direct YouTube search")
+                except Exception as e:
+                    logger.debug(f"Direct YouTube fallback failed: {e}")
+
             logger.info(
                 "MusicBackend search results query=%s yt=%s dz=%s vk=%s idx=%s",
                 query,
@@ -465,7 +482,7 @@ class MusicBackend:
                 len(idx_res),
             )
 
-            # Define priority tiers - YouTube first, then Deezer, VK, then index
+            # Define priority tiers - YouTube (wrapper) first, then Deezer, VK, then index
             if config.PRIORITIZE_EXTRACTORS:
                 tiers = [yt_res, dz_res, vk_res, idx_res]
             else:
@@ -505,8 +522,14 @@ class MusicBackend:
             if indexed:
                 return indexed[:limit]
 
-        # Try YouTube first (primary), then Deezer, then VK as fallback
-        tracks = await self._search_with_extractor(youtube_extractor, query, limit, "youtube")
+        # Try YouTube Wrapper first (primary - avoids Heroku IP blocks)
+        tracks = await self._search_with_extractor(youtube_wrapper_extractor, query, limit, "youtube")
+
+        # Fallback to direct YouTube if wrapper fails and we're not on blocked IP
+        if not tracks and youtube_extractor:
+            tracks = await self._search_with_extractor(youtube_extractor, query, limit, "youtube")
+
+        # Then Deezer, then VK
         if not tracks:
             tracks = await self._search_with_extractor(deezer_extractor, query, limit, "deezer")
         if not tracks:

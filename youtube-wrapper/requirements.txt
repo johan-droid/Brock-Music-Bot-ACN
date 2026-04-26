@@ -1,0 +1,4 @@
+# Python dependencies for yt-dlp
+# This file is used by Render to install yt-dlp
+
+yt-dlp>=2024.1.1
