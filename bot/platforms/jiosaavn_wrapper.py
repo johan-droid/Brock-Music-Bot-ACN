@@ -41,13 +41,17 @@ class JioSaavnWrapperExtractor:
         url = f"{self.base_url}{endpoint}"
         try:
             async with aiohttp.ClientSession() as session:
-                async with session.get(url, params=params, timeout=aiohttp.ClientTimeout(total=15)) as resp:
+                # Increased timeout to 30s for Render free tier cold start
+                async with session.get(url, params=params, timeout=aiohttp.ClientTimeout(total=30)) as resp:
                     if resp.status == 200:
                         return await resp.json()
-                    logger.warning(f"JioSaavn wrapper returned {resp.status}")
+                    logger.warning(f"JioSaavn wrapper returned HTTP {resp.status} for {url}")
                     return None
+        except asyncio.TimeoutError:
+            logger.error(f"JioSaavn wrapper timeout (30s) - service may be waking up: {url}")
+            return None
         except Exception as e:
-            logger.error(f"JioSaavn wrapper request failed: {e}")
+            logger.error(f"JioSaavn wrapper request failed: {type(e).__name__}: {e}")
             return None
 
     async def search(self, query: str, limit: int = 10) -> List[Dict[str, Any]]:
