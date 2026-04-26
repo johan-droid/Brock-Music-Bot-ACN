@@ -182,14 +182,14 @@ class SourceRanker:
     """Compatibility ranking helper used by the selection logic in play.py."""
 
     _BASE_WEIGHTS = {
-        "jiosaavn": 1.0,     # JioSaavn - Indian music, no bot detection via wrapper
-        "youtube": 0.99,     # YouTube - has bot detection issues on Heroku
-        "vk": 0.98,
-        "deezer": 0.96,
-        "global_index": 0.95,
-        "telegram": 0.4,
-        "unknown": 0.3,
-        "direct": 0.5,
+        "jiosaavn": 1.0,     # JioSaavn - BEST (lowest score = best rank)
+        "vk": 1.2,
+        "deezer": 1.3,
+        "global_index": 1.4,
+        "youtube": 2.0,      # YouTube - DEPRIORITIZED (high score = worst rank due to bot detection)
+        "telegram": 2.5,
+        "direct": 2.5,
+        "unknown": 3.0,
     }
     _health: Dict[str, Dict[str, int]] = {}
 
