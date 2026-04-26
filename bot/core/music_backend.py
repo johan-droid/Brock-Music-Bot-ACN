@@ -6,14 +6,18 @@ from typing import Any, Dict, List, Optional
 
 import bot.utils.database as database_module
 
+logger = logging.getLogger(__name__)
+
 try:
     from bot.platforms.vk import vk_extractor
-except Exception:
+except Exception as e:
+    logger.error(f"Failed to load VK extractor: {e}")
     vk_extractor = None
 
 try:
     from bot.platforms.deezer import deezer_extractor
-except Exception:
+except Exception as e:
+    logger.error(f"Failed to load Deezer extractor: {e}")
     deezer_extractor = None
 
 # Limit the number of concurrent Supabase save requests
@@ -22,8 +26,6 @@ _save_semaphore = asyncio.Semaphore(5)
 _background_tasks: set = set()
 # Max number of pending background tasks before we start dropping them
 _MAX_BACKGROUND_TASKS = 25
-
-logger = logging.getLogger(__name__)
 
 
 def _background_task_done(task: asyncio.Task) -> None:
