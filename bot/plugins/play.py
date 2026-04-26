@@ -521,6 +521,7 @@ async def start_playback(chat_id: int, prefetched_track: Optional[Dict[str, Any]
             source=track.get("source", "unknown"),
             track_id=track.get("id")
         ))
+        logger.info(f"DEBUG play.py: stream_payload exists={stream_payload is not None}, url={stream_payload.get('url') if stream_payload else None}")
 
         if stream_payload and stream_payload.get("url"):
             url = stream_payload["url"]
