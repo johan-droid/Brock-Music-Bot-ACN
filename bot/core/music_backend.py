@@ -38,6 +38,12 @@ except Exception as e:
     logger.error(f"Failed to load JioSaavn extractor: {e}")
     jiosaavn_extractor = None
 
+try:
+    from bot.platforms.jiosaavn_wrapper import jiosaavn_wrapper_extractor
+except Exception as e:
+    logger.error(f"Failed to load JioSaavn wrapper extractor: {e}")
+    jiosaavn_wrapper_extractor = None
+
 # Limit the number of concurrent Supabase save requests
 _save_semaphore = asyncio.Semaphore(5)
 # Keep references to background tasks so they are not garbage-collected
@@ -248,11 +254,13 @@ class MusicBackend:
     async def init(self):
         self._index_misses = 0
         self._index_skip_until = 0.0
-        logger.info("MusicBackend initialized (YouTube Wrapper Primary + JioSaavn Indian + Fallback Chain)")
+        logger.info("MusicBackend initialized (YouTube + JioSaavn Wrapper + Fallback Chain)")
         if not youtube_wrapper_extractor:
             logger.warning("YouTube wrapper not available - falling back to direct YouTube (may fail on Heroku)")
+        if not jiosaavn_wrapper_extractor:
+            logger.warning("JioSaavn wrapper not available - set JIOSAAVN_API_BASE_URL for Indian music")
         if not jiosaavn_extractor:
-            logger.info("JioSaavn extractor not available (Indian music)")
+            logger.info("JioSaavn direct extractor not available")
         if not deezer_extractor:
             logger.info("Deezer extractor not available")
         if not vk_extractor:
@@ -457,10 +465,10 @@ class MusicBackend:
         # YouTube is primary, then Deezer, VK as fallback, index as last resort
         if config.PARALLEL_SEARCH:
             logger.info("MusicBackend search starting: query=%s limit=%s", query, limit)
-            # YouTube Wrapper primary, JioSaavn (Indian), Deezer, VK, index
+            # YouTube Wrapper primary, JioSaavn Wrapper (Indian), Deezer, VK, index
             tasks = [
                 self._search_with_extractor(youtube_wrapper_extractor, query, limit, "youtube"),
-                self._search_with_extractor(jiosaavn_extractor, query, limit, "jiosaavn"),
+                self._search_with_extractor(jiosaavn_wrapper_extractor, query, limit, "jiosaavn"),
                 self._search_with_extractor(deezer_extractor, query, limit, "deezer"),
                 self._search_with_extractor(vk_extractor, query, limit, "vk"),
                 self._search_index(query, limit),
@@ -468,12 +476,21 @@ class MusicBackend:
 
             raw_results = await asyncio.gather(*tasks, return_exceptions=True)
 
-            # Safely unpack results - YouTube, JioSaavn, Deezer, VK, index
+            # Safely unpack results - YouTube, JioSaavn Wrapper, Deezer, VK, index
             ytw_res = raw_results[0] if not isinstance(raw_results[0], Exception) else []
-            js_res = raw_results[1] if not isinstance(raw_results[1], Exception) else []
+            jsw_res = raw_results[1] if not isinstance(raw_results[1], Exception) else []
             dz_res = raw_results[2] if not isinstance(raw_results[2], Exception) else []
             vk_res = raw_results[3] if not isinstance(raw_results[3], Exception) else []
             idx_res = raw_results[4] if not isinstance(raw_results[4], Exception) else []
+
+            # Fallback to direct JioSaavn if wrapper returns nothing
+            js_res = jsw_res
+            if not js_res and jiosaavn_extractor:
+                try:
+                    js_res = await self._search_with_extractor(jiosaavn_extractor, query, limit, "jiosaavn")
+                    logger.info("Fell back to direct JioSaavn search")
+                except Exception as e:
+                    logger.debug(f"Direct JioSaavn fallback failed: {e}")
 
             # Fallback to direct YouTube if wrapper returns nothing
             yt_res = ytw_res
@@ -541,9 +558,15 @@ class MusicBackend:
         if not tracks and youtube_extractor:
             tracks = await self._search_with_extractor(youtube_extractor, query, limit, "youtube")
 
-        # Then JioSaavn (Indian music), Deezer, VK
+        # Then JioSaavn Wrapper (Indian music via Render)
         if not tracks:
+            tracks = await self._search_with_extractor(jiosaavn_wrapper_extractor, query, limit, "jiosaavn")
+
+        # Fallback to direct JioSaavn if wrapper fails
+        if not tracks and jiosaavn_extractor:
             tracks = await self._search_with_extractor(jiosaavn_extractor, query, limit, "jiosaavn")
+
+        # Then Deezer, VK
         if not tracks:
             tracks = await self._search_with_extractor(deezer_extractor, query, limit, "deezer")
         if not tracks:
