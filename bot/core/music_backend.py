@@ -72,7 +72,7 @@ _UNSUPPORTED_PAGE_DOMAINS = (
     "youtu.be",
     "spotify.com",
     "soundcloud.com",
-    "jiosaavn.com",
+    # "jiosaavn.com",  # Removed - we have working JioSaavn wrapper with stream extraction
     "audiomack.com",
 )
 
@@ -674,8 +674,8 @@ class MusicBackend:
 
     def _build_payload(self, track: Track, resolved: Optional[Dict[str, Any]] = None, source: Optional[str] = None) -> Dict[str, Any]:
         data = resolved or {}
-        logger.info(f"DEBUG _build_payload: data.url={bool(data.get('url'))}, data.stream_url={bool(data.get('stream_url'))}, track.stream_url={bool(track.stream_url)}")
-        stream_url = _normalize_url_text(data.get("url") or data.get("stream_url") or track.stream_url or "")
+        # PRIORITIZE stream_url over url (url is often a web page, stream_url is the actual audio)
+        stream_url = _normalize_url_text(data.get("stream_url") or data.get("url") or track.stream_url or "")
         resolved_source = _normalize_source(data.get("source") or source or track.source or "unknown")
 
         if not stream_url:
