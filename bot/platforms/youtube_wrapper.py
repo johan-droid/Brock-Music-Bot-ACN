@@ -197,7 +197,7 @@ class YouTubeWrapperExtractor:
             return None
 
         endpoint = f"{self.base_url}/track/{video_id}"
-        timeout = aiohttp.ClientTimeout(total=self.timeout)
+        timeout = aiohttp.ClientTimeout(total=self._get_timeout())
 
         try:
             async with aiohttp.ClientSession(timeout=timeout) as session:
