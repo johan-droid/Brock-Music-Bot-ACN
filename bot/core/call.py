@@ -383,14 +383,15 @@ class CallManager:
                                     "jsondecodeerror" in inner_str
                                     or "processlookuperror" in inner_str
                                     or inner_exc_type in ("JSONDecodeError", "ProcessLookupError")
+                                    or "could not parse url" in inner_str
                                 ):
                                     logger.warning(
                                         f"Stream validation failed (FFprobe could not parse URL). "
                                         f"The stream URL may be invalid or require authentication: {stream_url[:60]}..."
                                     )
+                                    # Don't raise here - let the caller handle fallback to alternative sources
                                     raise RuntimeError(
-                                        "Failed to validate audio stream. The URL from the provider "
-                                        "may be expired or require authentication. Please try again or use a different source."
+                                        "STREAM_VALIDATION_FAILED"
                                     ) from inner_exc
 
                                 if (
