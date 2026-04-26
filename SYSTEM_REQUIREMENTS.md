@@ -1,5 +1,59 @@
 # System Requirements
 
+## External API Microservice (CRITICAL)
+
+The bot **requires an external API microservice** for VK and Deezer music extraction. The bot itself does NOT extract music natively - it delegates this to a separate service.
+
+### VK/Deezer API Setup
+
+The bot makes HTTP requests to an external API to:
+1. Search for tracks (GET /search)
+2. Resolve track IDs to direct stream URLs (POST /resolve)
+
+**Required Environment Variables:**
+```bash
+# VK API Configuration
+VK_API_BASE_URL=https://your-api-service.com    # URL of your API microservice
+VK_API_TOKEN=your_token_here                      # Optional: if API requires auth
+VK_SEARCH_PATH=/search                           # API search endpoint path
+VK_RESOLVE_PATH=/resolve                         # API resolve endpoint path
+VK_TOKEN_HEADER=Authorization                    # Header name for token
+
+# Deezer Configuration
+DEEZER_API_BASE_URL=https://api.deezer.com      # Default Deezer public API
+DEEZER_TOKENS=token1,token2,token3              # Optional: for rate limit rotation
+```
+
+**If VK_API_BASE_URL is empty:**
+- VK search returns empty results immediately
+- VK track extraction fails silently
+- The bot falls back to other music sources (if configured)
+
+### Setting Up the API Microservice
+
+You need to deploy or host a separate service that:
+1. Accepts search queries and returns track metadata
+2. Accepts track IDs and returns direct HTTP stream URLs (NOT vk:// pseudo-URLs)
+3. Returns URLs that FFmpeg can actually play (http:// or https://)
+
+**Example API Response Format:**
+```json
+{
+  "items": [
+    {
+      "id": "12345",
+      "title": "Song Name",
+      "artist": "Artist Name",
+      "duration": 180,
+      "stream_url": "https://actual-cdn.com/file.mp3",
+      "thumbnail": "https://cdn.com/cover.jpg"
+    }
+  ]
+}
+```
+
+**Important:** The API must return real HTTP/HTTPS URLs. Do NOT return vk:// or deezer:// pseudo-protocols - FFmpeg cannot read these and will crash.
+
 ## Required System Dependencies
 
 ### FFmpeg (CRITICAL)
@@ -101,6 +155,17 @@ Choose one of the following:
 
 ## Troubleshooting
 
+### VK/Deezer Search Returns Empty Results
+- **Check VK_API_BASE_URL is set** - If empty, VK extractor immediately returns []
+- **Verify API microservice is running** - The bot delegates extraction to external API
+- **Check API token** - If API requires auth, set VK_API_TOKEN correctly
+- **Check logs** - Look for "Failed to load VK extractor" errors
+
+### "Invalid stream URL" Error / FFmpeg Crashes
+- **Ensure API returns HTTP/HTTPS URLs** - vk:// and deezer:// are NOT valid for FFmpeg
+- **Check URL validation** - Only http:// and https:// are allowed (configured in call.py)
+- **Verify FFmpeg is installed** - Run `ffmpeg -version` on the server
+
 ### "No active Voice Chat was found" Error
 - Ensure the Assistant userbot is an admin with "Manage Video Chats" permission
 - The bot cannot create voice chats without this permission
@@ -111,5 +176,6 @@ Choose one of the following:
 - Ensure stream URLs are valid HTTP/HTTPS (not vk:// or deezer:// pseudo-protocols)
 
 ### Extractors failing to load
-- Check logs for missing dependencies (yt-dlp is now included in requirements.txt)
-- Run `pip install -r requirements.txt` to ensure all packages are installed
+- Check logs for "Failed to load VK extractor: ..." or "Failed to load Deezer extractor: ..."
+- Ensure all dependencies are installed: `pip install -r requirements.txt`
+- yt-dlp is now included in requirements.txt for media extraction
