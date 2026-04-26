@@ -186,9 +186,8 @@ def _rank_candidates_for_selection(query: str, candidates: list) -> list:
         # Get dynamic source priority (lower = better)
         source_priority = SourceRanker.get_source_priority(source, query)
         
-        # DEBUG: Log source priority calculation
-        if idx < 3:  # Only log first 3 for brevity
-            logger.info(f"  DEBUG: source={source}, priority={source_priority}, sim={sim:.2f}")
+        # DEBUG: Log source priority calculation for ALL candidates
+        logger.info(f"  DEBUG #{idx}: source={source}, priority={source_priority}, sim={sim:.2f}, title={title[:30]}")
         
         # Combined score: (98% source priority, 1.5% similarity, 0.5% quality)
         # Lower score = better ranking
