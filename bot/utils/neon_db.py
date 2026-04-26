@@ -91,6 +91,26 @@ class NeonDatabase:
                         played_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                     )
                 """)
+
+                # Global bans table
+                cur.execute("""
+                    CREATE TABLE IF NOT EXISTS gbanned (
+                        id BIGINT PRIMARY KEY,
+                        reason TEXT,
+                        banned_by BIGINT,
+                        banned_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    )
+                """)
+
+                # Sudo users table
+                cur.execute("""
+                    CREATE TABLE IF NOT EXISTS sudo_users (
+                        id BIGINT PRIMARY KEY,
+                        name TEXT,
+                        added_by BIGINT,
+                        added_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    )
+                """)
                 
                 # Create indexes
                 cur.execute("""
@@ -314,6 +334,26 @@ class NeonDatabase:
                 return True
         except Exception as e:
             logger.error(f"Neon health check failed: {e}")
+            return False
+
+    async def is_gbanned(self, user_id: int) -> bool:
+        """Check if user is globally banned."""
+        try:
+            with self.conn.cursor() as cur:
+                cur.execute("SELECT 1 FROM gbanned WHERE id = %s", (user_id,))
+                return cur.fetchone() is not None
+        except Exception as e:
+            logger.debug(f"is_gbanned check error: {e}")
+            return False
+
+    async def is_sudo(self, user_id: int) -> bool:
+        """Check if user is sudo."""
+        try:
+            with self.conn.cursor() as cur:
+                cur.execute("SELECT 1 FROM sudo_users WHERE id = %s", (user_id,))
+                return cur.fetchone() is not None
+        except Exception as e:
+            logger.debug(f"is_sudo check error: {e}")
             return False
 
 
