@@ -167,7 +167,7 @@ class SupabaseToNeonMigrator:
         
         try:
             # Fetch all tracks from Supabase
-            response = self.supabase.table('music_index').select('*').execute()
+            response = self.supabase.table('global_music_index').select('*').execute()
             tracks = response.data
             
             if not tracks:
