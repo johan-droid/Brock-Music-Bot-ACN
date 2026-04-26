@@ -674,6 +674,7 @@ class MusicBackend:
 
     def _build_payload(self, track: Track, resolved: Optional[Dict[str, Any]] = None, source: Optional[str] = None) -> Dict[str, Any]:
         data = resolved or {}
+        logger.info(f"DEBUG _build_payload: data.url={bool(data.get('url'))}, data.stream_url={bool(data.get('stream_url'))}, track.stream_url={bool(track.stream_url)}")
         stream_url = _normalize_url_text(data.get("url") or data.get("stream_url") or track.stream_url or "")
         resolved_source = _normalize_source(data.get("source") or source or track.source or "unknown")
 
@@ -725,6 +726,8 @@ class MusicBackend:
                 try:
                     resolved = await jiosaavn_wrapper_extractor.extract(track.track_id)
                     logger.info(f"DEBUG: JioSaavn extract returned: {resolved is not None}")
+                    if resolved:
+                        logger.info(f"DEBUG: resolved keys={list(resolved.keys())}, stream_url={bool(resolved.get('stream_url'))}, url={bool(resolved.get('url'))}")
                 except Exception as exc:
                     logger.warning("JioSaavn resolve failed for %r: %s", track.title, exc)
             else:
