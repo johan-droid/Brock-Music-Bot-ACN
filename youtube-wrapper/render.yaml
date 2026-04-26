@@ -1,0 +1,12 @@
+services:
+  - type: web
+    name: youtube-music-wrapper
+    runtime: node
+    buildCommand: npm install && pip install -r requirements.txt
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+    plan: free
