@@ -219,18 +219,21 @@ def calculate_track_quality(track: Track) -> float:
 
 class MusicBackend:
     """
-    VK and Deezer aggregator with Supabase cache support.
-    Search order: Supabase index -> VK -> Deezer.
+    Deezer and VK music aggregator with database cache support.
+    Search order: Deezer -> VK -> Database Index (when PRIORITIZE_EXTRACTORS=True)
+                  Database Index -> Deezer -> VK (when PRIORITIZE_EXTRACTORS=False)
+    Deezer is the primary source; VK is the fallback.
+    Works without API tokens - just requires DEEZER_API_BASE_URL.
     """
 
     async def init(self):
         self._index_misses = 0
         self._index_skip_until = 0.0
-        logger.info("MusicBackend initialized (VK + Deezer priority + Index Circuit Breaker)")
-        if not vk_extractor:
-            logger.warning("VK extractor not available")
+        logger.info("MusicBackend initialized (Deezer Primary + VK Fallback + Index Circuit Breaker)")
         if not deezer_extractor:
-            logger.warning("Deezer extractor not available")
+            logger.warning("Deezer extractor not available - music search will be limited")
+        if not vk_extractor:
+            logger.warning("VK extractor not available - no fallback for Deezer failures")
 
     async def close(self):
         return None
@@ -428,20 +431,21 @@ class MusicBackend:
         from config import config
 
         # 1. Parallel Search Path (optimized for Heroku/Production)
+        # Deezer is primary, VK is fallback, index is last resort
         if config.PARALLEL_SEARCH:
             logger.info("MusicBackend search starting: query=%s limit=%s", query, limit)
             tasks = [
-                self._search_index(query, limit),
-                self._search_with_extractor(vk_extractor, query, limit, "vk"),
                 self._search_with_extractor(deezer_extractor, query, limit, "deezer"),
+                self._search_with_extractor(vk_extractor, query, limit, "vk"),
+                self._search_index(query, limit),
             ]
             
             raw_results = await asyncio.gather(*tasks, return_exceptions=True)
             
-            # Safely unpack results
-            idx_res = raw_results[0] if not isinstance(raw_results[0], Exception) else []
+            # Safely unpack results - Deezer first, VK second, index third
+            dz_res = raw_results[0] if not isinstance(raw_results[0], Exception) else []
             vk_res = raw_results[1] if not isinstance(raw_results[1], Exception) else []
-            dz_res = raw_results[2] if not isinstance(raw_results[2], Exception) else []
+            idx_res = raw_results[2] if not isinstance(raw_results[2], Exception) else []
             logger.info(
                 "MusicBackend search results query=%s idx=%s vk=%s deezer=%s",
                 query,
@@ -450,11 +454,11 @@ class MusicBackend:
                 len(dz_res),
             )
             
-            # Define priority tiers
+            # Define priority tiers - Deezer first, then VK, then index
             if config.PRIORITIZE_EXTRACTORS:
-                tiers = [vk_res, dz_res, idx_res]
+                tiers = [dz_res, vk_res, idx_res]
             else:
-                tiers = [idx_res, vk_res, dz_res]
+                tiers = [idx_res, dz_res, vk_res]
             
             combined: List[Track] = []
             seen: set[str] = set()
@@ -489,9 +493,10 @@ class MusicBackend:
             if indexed:
                 return indexed[:limit]
 
-        tracks = await self._search_with_extractor(vk_extractor, query, limit, "vk")
+        # Try Deezer first (primary), then VK as fallback
+        tracks = await self._search_with_extractor(deezer_extractor, query, limit, "deezer")
         if not tracks:
-            tracks = await self._search_with_extractor(deezer_extractor, query, limit, "deezer")
+            tracks = await self._search_with_extractor(vk_extractor, query, limit, "vk")
 
         # If prioritize was off, we already checked index. If it was on, we check it now as fallback.
         if not tracks and config.PRIORITIZE_EXTRACTORS:
