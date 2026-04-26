@@ -39,7 +39,7 @@ python-dotenv==1.0.1
 psutil==6.1.1
 
 # Media Extraction
-yt-dlp==2025.2.28
+yt-dlp==2025.12.26
 
 # Additional utilities
 httpx==0.28.1
