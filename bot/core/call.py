@@ -376,6 +376,23 @@ class CallManager:
                             except Exception as inner_exc:
                                 join_err = inner_exc
                                 inner_str = str(inner_exc).lower()
+                                inner_exc_type = type(inner_exc).__name__
+
+                                # Handle FFprobe/stream validation failures
+                                if (
+                                    "jsondecodeerror" in inner_str
+                                    or "processlookuperror" in inner_str
+                                    or inner_exc_type in ("JSONDecodeError", "ProcessLookupError")
+                                ):
+                                    logger.warning(
+                                        f"Stream validation failed (FFprobe could not parse URL). "
+                                        f"The stream URL may be invalid or require authentication: {stream_url[:60]}..."
+                                    )
+                                    raise RuntimeError(
+                                        "Failed to validate audio stream. The URL from the provider "
+                                        "may be expired or require authentication. Please try again or use a different source."
+                                    ) from inner_exc
+
                                 if (
                                     "groupcall_invalid" in inner_str
                                     or "group call invalid" in inner_str
