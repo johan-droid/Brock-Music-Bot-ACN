@@ -186,8 +186,6 @@ def _rank_candidates_for_selection(query: str, candidates: list) -> list:
         # Get dynamic source priority (lower = better)
         source_priority = SourceRanker.get_source_priority(source, query)
         
-        # DEBUG: Log source priority calculation for ALL candidates
-        logger.info(f"  DEBUG #{idx}: source={source}, priority={source_priority}, sim={sim:.2f}, title={title[:30]}")
         
         # Combined score: (98% source priority, 1.5% similarity, 0.5% quality)
         # Lower score = better ranking
@@ -521,8 +519,6 @@ async def start_playback(chat_id: int, prefetched_track: Optional[Dict[str, Any]
             source=track.get("source", "unknown"),
             track_id=track.get("id")
         ))
-        logger.info(f"DEBUG play.py: stream_payload exists={stream_payload is not None}, url={stream_payload.get('url') if stream_payload else None}")
-
         if stream_payload and stream_payload.get("url"):
             url = stream_payload["url"]
             effective_source = stream_payload.get("source", track.get("source", "unknown"))

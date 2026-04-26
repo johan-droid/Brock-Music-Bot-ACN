@@ -721,19 +721,11 @@ class MusicBackend:
             except Exception as exc:
                 logger.warning("Deezer resolve failed for %r: %s", track.title, exc)
 
-        elif source == "jiosaavn":
-            logger.info(f"DEBUG: Attempting JioSaavn extraction for {track.title}, track_id={track.track_id}")
-            logger.info(f"DEBUG: jiosaavn_wrapper_extractor={jiosaavn_wrapper_extractor is not None}, has_extract={hasattr(jiosaavn_wrapper_extractor, 'extract') if jiosaavn_wrapper_extractor else False}")
-            if jiosaavn_wrapper_extractor and hasattr(jiosaavn_wrapper_extractor, "extract"):
-                try:
-                    resolved = await jiosaavn_wrapper_extractor.extract(track.track_id)
-                    logger.info(f"DEBUG: JioSaavn extract returned: {resolved is not None}")
-                    if resolved:
-                        logger.info(f"DEBUG: resolved keys={list(resolved.keys())}, stream_url={bool(resolved.get('stream_url'))}, url={bool(resolved.get('url'))}")
-                except Exception as exc:
-                    logger.warning("JioSaavn resolve failed for %r: %s", track.title, exc)
-            else:
-                logger.warning(f"DEBUG: JioSaavn extractor not available")
+        elif source == "jiosaavn" and jiosaavn_wrapper_extractor and hasattr(jiosaavn_wrapper_extractor, "extract"):
+            try:
+                resolved = await jiosaavn_wrapper_extractor.extract(track.track_id)
+            except Exception as exc:
+                logger.warning("JioSaavn resolve failed for %r: %s", track.title, exc)
 
         if resolved:
             payload = self._build_payload(track, resolved, source)
