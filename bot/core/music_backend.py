@@ -346,13 +346,15 @@ class MusicBackend:
             elif source == "deezer":
                 stream_url = f"deezer://{track_id}"
 
-        if not stream_url:
+        # Allow tracks without stream_url for sources that support extraction by ID
+        if not stream_url and source not in {"youtube", "jiosaavn"}:
             return None
 
         if source == "unsupported":
             return None
 
-        if source not in {"vk", "deezer", "telegram", "direct", "unknown"}:
+        # Whitelist known sources to preserve their identity
+        if source not in {"youtube", "jiosaavn", "vk", "deezer", "telegram", "direct", "unknown"}:
             source = _infer_source_from_url(stream_url)
 
         if source == "unsupported":
@@ -704,6 +706,12 @@ class MusicBackend:
                 resolved = await deezer_extractor.extract(candidate)
             except Exception as exc:
                 logger.warning("Deezer resolve failed for %r: %s", track.title, exc)
+
+        elif source == "jiosaavn" and jiosaavn_wrapper_extractor and hasattr(jiosaavn_wrapper_extractor, "extract"):
+            try:
+                resolved = await jiosaavn_wrapper_extractor.extract(track.track_id)
+            except Exception as exc:
+                logger.warning("JioSaavn resolve failed for %r: %s", track.title, exc)
 
         if resolved:
             payload = self._build_payload(track, resolved, source)
