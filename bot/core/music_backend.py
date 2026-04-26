@@ -182,8 +182,8 @@ class SourceRanker:
     """Compatibility ranking helper used by the selection logic in play.py."""
 
     _BASE_WEIGHTS = {
-        "youtube": 1.0,      # YouTube - highest priority, works globally
-        "jiosaavn": 0.99,    # JioSaavn - Indian music specialist
+        "jiosaavn": 1.0,     # JioSaavn - Indian music, no bot detection via wrapper
+        "youtube": 0.99,     # YouTube - has bot detection issues on Heroku
         "vk": 0.98,
         "deezer": 0.96,
         "global_index": 0.95,
