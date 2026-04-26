@@ -483,6 +483,14 @@ class MusicBackend:
             vk_res = raw_results[3] if not isinstance(raw_results[3], Exception) else []
             idx_res = raw_results[4] if not isinstance(raw_results[4], Exception) else []
 
+            # Log wrapper status for debugging
+            if isinstance(raw_results[1], Exception):
+                logger.warning(f"JioSaavn wrapper failed: {raw_results[1]}")
+            elif not jsw_res:
+                logger.debug("JioSaavn wrapper returned no results")
+            if not jiosaavn_wrapper_extractor or not jiosaavn_wrapper_extractor.enabled:
+                logger.warning("JioSaavn wrapper not enabled - set JIOSAAVN_API_BASE_URL env var")
+
             # Fallback to direct JioSaavn if wrapper returns nothing
             js_res = jsw_res
             if not js_res and jiosaavn_extractor:
