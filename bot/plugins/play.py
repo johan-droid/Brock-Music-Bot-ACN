@@ -186,12 +186,13 @@ def _rank_candidates_for_selection(query: str, candidates: list) -> list:
         # Get dynamic source priority (lower = better)
         source_priority = SourceRanker.get_source_priority(source, query)
         
-        # Combined score: (30% source priority, 50% similarity, 20% quality)
+        # Combined score: (60% source priority, 25% similarity, 15% quality)
         # Lower score = better ranking
+        # Prioritize reliable sources (JioSaavn > YouTube for Indian music)
         combined_score = (
-            source_priority * 0.3 +  # Source reliability and query-type fit
-            (1.0 - sim) * 50 +       # Similarity penalty (convert to comparable scale)
-            (2.0 - quality) * 10     # Quality penalty (max quality is 2.0)
+            source_priority * 0.6 +  # Source reliability (JioSaavn 1.0 vs YouTube 0.99)
+            (1.0 - sim) * 25 +       # Similarity penalty (reduced weight)
+            (2.0 - quality) * 7.5    # Quality penalty (reduced weight)
         )
 
         scored.append((
