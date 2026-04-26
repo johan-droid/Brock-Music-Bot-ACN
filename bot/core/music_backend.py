@@ -20,6 +20,12 @@ except Exception as e:
     logger.error(f"Failed to load Deezer extractor: {e}")
     deezer_extractor = None
 
+try:
+    from bot.platforms.youtube import youtube_extractor
+except Exception as e:
+    logger.error(f"Failed to load YouTube extractor: {e}")
+    youtube_extractor = None
+
 # Limit the number of concurrent Supabase save requests
 _save_semaphore = asyncio.Semaphore(5)
 # Keep references to background tasks so they are not garbage-collected
@@ -158,8 +164,9 @@ class SourceRanker:
     """Compatibility ranking helper used by the selection logic in play.py."""
 
     _BASE_WEIGHTS = {
-        "vk": 1.0,
-        "deezer": 0.98,
+        "youtube": 1.0,  # YouTube Music - highest priority, works globally
+        "vk": 0.98,
+        "deezer": 0.96,
         "global_index": 0.95,
         "telegram": 0.4,
         "unknown": 0.3,
@@ -219,21 +226,22 @@ def calculate_track_quality(track: Track) -> float:
 
 class MusicBackend:
     """
-    Deezer and VK music aggregator with database cache support.
-    Search order: Deezer -> VK -> Database Index (when PRIORITIZE_EXTRACTORS=True)
-                  Database Index -> Deezer -> VK (when PRIORITIZE_EXTRACTORS=False)
-    Deezer is the primary source; VK is the fallback.
-    Works without API tokens - just requires DEEZER_API_BASE_URL.
+    YouTube Music primary extractor with VK/Deezer fallback and database cache.
+    Search order: YouTube -> Deezer -> VK -> Database Index (when PRIORITIZE_EXTRACTORS=True)
+                  Database Index -> YouTube -> Deezer -> VK (when PRIORITIZE_EXTRACTORS=False)
+    YouTube Music works globally without geo-blocking; no API tokens needed.
     """
 
     async def init(self):
         self._index_misses = 0
         self._index_skip_until = 0.0
-        logger.info("MusicBackend initialized (Deezer Primary + VK Fallback + Index Circuit Breaker)")
+        logger.info("MusicBackend initialized (YouTube Primary + Deezer/VK Fallback + Index Circuit Breaker)")
+        if not youtube_extractor:
+            logger.warning("YouTube extractor not available - music search will be limited")
         if not deezer_extractor:
-            logger.warning("Deezer extractor not available - music search will be limited")
+            logger.info("Deezer extractor not available - will use YouTube/VK")
         if not vk_extractor:
-            logger.warning("VK extractor not available - no fallback for Deezer failures")
+            logger.info("VK extractor not available - will use YouTube/Deezer")
 
     async def close(self):
         return None
@@ -431,34 +439,37 @@ class MusicBackend:
         from config import config
 
         # 1. Parallel Search Path (optimized for Heroku/Production)
-        # Deezer is primary, VK is fallback, index is last resort
+        # YouTube is primary, then Deezer, VK as fallback, index as last resort
         if config.PARALLEL_SEARCH:
             logger.info("MusicBackend search starting: query=%s limit=%s", query, limit)
             tasks = [
+                self._search_with_extractor(youtube_extractor, query, limit, "youtube"),
                 self._search_with_extractor(deezer_extractor, query, limit, "deezer"),
                 self._search_with_extractor(vk_extractor, query, limit, "vk"),
                 self._search_index(query, limit),
             ]
-            
+
             raw_results = await asyncio.gather(*tasks, return_exceptions=True)
-            
-            # Safely unpack results - Deezer first, VK second, index third
-            dz_res = raw_results[0] if not isinstance(raw_results[0], Exception) else []
-            vk_res = raw_results[1] if not isinstance(raw_results[1], Exception) else []
-            idx_res = raw_results[2] if not isinstance(raw_results[2], Exception) else []
+
+            # Safely unpack results - YouTube first, Deezer second, VK third, index fourth
+            yt_res = raw_results[0] if not isinstance(raw_results[0], Exception) else []
+            dz_res = raw_results[1] if not isinstance(raw_results[1], Exception) else []
+            vk_res = raw_results[2] if not isinstance(raw_results[2], Exception) else []
+            idx_res = raw_results[3] if not isinstance(raw_results[3], Exception) else []
             logger.info(
-                "MusicBackend search results query=%s idx=%s vk=%s deezer=%s",
+                "MusicBackend search results query=%s yt=%s dz=%s vk=%s idx=%s",
                 query,
-                len(idx_res),
-                len(vk_res),
+                len(yt_res),
                 len(dz_res),
+                len(vk_res),
+                len(idx_res),
             )
-            
-            # Define priority tiers - Deezer first, then VK, then index
+
+            # Define priority tiers - YouTube first, then Deezer, VK, then index
             if config.PRIORITIZE_EXTRACTORS:
-                tiers = [dz_res, vk_res, idx_res]
+                tiers = [yt_res, dz_res, vk_res, idx_res]
             else:
-                tiers = [idx_res, dz_res, vk_res]
+                tiers = [idx_res, yt_res, dz_res, vk_res]
             
             combined: List[Track] = []
             seen: set[str] = set()
@@ -475,8 +486,9 @@ class MusicBackend:
                     break
             
             # Schedule background caching for new extractor hits
-            if not idx_res and (vk_res or dz_res):
-                new_tracks = vk_res or dz_res
+            if not idx_res and (yt_res or dz_res or vk_res):
+                # Prefer YouTube results for caching, then Deezer, then VK
+                new_tracks = yt_res or dz_res or vk_res
                 if len(_background_tasks) < _MAX_BACKGROUND_TASKS:
                     try:
                         task = asyncio.create_task(self._cache_to_index(query, new_tracks))
@@ -493,8 +505,10 @@ class MusicBackend:
             if indexed:
                 return indexed[:limit]
 
-        # Try Deezer first (primary), then VK as fallback
-        tracks = await self._search_with_extractor(deezer_extractor, query, limit, "deezer")
+        # Try YouTube first (primary), then Deezer, then VK as fallback
+        tracks = await self._search_with_extractor(youtube_extractor, query, limit, "youtube")
+        if not tracks:
+            tracks = await self._search_with_extractor(deezer_extractor, query, limit, "deezer")
         if not tracks:
             tracks = await self._search_with_extractor(vk_extractor, query, limit, "vk")
 
@@ -555,6 +569,13 @@ class MusicBackend:
 
     def get_source_headers(self, source: str) -> Optional[Dict[str, str]]:
         source_name = _normalize_source(source)
+        if source_name == "youtube":
+            return {
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+                "Accept": "*/*",
+                "Accept-Language": "en-US,en;q=0.9",
+                "Referer": "https://www.youtube.com/",
+            }
         if source_name == "deezer":
             return {
                 "User-Agent": "Mozilla/5.0",
