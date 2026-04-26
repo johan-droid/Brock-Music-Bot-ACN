@@ -41,6 +41,9 @@ psutil==6.1.1
 # Media Extraction
 yt-dlp==2024.12.26.232815.dev0
 
+# Neon Database (PostgreSQL)
+psycopg2-binary==2.9.10
+
 # Additional utilities
 httpx==0.28.1
 typing-extensions==4.12.2
