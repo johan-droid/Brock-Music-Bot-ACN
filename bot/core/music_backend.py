@@ -664,6 +664,10 @@ class MusicBackend:
                 "Accept-Language": "en-US,en;q=0.9",
                 "Referer": "https://www.jiosaavn.com/",
                 "Origin": "https://www.jiosaavn.com",
+                "Connection": "keep-alive",
+                "sec-ch-ua": '"Not_A Brand";v="8", "Chromium";v="120", "Google Chrome";v="120"',
+                "sec-ch-ua-mobile": "?0",
+                "sec-ch-ua-platform": '"Windows"',
             }
         if source_name == "deezer":
             return {
