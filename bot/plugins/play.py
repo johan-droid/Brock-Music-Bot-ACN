@@ -579,37 +579,77 @@ async def start_playback(chat_id: int, prefetched_track: Optional[Dict[str, Any]
         try:
             await call_manager.play(chat_id, url, video=is_video, headers=headers)
         except Exception as exc:
+            exc_str = str(exc)
             logger.warning(f"Playback failed on initial URL for '{track.get('title', 'unknown')}' in {chat_id}: {exc}")
 
-            # Retry with fallback resolver pipeline (try to re-resolve track URL to a fresh stream URL)
-            fallback_payload = await music_backend._resolve_fallback_payload(Track(
-                title=track.get("title", ""),
-                artist=track.get("uploader", ""),
-                duration=track.get("duration", 0),
-                stream_url=track.get("url", ""),
-                source=track.get("source", "unknown"),
-                track_id=track.get("id")
-            ))
-
-            fallback_url = (fallback_payload or {}).get("url")
-            if fallback_url and not _looks_like_supported_page_url(fallback_url):
-                fallback_headers = fallback_payload.get("headers")
-                fallback_source = fallback_payload.get("source")
-                if fallback_source:
-                    track["source"] = fallback_source
-
-                try:
-                    await call_manager.play(chat_id, fallback_url, video=is_video, headers=fallback_headers)
-                    logger.info(f"Fallback playback succeeded for '{track.get('title','unknown')}' in {chat_id}")
-                    # Update URL for tracking if needed
-                    url = fallback_url
-                    headers = fallback_headers
-                except Exception as exc2:
-                    logger.error(f"Fallback playback failed for '{track.get('title','unknown')}' in {chat_id}: {exc2}")
-                    raise
+            # If stream validation failed, try to find alternative source via search
+            if "STREAM_VALIDATION_FAILED" in exc_str or "could not parse" in exc_str.lower():
+                logger.info(f"Stream validation failed, searching for alternative source for '{track.get('title', 'unknown')}'...")
+                
+                # Search for the same song across all sources
+                search_query = track.get("title", "")
+                if track.get("uploader") and track.get("uploader") != "Unknown Artist":
+                    search_query += f" {track.get('uploader')}"
+                
+                alt_results = await music_backend.search(search_query, limit=5)
+                if alt_results:
+                    # Try each alternative result until one works
+                    for alt_track in alt_results:
+                        if alt_track.track_id == track.get("id") and alt_track.source == track.get("source"):
+                            continue  # Skip same track
+                        
+                        logger.info(f"Trying alternative: {alt_track.title} [{alt_track.source}]")
+                        alt_payload = await music_backend.get_stream_payload(alt_track)
+                        
+                        if alt_payload and alt_payload.get("url"):
+                            alt_url = alt_payload["url"]
+                            alt_headers = alt_payload.get("headers")
+                            alt_source = alt_payload.get("source", alt_track.source)
+                            
+                            try:
+                                await call_manager.play(chat_id, alt_url, video=is_video, headers=alt_headers)
+                                logger.info(f"Alternative playback succeeded: {alt_track.title} [{alt_source}]")
+                                url = alt_url
+                                headers = alt_headers
+                                track["source"] = alt_source
+                                break  # Success!
+                            except Exception as alt_exc:
+                                logger.warning(f"Alternative failed: {alt_exc}")
+                                continue
+                    else:
+                        logger.error(f"All alternative sources failed for '{track.get('title', 'unknown')}'")
+                        raise RuntimeError("Could not play this song from any available source. Please try a different song.")
+                else:
+                    raise RuntimeError("No alternative sources found for this song.")
             else:
-                logger.error(f"No fallback URL resolved for '{track.get('title','unknown')}' in {chat_id}")
-                raise
+                # Retry with fallback resolver pipeline for other errors
+                fallback_payload = await music_backend._resolve_fallback_payload(Track(
+                    title=track.get("title", ""),
+                    artist=track.get("uploader", ""),
+                    duration=track.get("duration", 0),
+                    stream_url=track.get("url", ""),
+                    source=track.get("source", "unknown"),
+                    track_id=track.get("id")
+                ))
+
+                fallback_url = (fallback_payload or {}).get("url")
+                if fallback_url and not _looks_like_supported_page_url(fallback_url):
+                    fallback_headers = fallback_payload.get("headers")
+                    fallback_source = fallback_payload.get("source")
+                    if fallback_source:
+                        track["source"] = fallback_source
+
+                    try:
+                        await call_manager.play(chat_id, fallback_url, video=is_video, headers=fallback_headers)
+                        logger.info(f"Fallback playback succeeded for '{track.get('title','unknown')}' in {chat_id}")
+                        url = fallback_url
+                        headers = fallback_headers
+                    except Exception as exc2:
+                        logger.error(f"Fallback playback failed for '{track.get('title','unknown')}' in {chat_id}: {exc2}")
+                        raise
+                else:
+                    logger.error(f"No fallback URL resolved for '{track.get('title','unknown')}' in {chat_id}")
+                    raise
 
         track["url"] = url
         track["source"] = track.get("source", effective_source) or effective_source
