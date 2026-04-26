@@ -182,11 +182,11 @@ class SourceRanker:
     """Compatibility ranking helper used by the selection logic in play.py."""
 
     _BASE_WEIGHTS = {
-        "jiosaavn": 1.0,     # JioSaavn - BEST (lowest score = best rank)
-        "vk": 1.2,
-        "deezer": 1.3,
-        "global_index": 1.4,
-        "youtube": 2.0,      # YouTube - DEPRIORITIZED (high score = worst rank due to bot detection)
+        "youtube": 1.0,      # YouTube - BEST (cookies working, no bot detection issues)
+        "jiosaavn": 1.2,     # JioSaavn - Good but preview URLs are geo-restricted
+        "vk": 1.3,
+        "deezer": 1.4,
+        "global_index": 1.5,
         "telegram": 2.5,
         "direct": 2.5,
         "unknown": 3.0,
@@ -532,11 +532,11 @@ class MusicBackend:
                 len(idx_res),
             )
 
-            # Define priority tiers - JioSaavn first (Indian music, no bot detection), then others
+            # Define priority tiers - YouTube first (cookies working, no bot detection), then others
             if config.PRIORITIZE_EXTRACTORS:
-                tiers = [js_res, dz_res, yt_res, vk_res, idx_res]  # JioSaavn prioritized over YouTube
+                tiers = [yt_res, js_res, dz_res, vk_res, idx_res]  # YouTube prioritized over JioSaavn
             else:
-                tiers = [idx_res, js_res, dz_res, yt_res, vk_res]
+                tiers = [idx_res, yt_res, js_res, dz_res, vk_res]
             
             combined: List[Track] = []
             seen: set[str] = set()
