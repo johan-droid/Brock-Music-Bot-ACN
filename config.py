@@ -70,6 +70,9 @@ class Config(BaseSettings):
     SUPABASE_URL: Optional[str] = None
     SUPABASE_KEY: Optional[str] = None
     
+    # Neon Database (alternative to Supabase/MongoDB)
+    NEON_DATABASE_URL: Optional[str] = None
+    
     # Genius (optional - for lyrics)
     GENIUS_TOKEN: Optional[str] = None
 

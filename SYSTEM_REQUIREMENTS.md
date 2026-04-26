@@ -146,12 +146,40 @@ To set permissions:
 
 ## Database Options
 
-Choose one of the following:
+Choose one of the following (priority order: Neon → Supabase → MongoDB → SQLite):
 
-1. **MongoDB** (Recommended) - Set `MONGO_URI`
-2. **Redis** - Set `REDIS_HOST`, `REDIS_PORT`, `REDIS_PASSWORD`
-3. **Supabase** - Set `SUPABASE_URL`, `SUPABASE_KEY`
-4. **SQLite** - Fallback option (no configuration needed)
+1. **Neon Database** (Recommended) - Serverless PostgreSQL
+   - Sign up at https://neon.tech (free tier available)
+   - Set `NEON_DATABASE_URL=postgresql://user:pass@host.neon.tech/db?sslmode=require`
+   - Fast, scalable, and serverless
+
+2. **Supabase** - PostgreSQL with additional features
+   - Set `SUPABASE_URL` and `SUPABASE_KEY`
+   - Good for storage bucket features
+
+3. **MongoDB** - Document database
+   - Set `MONGO_URI`
+   - Legacy support maintained
+
+4. **SQLite** - Zero-config local database
+   - Fallback when no external DB is configured
+   - Data stored in `./data/database.db`
+
+### Migrating from Supabase to Neon
+
+To migrate existing data:
+```bash
+# 1. Set both databases in .env
+SUPABASE_URL=your_supabase_url
+SUPABASE_KEY=your_supabase_key
+NEON_DATABASE_URL=your_neon_url
+
+# 2. Run the migration script
+python migrate_supabase_to_neon.py
+
+# 3. Update .env to remove Supabase
+# Comment out or delete SUPABASE_URL and SUPABASE_KEY
+```
 
 ## Troubleshooting
 
