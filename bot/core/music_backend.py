@@ -344,7 +344,13 @@ class MusicBackend:
 
         source = _normalize_source(item.get("source") or default_source or "unknown")
         track_id = item.get("id") or item.get("track_id") or item.get("vk_id") or item.get("deezer_id")
-        stream_url = _normalize_url_text(item.get("stream_url") or item.get("url") or item.get("play_url") or "")
+        # For sources with ID-based extraction (JioSaavn, YouTube), only use stream_url if available
+        # Don't fall back to 'url' (web page) as that breaks playback
+        if source in {"jiosaavn", "youtube"}:
+            stream_url = _normalize_url_text(item.get("stream_url") or "")
+        else:
+            stream_url = _normalize_url_text(item.get("stream_url") or item.get("url") or item.get("play_url") or "")
+        
         if not stream_url and track_id:
             if source == "vk":
                 stream_url = f"vk://{track_id}"
