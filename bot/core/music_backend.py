@@ -215,10 +215,15 @@ class SourceRanker:
     def get_source_priority(cls, source: str, query: str = "") -> int:
         _ = query
         source_name = _normalize_source(source)
+        # Lower base weight = better priority (JioSaavn 1.0 beats YouTube 2.0)
         base = cls._BASE_WEIGHTS.get(source_name, cls._BASE_WEIGHTS["unknown"])
         reliability = cls.get_reliability(source_name)
-        combined = (base * 0.75) + (reliability * 0.25)
-        return int((1.0 - combined) * 100)
+        # Combine base weight with reliability factor
+        # Reliability bonus: up to -0.25 reduction for perfect reliability
+        reliability_bonus = (1.0 - reliability) * 0.25
+        final_score = base - reliability_bonus
+        # Return score * 100 for integer precision (lower = better rank)
+        return int(final_score * 100)
 
 
 def calculate_track_quality(track: Track) -> float:
