@@ -727,6 +727,13 @@ class MusicBackend:
             except Exception as exc:
                 logger.warning("JioSaavn resolve failed for %r: %s", track.title, exc)
 
+        elif source == "youtube" and youtube_wrapper_extractor and hasattr(youtube_wrapper_extractor, "extract"):
+            try:
+                resolved = await youtube_wrapper_extractor.extract(track.track_id)
+                logger.info(f"DEBUG: YouTube extract for {track.title}: {resolved is not None}")
+            except Exception as exc:
+                logger.warning("YouTube resolve failed for %r: %s", track.title, exc)
+
         if resolved:
             payload = self._build_payload(track, resolved, source)
             if payload["url"] and not _looks_like_unsupported_page_url(payload["url"]):
