@@ -157,7 +157,7 @@ def _rank_candidates_for_selection(query: str, candidates: list) -> list:
     candidates_copy = list(candidates)
     scored = []
     
-    for cand in candidates_copy:
+    for idx, cand in enumerate(candidates_copy):
         # Get title and calculate similarity
         if hasattr(cand, "title"):
             title = getattr(cand, "title", "") or ""
@@ -185,6 +185,10 @@ def _rank_candidates_for_selection(query: str, candidates: list) -> list:
 
         # Get dynamic source priority (lower = better)
         source_priority = SourceRanker.get_source_priority(source, query)
+        
+        # DEBUG: Log source priority calculation
+        if idx < 3:  # Only log first 3 for brevity
+            logger.info(f"  DEBUG: source={source}, priority={source_priority}, sim={sim:.2f}")
         
         # Combined score: (98% source priority, 1.5% similarity, 0.5% quality)
         # Lower score = better ranking
