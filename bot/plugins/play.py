@@ -189,8 +189,8 @@ def _rank_candidates_for_selection(query: str, candidates: list) -> list:
         
         # Combined score: (98% source priority, 1.5% similarity, 0.5% quality)
         # Lower score = better ranking
-        # SOURCE IS KING - JioSaavn (score ~95) always beats YouTube (score ~195)
-        # Similarity max impact: 1.5 points vs source diff: 100 points
+        # SOURCE IS KING - YouTube (score ~100) beats JioSaavn (score ~120)
+        # YouTube prioritized with cookies working - no bot detection issues
         combined_score = (
             source_priority * 0.98 +  # Source (DOMINANT - 98% weight)
             (1.0 - sim) * 1.5 +       # Similarity (minimal - max 1.5 pts)
