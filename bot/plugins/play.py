@@ -186,16 +186,14 @@ def _rank_candidates_for_selection(query: str, candidates: list) -> list:
         # Get dynamic source priority (lower = better)
         source_priority = SourceRanker.get_source_priority(source, query)
         
-        # Combined score: (92% source priority, 6% similarity, 2% quality)
+        # Combined score: (98% source priority, 1.5% similarity, 0.5% quality)
         # Lower score = better ranking
-        # MAXIMUM source priority - JioSaavn ALWAYS ranks above YouTube
-        # YouTube weight 0.6 * 0.92 = 0.552 vs JioSaavn 1.0 * 0.92 = 0.92
-        # Similarity weight 6: max difference ~6 points vs source diff ~0.37 points
-        # This ensures JioSaavn wins unless similarity diff > 0.06
+        # SOURCE IS KING - JioSaavn (score ~95) always beats YouTube (score ~195)
+        # Similarity max impact: 1.5 points vs source diff: 100 points
         combined_score = (
-            source_priority * 0.92 +  # Source reliability (dominant factor)
-            (1.0 - sim) * 6 +        # Similarity (minimal influence)
-            (2.0 - quality) * 1       # Quality (minimal influence)
+            source_priority * 0.98 +  # Source (DOMINANT - 98% weight)
+            (1.0 - sim) * 1.5 +       # Similarity (minimal - max 1.5 pts)
+            (2.0 - quality) * 0.25    # Quality (tiny - max 0.5 pts)
         )
 
         scored.append((
