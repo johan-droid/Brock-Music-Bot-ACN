@@ -229,8 +229,14 @@ class SupabaseToNeonMigrator:
         logger.info("\n📋 Migrating queues...")
         
         try:
-            response = self.supabase.table('queues').select('*').execute()
-            queues = response.data
+            try:
+                response = self.supabase.table('queues').select('*').execute()
+                queues = response.data
+            except Exception as e:
+                if "404" in str(e) or "could not find" in str(e).lower():
+                    logger.info("  No queues table found in Supabase (skipping)")
+                    return
+                raise
             
             if not queues:
                 logger.info("  No queues to migrate")
@@ -280,8 +286,14 @@ class SupabaseToNeonMigrator:
         logger.info("\n💬 Migrating chats...")
         
         try:
-            response = self.supabase.table('chats').select('*').execute()
-            chats = response.data
+            try:
+                response = self.supabase.table('chats').select('*').execute()
+                chats = response.data
+            except Exception as e:
+                if "404" in str(e) or "could not find" in str(e).lower():
+                    logger.info("  No chats table found in Supabase (skipping)")
+                    return
+                raise
             
             if not chats:
                 logger.info("  No chats to migrate")
@@ -333,8 +345,14 @@ class SupabaseToNeonMigrator:
         logger.info("\n🎵 Migrating play history...")
         
         try:
-            response = self.supabase.table('play_history').select('*').execute()
-            history = response.data
+            try:
+                response = self.supabase.table('play_history').select('*').execute()
+                history = response.data
+            except Exception as e:
+                if "404" in str(e) or "could not find" in str(e).lower():
+                    logger.info("  No play_history table found in Supabase (skipping)")
+                    return
+                raise
             
             if not history:
                 logger.info("  No play history to migrate")
@@ -429,17 +447,35 @@ class SupabaseToNeonMigrator:
             # Initialize Neon tables
             self.init_neon_tables()
             
-            # Run migrations
-            self.migrate_tracks()
-            self.migrate_queues()
-            self.migrate_chats()
-            self.migrate_play_history()
+            # Run migrations (continue even if one fails)
+            try:
+                self.migrate_tracks()
+            except Exception as e:
+                logger.error(f"Track migration failed (continuing): {e}")
+            
+            try:
+                self.migrate_queues()
+            except Exception as e:
+                logger.error(f"Queue migration failed (continuing): {e}")
+            
+            try:
+                self.migrate_chats()
+            except Exception as e:
+                logger.error(f"Chat migration failed (continuing): {e}")
+            
+            try:
+                self.migrate_play_history()
+            except Exception as e:
+                logger.error(f"Play history migration failed (continuing): {e}")
             
             # Verify
             self.verify_migration()
             
             logger.info("\n" + "=" * 60)
-            logger.info("✓ Migration completed successfully!")
+            if self.stats['errors']:
+                logger.info("⚠ Migration completed with some errors (see above)")
+            else:
+                logger.info("✓ Migration completed successfully!")
             logger.info("=" * 60)
             logger.info("\nNext steps:")
             logger.info("1. Update your .env file to use Neon:")
