@@ -38,6 +38,9 @@ python-dotenv==1.0.1
 # System
 psutil==6.1.1
 
+# Media Extraction
+yt-dlp==2025.2.28
+
 # Additional utilities
 httpx==0.28.1
 typing-extensions==4.12.2

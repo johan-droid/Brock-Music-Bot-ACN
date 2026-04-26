@@ -16,7 +16,8 @@ import re
 from typing import Dict, Optional, Callable, List, Any
 
 # URL validation for stream sources - prevent SSRF attacks
-_ALLOWED_URL_SCHEMES = {"http", "https", "vk", "deezer"}
+# NOTE: Only http/https are valid for FFmpeg streaming. vk:// and deezer:// are NOT valid protocols.
+_ALLOWED_URL_SCHEMES = {"http", "https"}
 _BLOCKED_URL_PATTERNS = [
     r"^.*://127\.\d+\.\d+\.\d+.*$",  # Loopback addresses
     r"^.*://10\.\d+\.\d+\.\d+.*$",    # Private Class A
