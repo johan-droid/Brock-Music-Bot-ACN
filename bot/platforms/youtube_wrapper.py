@@ -17,7 +17,12 @@ from typing import Any, Dict, List, Optional
 
 import aiohttp
 
+from bot.utils.circuit_breaker import CircuitBreakerRegistry, CircuitBreakerOpen
+
 logger = logging.getLogger(__name__)
+
+# Export for health check access
+YOUTUBE_WRAPPER_BASE_URL = os.getenv("YOUTUBE_API_BASE_URL", "").strip().rstrip("/")
 
 _URL_SCHEME_RX = re.compile(r"^[a-zA-Z][a-zA-Z0-9+.-]*://")
 _YOUTUBE_ID_RX = re.compile(r"[?&]v=([a-zA-Z0-9_-]{11})")
@@ -64,13 +69,36 @@ class YouTubeWrapperExtractor:
     """YouTube extractor that calls a wrapper microservice.
 
     The wrapper runs on Render (or elsewhere) to bypass Heroku IP blocks.
+    Includes circuit breaker protection and adaptive timeouts.
     """
 
     def __init__(self) -> None:
         self.base_url = os.getenv("YOUTUBE_API_BASE_URL", "").strip().rstrip("/")
+        YOUTUBE_WRAPPER_BASE_URL = self.base_url  # Export for health checks
         if not self.base_url:
             logger.warning("YOUTUBE_API_BASE_URL not set - YouTube wrapper extractor disabled")
-        self.timeout = float(os.getenv("YOUTUBE_HTTP_TIMEOUT", "30"))
+        
+        # Adaptive timeout configuration
+        self._timeout_config = {
+            'initial': 25,      # 25s for cold start
+            'healthy': 10,      # 10s when warm
+            'circuit_open': 5   # Fast fail when circuit open
+        }
+        self._last_response_time = None
+        
+        # Get circuit breaker
+        self._circuit_breaker = CircuitBreakerRegistry.get("youtube_wrapper")
+    
+    def _get_timeout(self) -> int:
+        """Get adaptive timeout based on service health."""
+        if self._circuit_breaker and self._circuit_breaker.is_open:
+            return self._timeout_config['circuit_open']
+        
+        # If we have fast recent responses, use shorter timeout
+        if self._last_response_time and self._last_response_time < 5:
+            return self._timeout_config['healthy']
+        
+        return self._timeout_config['initial']
 
     def _headers(self) -> Dict[str, str]:
         return {
@@ -79,9 +107,13 @@ class YouTubeWrapperExtractor:
         }
 
     async def search(self, query: str, limit: int = 5) -> List[Dict[str, Any]]:
-        """Search YouTube via wrapper service."""
+        """Search YouTube via wrapper service with circuit breaker protection."""
         if not self.base_url:
             logger.warning("YouTube wrapper not configured - skipping search")
+            return []
+        
+        if self._circuit_breaker and self._circuit_breaker.is_open:
+            logger.debug("YouTube wrapper circuit open, skipping search")
             return []
 
         if not query or not query.strip():
@@ -89,13 +121,18 @@ class YouTubeWrapperExtractor:
 
         endpoint = f"{self.base_url}/search"
         params = {"q": query.strip(), "limit": max(1, min(limit, 20))}
-        timeout = aiohttp.ClientTimeout(total=self.timeout)
+        timeout = aiohttp.ClientTimeout(total=self._get_timeout())
+        start_time = time.time()
 
         try:
             async with aiohttp.ClientSession(timeout=timeout) as session:
                 async with session.get(endpoint, params=params, headers=self._headers()) as response:
+                    self._last_response_time = time.time() - start_time
+                    
                     if response.status >= 400:
                         logger.warning(f"YouTube wrapper search returned HTTP {response.status}")
+                        if self._circuit_breaker:
+                            await self._circuit_breaker._record_failure()
                         return []
 
                     data = await response.json()
@@ -124,13 +161,22 @@ class YouTubeWrapperExtractor:
                         })
 
                     logger.info(f"YouTube wrapper search returned {len(results)} results for: {query}")
+                    if self._circuit_breaker:
+                        await self._circuit_breaker._record_success()
                     return results
 
+        except CircuitBreakerOpen:
+            logger.debug("YouTube wrapper circuit breaker OPEN")
+            return []
         except asyncio.TimeoutError:
             logger.warning(f"YouTube wrapper search timed out for: {query}")
+            if self._circuit_breaker:
+                await self._circuit_breaker._record_failure()
             return []
         except Exception as e:
             logger.warning(f"YouTube wrapper search failed: {e}")
+            if self._circuit_breaker:
+                await self._circuit_breaker._record_failure()
             return []
 
     async def extract(self, track_id: str) -> Optional[Dict[str, Any]]:
