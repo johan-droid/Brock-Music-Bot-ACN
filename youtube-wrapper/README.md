@@ -1,14 +1,29 @@
 # YouTube Music Wrapper
 
-A lightweight microservice that extracts audio URLs from YouTube Music/YouTube using yt-dlp.
+A lightweight microservice that extracts audio URLs from YouTube Music/YouTube using **yt-dlp with cookies**.
 
-**Purpose:** Bypass Heroku IP blocks by running extraction on Render (different IP range).
+**Purpose:** Bypass YouTube bot detection by using exported browser cookies to authenticate requests.
 
-## Deploy to Render
+## How It Works
 
-### Option 1: Deploy from GitHub (Recommended)
+This wrapper uses yt-dlp with YouTube cookies exported from your browser:
+- Cookies authenticate the requests as a real user
+- Bypasses YouTube's bot detection
+- Works with Indian music and geo-restricted content
+- Requires periodic cookie refresh (when they expire)
 
-1. Push this code to a GitHub repository
+## Setup (IMPORTANT)
+
+### Step 1: Export YouTube Cookies
+
+1. Install "Get cookies.txt LOCALLY" Chrome extension
+2. Go to https://www.youtube.com (make sure you're logged in)
+3. Click the extension → "Export" → Save as `cookies.txt`
+4. Place `cookies.txt` in this directory
+
+### Step 2: Deploy to Render
+
+1. Push this code to GitHub (including `cookies.txt`)
 2. Go to [Render Dashboard](https://dashboard.render.com/)
 3. Click "New Web Service"
 4. Connect your GitHub repository
@@ -20,7 +35,7 @@ A lightweight microservice that extracts audio URLs from YouTube Music/YouTube u
    - **Plan:** Free
 6. Click "Create Web Service"
 
-### Option 2: Deploy via Render YAML
+## Deploy via Render YAML
 
 1. Push this code to GitHub with `render.yaml`
 2. Click "New" → "Blueprint" in Render dashboard
@@ -134,18 +149,29 @@ curl "http://localhost:3000/track/dQw4w9WgXcQ"
 
 ## Troubleshooting
 
+**"Sign in to confirm you're not a bot" error:**
+- Cookies have expired - re-export from browser
+- YouTube changed their authentication - export fresh cookies
+
+**Video unavailable:**
+- Some videos are geo-blocked or age-restricted even with cookies
+- Try different search queries
+
 **yt-dlp not found:**
 - Make sure `pip install -r requirements.txt` runs during build
 - Or install yt-dlp manually: `pip install yt-dlp`
 
-**Rate limiting (429):**
-- YouTube may rate-limit Render IPs too
-- Consider adding delays between requests in your bot
-- Use rotating user-agents (already implemented)
+## How Cookies Work
 
-**Video unavailable:**
-- Some videos are geo-blocked or age-restricted
-- Try different search queries
+This service uses your YouTube cookies to authenticate:
+```
+Your Bot → This Wrapper → yt-dlp (with your cookies) → YouTube
+                              (appears as logged-in user)
+```
+
+**Cookie Expiration:**
+- YouTube cookies expire after ~1-2 months
+- When you see bot errors, re-export cookies.txt
 
 ## License
 
