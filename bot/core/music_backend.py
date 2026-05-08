@@ -5,6 +5,8 @@ from dataclasses import asdict, dataclass
 from typing import Any, Dict, List, Optional
 
 import bot.utils.database as database_module
+from bot.utils.circuit_breaker import source_health_tracker
+from bot.utils.errors import PreviewOnlyError, SourceExhaustedError, FallbackExhaustedError, BotDetectionError
 
 logger = logging.getLogger(__name__)
 
@@ -64,6 +66,7 @@ def _background_task_done(task: asyncio.Task) -> None:
             _background_tasks.discard(task)
         except Exception:
             pass
+
 
 _URL_SCHEME_RX = re.compile(r"^[a-zA-Z][a-zA-Z0-9+.-]*://")
 _UNSUPPORTED_PAGE_DOMAINS = (
@@ -182,7 +185,8 @@ class SourceRanker:
     """Compatibility ranking helper used by the selection logic in play.py."""
 
     _BASE_WEIGHTS = {
-        "youtube": 1.0,      # YouTube - BEST (cookies working, no bot detection issues)
+        # YouTube - BEST (cookies working, no bot detection issues)
+        "youtube": 1.0,
         "jiosaavn": 1.2,     # JioSaavn - Good but preview URLs are geo-restricted
         "vk": 1.3,
         "deezer": 1.4,
@@ -195,17 +199,20 @@ class SourceRanker:
 
     @classmethod
     def record_success(cls, source: str) -> None:
-        stats = cls._health.setdefault(_normalize_source(source), {"success": 0, "fail": 0})
+        stats = cls._health.setdefault(_normalize_source(source), {
+                                       "success": 0, "fail": 0})
         stats["success"] += 1
 
     @classmethod
     def record_failure(cls, source: str) -> None:
-        stats = cls._health.setdefault(_normalize_source(source), {"success": 0, "fail": 0})
+        stats = cls._health.setdefault(_normalize_source(source), {
+                                       "success": 0, "fail": 0})
         stats["fail"] += 1
 
     @classmethod
     def get_reliability(cls, source: str) -> float:
-        stats = cls._health.get(_normalize_source(source), {"success": 0, "fail": 0})
+        stats = cls._health.get(_normalize_source(
+            source), {"success": 0, "fail": 0})
         total = stats["success"] + stats["fail"]
         if total == 0:
             return 0.8
@@ -256,14 +263,28 @@ class MusicBackend:
     YouTube Music works globally; JioSaavn specializes in Indian/Bollywood music.
     """
 
+    @property
+    def extractors_map(self):
+        return {
+            "youtube_wrapper": youtube_wrapper_extractor,
+            "youtube": youtube_extractor,
+            "jiosaavn_wrapper": jiosaavn_wrapper_extractor,
+            "jiosaavn": jiosaavn_extractor,
+            "deezer": deezer_extractor,
+            "vk": vk_extractor
+        }
+
     async def init(self):
         self._index_misses = 0
         self._index_skip_until = 0.0
-        logger.info("MusicBackend initialized (YouTube + JioSaavn Wrapper + Fallback Chain)")
+        logger.info(
+            "MusicBackend initialized (YouTube + JioSaavn Wrapper + Fallback Chain)")
         if not youtube_wrapper_extractor:
-            logger.warning("YouTube wrapper not available - falling back to direct YouTube (may fail on Heroku)")
+            logger.warning(
+                "YouTube wrapper not available - falling back to direct YouTube (may fail on Heroku)")
         if not jiosaavn_wrapper_extractor:
-            logger.warning("JioSaavn wrapper not available - set JIOSAAVN_API_BASE_URL for Indian music")
+            logger.warning(
+                "JioSaavn wrapper not available - set JIOSAAVN_API_BASE_URL for Indian music")
         if not jiosaavn_extractor:
             logger.info("JioSaavn direct extractor not available")
         if not deezer_extractor:
@@ -293,18 +314,23 @@ class MusicBackend:
         metadata = cls._extract_metadata(row)
 
         duration = metadata.get("duration", row.get("duration", 0)) or 0
-        thumbnail = metadata.get("thumbnail") or row.get("thumbnail") or row.get("thumb") or None
+        thumbnail = metadata.get("thumbnail") or row.get(
+            "thumbnail") or row.get("thumb") or None
 
-        sources = row.get("sources") if isinstance(row.get("sources"), list) else []
+        sources = row.get("sources") if isinstance(
+            row.get("sources"), list) else []
         track_id = row.get("track_id") or row.get("id")
-        stream_url = _normalize_url_text(row.get("stream_url") or metadata.get("stream_url") or row.get("url") or metadata.get("url") or "")
-        source = _normalize_source(row.get("source") or metadata.get("source") or "global_index")
+        stream_url = _normalize_url_text(row.get("stream_url") or metadata.get(
+            "stream_url") or row.get("url") or metadata.get("url") or "")
+        source = _normalize_source(
+            row.get("source") or metadata.get("source") or "global_index")
 
         if sources:
             first = sources[0] if isinstance(sources[0], dict) else {}
             track_id = track_id or first.get("id") or first.get("track_id")
             source = _normalize_source(first.get("source") or source)
-            stream_url = stream_url or _normalize_url_text(first.get("stream_url") or first.get("url") or "")
+            stream_url = stream_url or _normalize_url_text(
+                first.get("stream_url") or first.get("url") or "")
 
         if not stream_url and track_id:
             if source == "vk":
@@ -342,15 +368,18 @@ class MusicBackend:
         if not isinstance(item, dict):
             return None
 
-        source = _normalize_source(item.get("source") or default_source or "unknown")
-        track_id = item.get("id") or item.get("track_id") or item.get("vk_id") or item.get("deezer_id")
+        source = _normalize_source(
+            item.get("source") or default_source or "unknown")
+        track_id = item.get("id") or item.get(
+            "track_id") or item.get("vk_id") or item.get("deezer_id")
         # For sources with ID-based extraction (JioSaavn, YouTube), only use stream_url if available
         # Don't fall back to 'url' (web page) as that breaks playback
         if source in {"jiosaavn", "youtube"}:
             stream_url = _normalize_url_text(item.get("stream_url") or "")
         else:
-            stream_url = _normalize_url_text(item.get("stream_url") or item.get("url") or item.get("play_url") or "")
-        
+            stream_url = _normalize_url_text(
+                item.get("stream_url") or item.get("url") or item.get("play_url") or "")
+
         if not stream_url and track_id:
             if source == "vk":
                 stream_url = f"vk://{track_id}"
@@ -373,7 +402,8 @@ class MusicBackend:
 
         return Track(
             title=item.get("title") or item.get("name") or "Unknown",
-            artist=item.get("artist") or item.get("uploader") or item.get("author") or "Unknown Artist",
+            artist=item.get("artist") or item.get(
+                "uploader") or item.get("author") or "Unknown Artist",
             duration=int(item.get("duration") or item.get("length") or 0),
             stream_url=stream_url,
             thumbnail=item.get("thumbnail") or item.get("cover") or None,
@@ -384,7 +414,8 @@ class MusicBackend:
     async def _search_index(self, query: str, limit: int) -> List[Track]:
         import time
         if time.time() < self._index_skip_until:
-            logger.debug("Skipping unreliable global index (circuit breaker active)")
+            logger.debug(
+                "Skipping unreliable global index (circuit breaker active)")
             return []
 
         app_db = getattr(database_module, "db", None)
@@ -398,7 +429,8 @@ class MusicBackend:
             self._index_misses += 1
             if self._index_misses >= 3:
                 self._index_skip_until = time.time() + 300
-                logger.warning("Global index circuit breaker triggered! Bypassing for 5 minutes.")
+                logger.warning(
+                    "Global index circuit breaker triggered! Bypassing for 5 minutes.")
             return []
 
         tracks: List[Track] = []
@@ -409,7 +441,8 @@ class MusicBackend:
             if not track:
                 continue
 
-            dedupe_key = (track.track_id or track.stream_url or track.title).strip().lower()
+            dedupe_key = (
+                track.track_id or track.stream_url or track.title).strip().lower()
             if dedupe_key in seen:
                 continue
             seen.add(dedupe_key)
@@ -419,13 +452,15 @@ class MusicBackend:
                 break
 
         if tracks:
-            logger.info("Global index hit for %r with %s track(s)", query, len(tracks))
-            self._index_misses = 0 # Reset miss counter on success
+            logger.info("Global index hit for %r with %s track(s)",
+                        query, len(tracks))
+            self._index_misses = 0  # Reset miss counter on success
         else:
             self._index_misses += 1
             if self._index_misses >= 3:
                 self._index_skip_until = time.time() + 300
-                logger.info("Global index is repeatedly empty; bypassing for 5 minutes.")
+                logger.info(
+                    "Global index is repeatedly empty; bypassing for 5 minutes.")
 
         return tracks
 
@@ -445,14 +480,16 @@ class MusicBackend:
 
     async def _search_with_extractor(self, extractor: Any, query: str, limit: int, default_source: str) -> List[Track]:
         if not extractor or not hasattr(extractor, "search"):
-            logger.info("Skipping extractor %s for query=%s because it is unavailable", default_source, query)
+            logger.info(
+                "Skipping extractor %s for query=%s because it is unavailable", default_source, query)
             return []
 
         logger.info("Calling %s extractor for query=%s", default_source, query)
         try:
             raw_results = await extractor.search(query, limit)
         except Exception as exc:
-            logger.warning("%s search failed for %r: %s", default_source, query, exc)
+            logger.warning("%s search failed for %r: %s",
+                           default_source, query, exc)
             return []
 
         tracks: List[Track] = []
@@ -468,335 +505,183 @@ class MusicBackend:
         return tracks
 
     async def search(self, query: str, limit: int = 5) -> List[Track]:
-        query = (query or "").strip()
+        query = query.strip()
         if not query:
             return []
 
         from config import config
 
-        # 1. Parallel Search Path (optimized for Heroku/Production)
-        # YouTube is primary, then Deezer, VK as fallback, index as last resort
+        sorted_sources = await source_health_tracker.get_sorted_sources()
+        if not sorted_sources:
+            # Fallback if tracker is empty
+            sorted_sources = ["youtube_wrapper", "youtube",
+                              "jiosaavn_wrapper", "jiosaavn", "deezer", "vk"]
+
+        tracks = []
+
+        # If parallel search
         if config.PARALLEL_SEARCH:
-            logger.info("MusicBackend search starting: query=%s limit=%s", query, limit)
-            # YouTube Wrapper primary, JioSaavn Wrapper (Indian), Deezer, VK, index
-            tasks = [
-                self._search_with_extractor(youtube_wrapper_extractor, query, limit, "youtube"),
-                self._search_with_extractor(jiosaavn_wrapper_extractor, query, limit, "jiosaavn"),
-                self._search_with_extractor(deezer_extractor, query, limit, "deezer"),
-                self._search_with_extractor(vk_extractor, query, limit, "vk"),
-                self._search_index(query, limit),
-            ]
+            tasks = []
+            for src_name in sorted_sources:
+                extractor = self.extractors_map.get(src_name)
+                if extractor and hasattr(extractor, "search"):
+                    tasks.append(self._search_with_extractor(
+                        extractor, query, limit, src_name))
 
-            raw_results = await asyncio.gather(*tasks, return_exceptions=True)
-
-            # Safely unpack results - YouTube, JioSaavn Wrapper, Deezer, VK, index
-            ytw_res = raw_results[0] if not isinstance(raw_results[0], Exception) else []
-            jsw_res = raw_results[1] if not isinstance(raw_results[1], Exception) else []
-            dz_res = raw_results[2] if not isinstance(raw_results[2], Exception) else []
-            vk_res = raw_results[3] if not isinstance(raw_results[3], Exception) else []
-            idx_res = raw_results[4] if not isinstance(raw_results[4], Exception) else []
-
-            # Log wrapper status for debugging
-            if isinstance(raw_results[1], Exception):
-                logger.warning(f"JioSaavn wrapper failed: {raw_results[1]}")
-            elif not jsw_res:
-                logger.debug("JioSaavn wrapper returned no results")
-            if not jiosaavn_wrapper_extractor or not jiosaavn_wrapper_extractor.enabled:
-                logger.warning("JioSaavn wrapper not enabled - set JIOSAAVN_API_BASE_URL env var")
-
-            # Fallback to direct JioSaavn if wrapper returns nothing
-            js_res = jsw_res
-            if not js_res and jiosaavn_extractor:
-                try:
-                    js_res = await self._search_with_extractor(jiosaavn_extractor, query, limit, "jiosaavn")
-                    logger.info("Fell back to direct JioSaavn search")
-                except Exception as e:
-                    logger.debug(f"Direct JioSaavn fallback failed: {e}")
-
-            # Fallback to direct YouTube if wrapper returns nothing
-            yt_res = ytw_res
-            if not yt_res and youtube_extractor:
-                try:
-                    yt_res = await self._search_with_extractor(youtube_extractor, query, limit, "youtube")
-                    logger.info("Fell back to direct YouTube search")
-                except Exception as e:
-                    logger.debug(f"Direct YouTube fallback failed: {e}")
-
-            logger.info(
-                "MusicBackend search results query=%s yt=%s js=%s dz=%s vk=%s idx=%s",
-                query,
-                len(yt_res),
-                len(js_res),
-                len(dz_res),
-                len(vk_res),
-                len(idx_res),
-            )
-
-            # Define priority tiers - YouTube first (cookies working, no bot detection), then others
             if config.PRIORITIZE_EXTRACTORS:
-                tiers = [yt_res, js_res, dz_res, vk_res, idx_res]  # YouTube prioritized over JioSaavn
-            else:
-                tiers = [idx_res, yt_res, js_res, dz_res, vk_res]
-            
-            combined: List[Track] = []
-            seen: set[str] = set()
-            
-            for tier in tiers:
-                for track in tier:
-                    key = (track.track_id or track.stream_url or track.title).strip().lower()
-                    if key not in seen:
-                        seen.add(key)
-                        combined.append(track)
-                    if len(combined) >= limit:
-                        break
-                if len(combined) >= limit:
-                    break
-            
-            # Schedule background caching for new extractor hits
-            if not idx_res and (yt_res or dz_res or vk_res):
-                # Prefer YouTube results for caching, then Deezer, then VK
-                new_tracks = yt_res or dz_res or vk_res
-                if len(_background_tasks) < _MAX_BACKGROUND_TASKS:
+                tasks.append(self._search_index(query, limit))
+
+            results = await asyncio.gather(*tasks, return_exceptions=True)
+
+            combined = []
+            seen = set()
+
+            for res in results:
+                if isinstance(res, Exception) or not res:
+                    continue
+                for t in res:
+                    norm = re.sub(r'[^a-zA-Z0-9]', '',
+                                  f"{t.title}{t.artist}").lower()
+                    if norm not in seen:
+                        seen.add(norm)
+                        combined.append(t)
+
+            tracks = combined[:limit]
+        else:
+            # Sequential search using health tracker
+            if not config.PRIORITIZE_EXTRACTORS:
+                tracks = await self._search_index(query, limit)
+
+            if not tracks:
+                for src_name in sorted_sources:
+                    extractor = self.extractors_map.get(src_name)
+                    if extractor and hasattr(extractor, "search"):
+                        try:
+                            tracks = await self._search_with_extractor(extractor, query, limit, src_name.split("_")[0])
+                            if tracks:
+                                break
+                        except Exception as e:
+                            logger.debug(f"Search failed for {src_name}: {e}")
+
+            if not tracks and config.PRIORITIZE_EXTRACTORS:
+                tracks = await self._search_index(query, limit)
+
+        if tracks and len(_background_tasks) < _MAX_BACKGROUND_TASKS:
+            task = asyncio.create_task(self._save_to_index(tracks))
+            _background_tasks.add(task)
+            task.add_done_callback(_background_tasks.discard)
+
+        return tracks
+
+    async def get_stream_payload(self, track: Track) -> Optional[Dict[str, Any]]:
+        if not track:
+            return None
+
+        # Check direct URL
+        if track.stream_url and track.stream_url.startswith("http") and _infer_source_from_url(track.stream_url) == "direct":
+            return self._build_payload(track, None, "direct")
+
+        resolved = None
+        source = track.source or "unknown"
+
+        # Primary source extraction
+        if source != "unknown":
+            primary_wrapper = f"{source}_wrapper"
+            primary_direct = source
+
+            for src_name in [primary_wrapper, primary_direct]:
+                extractor = self.extractors_map.get(src_name)
+                if extractor and hasattr(extractor, "extract"):
                     try:
-                        task = asyncio.create_task(self._cache_to_index(query, new_tracks))
-                        _background_tasks.add(task)
-                        task.add_done_callback(_background_task_done)
+                        resolved = await extractor.extract(track.track_id)
+                        if resolved:
+                            source = src_name.split("_")[0]
+                            break
+                    except PreviewOnlyError:
+                        logger.warning(
+                            f"Preview only error from {src_name}, falling back...")
+                        resolved = None
+                    except BotDetectionError:
+                        logger.warning(
+                            f"Bot detection error from {src_name}, falling back...")
+                        resolved = None
+                    except Exception as e:
+                        logger.debug(f"Extraction failed for {src_name}: {e}")
+                        resolved = None
+
+        # Intelligent Fallback Chain
+        if not resolved and track.track_id:
+            logger.info(
+                f"Primary extraction failed for {track.title}, engaging intelligent fallback...")
+
+            sorted_sources = await source_health_tracker.get_sorted_sources()
+            if not sorted_sources:
+                sorted_sources = ["youtube_wrapper", "youtube",
+                                  "jiosaavn_wrapper", "jiosaavn", "deezer", "vk"]
+
+            for src_name in sorted_sources:
+                # Skip what we already tried
+                if src_name in [f"{track.source}_wrapper", track.source]:
+                    continue
+
+                extractor = self.extractors_map.get(src_name)
+                if extractor and hasattr(extractor, "extract"):
+                    try:
+                        # Attempt to use the same track_id. Note: cross-platform ID matching is rare,
+                        # but if an extractor handles standard IDs, it might work. Otherwise, we fallback to search.
+                        # Realistically, if track_id is a YT id, Jiosaavn won't resolve it.
+                        # We will skip direct extraction and go to search fallback below.
+                        pass
                     except Exception:
                         pass
 
-            return combined[:limit]
+        # FINAL FALLBACK: Search for the track by title across healthy sources
+        if not resolved and track.title:
+            logger.info(
+                f"ID-based extraction failed, trying search fallback for '{track.title}'")
+            search_query = f"{track.title} {track.artist}" if track.artist and track.artist != "Unknown Artist" else track.title
 
-        # 2. Sequential Fallback Path
-        if not config.PRIORITIZE_EXTRACTORS:
-            indexed = await self._search_index(query, limit)
-            if indexed:
-                return indexed[:limit]
-
-        # Try YouTube Wrapper first (primary - avoids Heroku IP blocks)
-        tracks = await self._search_with_extractor(youtube_wrapper_extractor, query, limit, "youtube")
-
-        # Fallback to direct YouTube if wrapper fails and we're not on blocked IP
-        if not tracks and youtube_extractor:
-            tracks = await self._search_with_extractor(youtube_extractor, query, limit, "youtube")
-
-        # Then JioSaavn Wrapper (Indian music via Render)
-        if not tracks:
-            tracks = await self._search_with_extractor(jiosaavn_wrapper_extractor, query, limit, "jiosaavn")
-
-        # Fallback to direct JioSaavn if wrapper fails
-        if not tracks and jiosaavn_extractor:
-            tracks = await self._search_with_extractor(jiosaavn_extractor, query, limit, "jiosaavn")
-
-        # Then Deezer, VK
-        if not tracks:
-            tracks = await self._search_with_extractor(deezer_extractor, query, limit, "deezer")
-        if not tracks:
-            tracks = await self._search_with_extractor(vk_extractor, query, limit, "vk")
-
-        # If prioritize was off, we already checked index. If it was on, we check it now as fallback.
-        if not tracks and config.PRIORITIZE_EXTRACTORS:
-            tracks = await self._search_index(query, limit)
-
-        if tracks and not (not config.PRIORITIZE_EXTRACTORS and indexed): # If it's a fresh hit
-            if len(_background_tasks) < _MAX_BACKGROUND_TASKS:
-                try:
-                    task = asyncio.create_task(self._cache_to_index(query, tracks))
-                    _background_tasks.add(task)
-                    task.add_done_callback(_background_task_done)
-                except Exception as exc:
-                    logger.debug("Failed to schedule background index save: %s", exc)
-            else:
-                logger.debug("Background task limit reached; skipping index cache save.")
-
-        return tracks[:limit]
-
-
-    def _coerce_track(self, target: Any) -> Track:
-        if isinstance(target, Track):
-            return target
-
-        if isinstance(target, dict):
-            stream_url = _normalize_url_text(target.get("stream_url") or target.get("url") or "")
-            source = _normalize_source(target.get("source"))
-            if source in {"unknown", "auto", "direct"}:
-                source = _infer_source_from_url(stream_url)
-
-            if source == "unsupported":
-                source = "unknown"
-
-            return Track(
-                title=target.get("title") or "Unknown",
-                artist=target.get("artist") or target.get("uploader") or "Unknown Artist",
-                duration=int(target.get("duration") or 0),
-                stream_url=stream_url,
-                thumbnail=target.get("thumbnail") or target.get("thumb") or None,
-                source=source,
-                track_id=str(target.get("track_id") or target.get("id") or "") or None,
-            )
-
-        text = str(target or "").strip()
-        source = _infer_source_from_url(text)
-        if source == "unsupported":
-            source = "unknown"
-        return Track(
-            title="Unknown" if _looks_like_url(text) else (text or "Unknown"),
-            artist="Unknown",
-            duration=0,
-            stream_url=_normalize_url_text(text),
-            thumbnail=None,
-            source=source,
-            track_id=None,
-        )
-
-    def get_source_headers(self, source: str) -> Optional[Dict[str, str]]:
-        source_name = _normalize_source(source)
-        if source_name == "youtube":
-            return {
-                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-                "Accept": "*/*",
-                "Accept-Language": "en-US,en;q=0.9",
-                "Referer": "https://www.youtube.com/",
-            }
-        if source_name == "jiosaavn":
-            return {
-                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-                "Accept": "*/*",
-                "Accept-Language": "en-US,en;q=0.9",
-                "Referer": "https://www.jiosaavn.com/",
-                "Origin": "https://www.jiosaavn.com",
-                "Connection": "keep-alive",
-                "sec-ch-ua": '"Not_A Brand";v="8", "Chromium";v="120", "Google Chrome";v="120"',
-                "sec-ch-ua-mobile": "?0",
-                "sec-ch-ua-platform": '"Windows"',
-            }
-        if source_name == "deezer":
-            return {
-                "User-Agent": "Mozilla/5.0",
-                "Referer": "https://www.deezer.com/",
-            }
-        if source_name == "vk":
-            return {"User-Agent": "Mozilla/5.0"}
-        return None
-
-    def _build_payload(self, track: Track, resolved: Optional[Dict[str, Any]] = None, source: Optional[str] = None) -> Dict[str, Any]:
-        data = resolved or {}
-        # PRIORITIZE stream_url over url (url is often a web page, stream_url is the actual audio)
-        stream_url = _normalize_url_text(data.get("stream_url") or data.get("url") or track.stream_url or "")
-        resolved_source = _normalize_source(data.get("source") or source or track.source or "unknown")
-
-        if not stream_url:
-            stream_url = track.stream_url
-
-        return {
-            "url": stream_url,
-            "stream_url": stream_url,
-            "title": data.get("title") or track.title,
-            "artist": data.get("artist") or data.get("uploader") or track.artist,
-            "duration": int(data.get("duration") or track.duration or 0),
-            "thumbnail": data.get("thumbnail") or track.thumbnail,
-            "source": resolved_source,
-            "headers": data.get("headers") if data.get("headers") is not None else self.get_source_headers(resolved_source),
-            "id": data.get("id") or data.get("track_id") or track.track_id,
-        }
-
-    async def get_stream_payload(self, track: Track) -> Optional[Dict[str, Any]]:
-        track = self._coerce_track(track)
-        source = _normalize_source(track.source)
-        if source in {"unknown", "auto", "direct"}:
-            source = _infer_source_from_url(track.stream_url)
-
-        if source == "unsupported":
-            return None
-
-        candidate = track.track_id or track.stream_url
-        if not candidate:
-            return None
-
-        resolved: Optional[Dict[str, Any]] = None
-        if source == "vk" and vk_extractor and hasattr(vk_extractor, "extract"):
-            try:
-                resolved = await vk_extractor.extract(candidate)
-            except Exception as exc:
-                logger.warning("VK resolve failed for %r: %s", track.title, exc)
-
-        elif source == "deezer" and deezer_extractor and hasattr(deezer_extractor, "extract"):
-            try:
-                resolved = await deezer_extractor.extract(candidate)
-            except Exception as exc:
-                logger.warning("Deezer resolve failed for %r: %s", track.title, exc)
-
-        elif source == "jiosaavn" and jiosaavn_wrapper_extractor and hasattr(jiosaavn_wrapper_extractor, "extract"):
-            try:
-                resolved = await jiosaavn_wrapper_extractor.extract(track.track_id)
-            except Exception as exc:
-                logger.warning("JioSaavn resolve failed for %r: %s", track.title, exc)
-
-        elif source == "youtube" and youtube_wrapper_extractor and hasattr(youtube_wrapper_extractor, "extract"):
-            try:
-                resolved = await youtube_wrapper_extractor.extract(track.track_id)
-                logger.info(f"YouTube extract for {track.title}: {resolved is not None}")
-            except Exception as exc:
-                logger.warning("YouTube resolve failed for %r: %s", track.title, exc)
-
-        # FALLBACK CHAIN: If primary source failed, try other sources with same track_id
-        if not resolved and track.track_id:
-            logger.info(f"Primary source {source} failed for {track.title}, trying fallback sources...")
-            
-            # Try JioSaavn as fallback (good for Indian music)
-            if source != "jiosaavn" and jiosaavn_wrapper_extractor and hasattr(jiosaavn_wrapper_extractor, "extract"):
-                try:
-                    resolved = await jiosaavn_wrapper_extractor.extract(track.track_id)
-                    if resolved:
-                        logger.info(f"Fallback JioSaavn success for {track.title}")
-                        source = "jiosaavn"  # Update source for payload
-                except Exception as exc:
-                    logger.debug(f"Fallback JioSaavn failed: {exc}")
-            
-            # Try Deezer as fallback
-            if not resolved and source != "deezer" and deezer_extractor and hasattr(deezer_extractor, "extract"):
-                try:
-                    resolved = await deezer_extractor.extract(track.track_id)
-                    if resolved:
-                        logger.info(f"Fallback Deezer success for {track.title}")
-                        source = "deezer"
-                except Exception as exc:
-                    logger.debug(f"Fallback Deezer failed: {exc}")
-            
-            # Try VK as last fallback
-            if not resolved and source != "vk" and vk_extractor and hasattr(vk_extractor, "extract"):
-                try:
-                    resolved = await vk_extractor.extract(track.track_id)
-                    if resolved:
-                        logger.info(f"Fallback VK success for {track.title}")
-                        source = "vk"
-                except Exception as exc:
-                    logger.debug(f"Fallback VK failed: {exc}")
+            sorted_sources = await source_health_tracker.get_sorted_sources()
+            for src_name in sorted_sources:
+                extractor = self.extractors_map.get(src_name)
+                if extractor and hasattr(extractor, "search") and hasattr(extractor, "extract"):
+                    try:
+                        search_res = await extractor.search(search_query, limit=1)
+                        if search_res:
+                            track_id = search_res[0].get("id")
+                            if track_id:
+                                resolved = await extractor.extract(track_id)
+                                if resolved:
+                                    logger.info(
+                                        f"Fallback search success via {src_name} for {track.title}")
+                                    source = src_name.split("_")[0]
+                                    break
+                    except PreviewOnlyError:
+                        logger.warning(
+                            f"Preview only error during fallback search on {src_name}")
+                        continue
+                    except BotDetectionError:
+                        logger.warning(
+                            f"Bot detection during fallback search on {src_name}")
+                        continue
+                    except Exception as e:
+                        logger.debug(
+                            f"Fallback search failed for {src_name}: {e}")
+                        continue
 
         if resolved:
             payload = self._build_payload(track, resolved, source)
             if payload["url"] and not _looks_like_unsupported_page_url(payload["url"]):
-                logger.info(f"Successfully resolved stream URL for {track.title} from {source}")
+                logger.info(
+                    f"Successfully resolved stream URL for {track.title} from {source}")
                 return payload
 
         if track.stream_url and track.stream_url.startswith("http") and _infer_source_from_url(track.stream_url) == "direct":
             return self._build_payload(track, None, source or "direct")
 
-        # FINAL FALLBACK: Search for the track by title across all sources
-        if not resolved and track.title:
-            logger.info(f"All ID-based extractions failed for '{track.title}', trying search fallback...")
-            search_query = f"{track.title} {track.artist}" if track.artist and track.artist != "Unknown Artist" else track.title
-            
-            # Search and get first result
-            search_results = await self.search(search_query, limit=1)
-            if search_results and len(search_results) > 0:
-                alt_track = search_results[0]
-                if alt_track.track_id and alt_track.track_id != track.track_id:
-                    logger.info(f"Found alternative track from search: {alt_track.title} [{alt_track.source}]")
-                    # Try to extract from alternative track
-                    return await self.get_stream_payload(alt_track)
-
-        logger.error(f"All sources failed to resolve stream URL for {track.title}")
-        return None
+        # Raise a user-friendly error if we exhaust all fallbacks
+        raise FallbackExhaustedError(
+            "Could not find a working stream for this track across all sources.")
 
     async def _resolve_from_search(self, query: str) -> Optional[Dict[str, Any]]:
         results = await self.search(query, limit=1)
@@ -830,4 +715,5 @@ class MusicBackend:
 
 music_backend = MusicBackend()
 
-__all__ = ["Track", "SourceRanker", "calculate_track_quality", "MusicBackend", "music_backend"]
+__all__ = ["Track", "SourceRanker", "calculate_track_quality",
+           "MusicBackend", "music_backend"]
