@@ -1,186 +1,241 @@
-"""YouTube Music extractor using yt-dlp - works globally."""
+"""YouTube Music extractor via yt-dlp.
+
+This extractor searches and extracts streams directly from YouTube Music.
+It implements circuit breaker protection and handles IP blocks gracefully.
+"""
 
 from __future__ import annotations
 
 import asyncio
 import logging
+import os
 import re
 from typing import Any, Dict, List, Optional
 
+import yt_dlp
+
+from bot.utils.circuit_breaker import CircuitBreakerRegistry, CircuitBreakerOpen, retry_with_backoff, source_health_tracker
+from bot.utils.errors import BotDetectionError, format_error_message
+
 logger = logging.getLogger(__name__)
 
-# Try to import yt_dlp
-try:
-    import yt_dlp
-    YTDLP_AVAILABLE = True
-except ImportError:
-    YTDLP_AVAILABLE = False
-    logger.warning("yt-dlp not available, YouTube Music extractor disabled")
+# Compile regexes once
+_URL_SCHEME_RX = re.compile(r"^[a-zA-Z][a-zA-Z0-9+.-]*://")
+_YOUTUBE_ID_RX = re.compile(r"[?&]v=([a-zA-Z0-9_-]{11})")
 
 
-class YouTubeMusicExtractor:
-    """YouTube Music search and extraction using yt-dlp."""
+def _normalize_url_text(value: str) -> str:
+    text = (value or "").strip()
+    if not text:
+        return text
+    if _URL_SCHEME_RX.match(text):
+        return text
+    if text.startswith(("www.", "youtube.com", "youtu.be", "music.youtube.com")):
+        return f"https://{text}"
+    return text
+
+
+def _extract_video_id(value: str) -> Optional[str]:
+    """Extract YouTube video ID from URL or string."""
+    if not value:
+        return None
+
+    # Direct ID (11 characters)
+    if re.match(r"^[a-zA-Z0-9_-]{11}$", value):
+        return value
+
+    # From URL
+    url = _normalize_url_text(value)
+    match = _YOUTUBE_ID_RX.search(url)
+    if match:
+        return match.group(1)
+
+    # From youtu.be/ID
+    if "youtu.be/" in url:
+        parts = url.split("youtu.be/")
+        if len(parts) > 1:
+            vid = parts[1].split("?")[0].split("&")[0]
+            if len(vid) == 11:
+                return vid
+
+    return None
+
+
+class YouTubeExtractor:
+    """YouTube extractor with circuit breaker protection."""
 
     def __init__(self) -> None:
-        self.timeout = 30  # seconds for yt-dlp operations
+        self.cookies_file = os.getenv("YOUTUBE_COOKIES_FILE", "")
+        self.cookie_string = os.getenv("YOUTUBE_COOKIES", "")
 
-    def _get_ydl_opts(self, extract_audio: bool = True) -> Dict[str, Any]:
-        """Get yt-dlp options for audio extraction."""
-        return {
+        # Base options for all requests
+        self._base_ydl_opts = {
             "format": "bestaudio/best",
             "quiet": True,
             "no_warnings": True,
-            "extract_audio": extract_audio,
-            "audio_format": "mp3",
-            "audio_quality": "0",  # best
-            "outtmpl": "%(title)s.%(ext)s",
-            "cookiefile": None,
-            "cookiesfrombrowser": None,
-            "headers": {
-                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
-            },
+            "extract_flat": True,
+            "source_address": "0.0.0.0",
+            # Ignore errors like Geo-blocks to keep searching
+            "ignoreerrors": True,
         }
 
+        # Apply cookies if configured
+        if self.cookies_file and os.path.exists(self.cookies_file):
+            self._base_ydl_opts["cookiefile"] = self.cookies_file
+            logger.info("YouTube Extractor: Using cookies file")
+        elif self.cookie_string:
+            # We would need to write it to a temp file, but for now just log
+            logger.info(
+                "YouTube Extractor: Has YOUTUBE_COOKIES env var but writing to file is not implemented here")
+
+        # Get circuit breaker
+        self._circuit_breaker = CircuitBreakerRegistry.get("youtube")
+
+    async def _trigger_cookie_refresh(self):
+        """Placeholder for out-of-band workflow to refresh cookies."""
+        logger.warning(
+            "Triggering direct YouTube cookie auto-refresh due to 403 Bot Detection")
+
+    @retry_with_backoff(retries=2, base_delay=1.0, max_delay=5.0, exceptions=(BotDetectionError,))
+    async def _extract_info(self, ydl: yt_dlp.YoutubeDL, query: str, download: bool = False) -> Any:
+        try:
+            return await asyncio.to_thread(ydl.extract_info, query, download=download)
+        except yt_dlp.utils.DownloadError as e:
+            error_msg = str(e).lower()
+            if "sign in" in error_msg or "confirm you" in error_msg or "403" in error_msg:
+                await self._trigger_cookie_refresh()
+                await source_health_tracker.record_failure("youtube", is_critical=True)
+                raise BotDetectionError("YouTube Bot Detection triggered")
+            raise
+
     async def search(self, query: str, limit: int = 5) -> List[Dict[str, Any]]:
-        """Search YouTube Music for tracks matching query."""
-        if not YTDLP_AVAILABLE:
-            logger.warning("yt-dlp not available, skipping YouTube search")
+        """Search YouTube with circuit breaker protection."""
+        if self._circuit_breaker and self._circuit_breaker.is_open:
+            logger.debug("YouTube circuit open, skipping search")
             return []
 
-        search_query = f"ytsearch{limit}:{query}"
+        if not query or not query.strip():
+            return []
+
+        # ytsearch{limit}: avoids massive playlists
+        search_query = f"ytsearch{min(limit, 20)}:{query.strip()}"
+
+        # Fast search options
+        opts = self._base_ydl_opts.copy()
+        opts["extract_flat"] = "in_playlist"
 
         try:
-            loop = asyncio.get_event_loop()
+            with yt_dlp.YoutubeDL(opts) as ydl:
+                info = await self._extract_info(ydl, search_query, download=False)
 
-            def _do_search():
-                with yt_dlp.YoutubeDL(self._get_ydl_opts(extract_audio=False)) as ydl:
-                    # Search without downloading
-                    result = ydl.extract_info(search_query, download=False)
-                    if not result:
-                        return []
+            if not info or "entries" not in info:
+                return []
 
-                    entries = result.get("entries", [])
-                    tracks = []
+            results = []
+            entries = list(info["entries"])
 
-                    for entry in entries:
-                        if not entry:
-                            continue
+            for entry in entries:
+                if not entry:
+                    continue
 
-                        # Extract track info
-                        track_id = entry.get("id")
-                        title = entry.get("title", "Unknown")
-                        duration = entry.get("duration", 0)
-                        thumbnail = entry.get("thumbnail", "")
-                        channel = entry.get("channel", entry.get("uploader", "Unknown Artist"))
+                video_id = entry.get("id")
+                if not video_id:
+                    continue
 
-                        # Check if it's music-related
-                        url = f"https://www.youtube.com/watch?v={track_id}"
+                results.append({
+                    "id": video_id,
+                    "title": entry.get("title", "Unknown"),
+                    "artist": entry.get("uploader", "Unknown Artist"),
+                    "duration": entry.get("duration", 0),
+                    "thumbnail": f"https://i.ytimg.com/vi/{video_id}/mqdefault.jpg",
+                    "url": entry.get("url", f"https://www.youtube.com/watch?v={video_id}"),
+                    "source": "youtube",
+                })
 
-                        tracks.append({
-                            "id": track_id,
-                            "title": title,
-                            "artist": channel,
-                            "duration": duration,
-                            "thumbnail": thumbnail,
-                            "url": url,
-                            "source": "youtube",
-                        })
+            if results:
+                logger.info(
+                    f"YouTube search returned {len(results)} results for: {query}")
+                await source_health_tracker.record_success("youtube")
+                if self._circuit_breaker:
+                    await self._circuit_breaker._record_success()
+            return results
 
-                    return tracks
-
-            # Run in thread pool to avoid blocking
-            tracks = await asyncio.wait_for(
-                loop.run_in_executor(None, _do_search),
-                timeout=self.timeout
-            )
-
-            logger.info(f"YouTube search returned {len(tracks)} results for: {query}")
-            return tracks
-
-        except asyncio.TimeoutError:
-            logger.warning(f"YouTube search timed out for query: {query}")
+        except CircuitBreakerOpen:
+            logger.debug("YouTube circuit breaker OPEN")
+            return []
+        except BotDetectionError as e:
+            logger.warning(f"YouTube hit bot detection during search: {e}")
             return []
         except Exception as e:
-            logger.warning(f"YouTube search failed: {e}")
+            logger.warning(f"YouTube direct search failed: {e}")
+            await source_health_tracker.record_failure("youtube")
+            if self._circuit_breaker:
+                await self._circuit_breaker._record_failure()
             return []
 
     async def extract(self, track_id: str) -> Optional[Dict[str, Any]]:
-        """Extract direct audio URL for a YouTube video ID."""
-        if not YTDLP_AVAILABLE:
+        """Extract stream URL with circuit breaker protection."""
+        if self._circuit_breaker and self._circuit_breaker.is_open:
+            logger.debug("YouTube circuit open, skipping extract")
             return None
 
-        # Handle full URLs
-        if track_id.startswith("http"):
-            url = track_id
-            # Extract ID from URL
-            match = re.search(r"[?&]v=([a-zA-Z0-9_-]{11})", url)
-            if match:
-                track_id = match.group(1)
-            else:
-                track_id = url.split("/")[-1].split("?")[0]
-        else:
-            url = f"https://www.youtube.com/watch?v={track_id}"
+        candidate = (track_id or "").strip()
+        if not candidate:
+            return None
+
+        video_id = _extract_video_id(candidate)
+        if not video_id:
+            return None
+
+        url = f"https://www.youtube.com/watch?v={video_id}"
+
+        # Stream extraction requires getting formats
+        opts = self._base_ydl_opts.copy()
+        opts["extract_flat"] = False
 
         try:
-            loop = asyncio.get_event_loop()
+            with yt_dlp.YoutubeDL(opts) as ydl:
+                info = await self._extract_info(ydl, url, download=False)
 
-            def _do_extract():
-                opts = self._get_ydl_opts(extract_audio=True)
-                opts["format"] = "bestaudio[ext=m4a]/bestaudio/best"
-                opts["skip_download"] = True
+            if not info:
+                return None
 
-                with yt_dlp.YoutubeDL(opts) as ydl:
-                    info = ydl.extract_info(url, download=False)
-                    if not info:
-                        return None
+            stream_url = info.get("url")
+            if not stream_url:
+                logger.warning(f"No stream URL found directly for: {video_id}")
+                return None
 
-                    # Get best audio format
-                    formats = info.get("formats", [])
-                    audio_formats = [f for f in formats if f.get("acodec") != "none" and f.get("vcodec") == "none"]
+            await source_health_tracker.record_success("youtube")
+            if self._circuit_breaker:
+                await self._circuit_breaker._record_success()
 
-                    if audio_formats:
-                        # Sort by quality (highest bitrate first)
-                        audio_formats.sort(key=lambda x: x.get("tbr", 0) or 0, reverse=True)
-                        best_audio = audio_formats[0]
-                        stream_url = best_audio.get("url")
-                    else:
-                        # Fallback to any format with audio
-                        stream_url = info.get("url") or (formats[0].get("url") if formats else None)
+            return {
+                "id": video_id,
+                "title": info.get("title", "Unknown"),
+                "artist": info.get("uploader", "Unknown Artist"),
+                "duration": info.get("duration", 0),
+                "stream_url": stream_url,
+                "url": url,
+                "thumbnail": info.get("thumbnail", f"https://i.ytimg.com/vi/{video_id}/mqdefault.jpg"),
+                "source": "youtube",
+                "headers": {
+                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+                    "Accept": "*/*",
+                    "Accept-Language": "en-US,en;q=0.9",
+                },
+            }
 
-                    if not stream_url:
-                        return None
-
-                    return {
-                        "id": track_id,
-                        "title": info.get("title", "Unknown"),
-                        "artist": info.get("channel", info.get("uploader", "Unknown Artist")),
-                        "duration": info.get("duration", 0),
-                        "thumbnail": info.get("thumbnail", ""),
-                        "url": stream_url,
-                        "stream_url": stream_url,
-                        "source": "youtube",
-                        "headers": {
-                            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-                            "Accept": "*/*",
-                            "Accept-Language": "en-US,en;q=0.9",
-                        },
-                    }
-
-            result = await asyncio.wait_for(
-                loop.run_in_executor(None, _do_extract),
-                timeout=self.timeout
-            )
-
-            return result
-
-        except asyncio.TimeoutError:
-            logger.warning(f"YouTube extract timed out for: {track_id}")
+        except BotDetectionError as e:
+            logger.warning(f"YouTube hit bot detection during extract: {e}")
             return None
         except Exception as e:
-            logger.warning(f"YouTube extract failed: {e}")
+            logger.warning(f"YouTube direct extract failed: {e}")
+            await source_health_tracker.record_failure("youtube")
+            if self._circuit_breaker:
+                await self._circuit_breaker._record_failure()
             return None
 
 
-youtube_extractor = YouTubeMusicExtractor()
+youtube_extractor = YouTubeExtractor()
 
-__all__ = ["YouTubeMusicExtractor", "youtube_extractor"]
+__all__ = ["YouTubeExtractor", "youtube_extractor"]

@@ -44,11 +44,12 @@ class MiniAppSettings(BaseSettings):
 
     @property
     def stream_proxy_secret(self) -> str:
-        return (
-            (self.MINI_APP_STREAM_PROXY_SECRET or "").strip()
-            or (self.BOT_TOKEN or "").strip()
-            or "mini-app-dev-secret"
-        )
+        secret = (self.MINI_APP_STREAM_PROXY_SECRET or "").strip() or (self.BOT_TOKEN or "").strip()
+        if not secret:
+            raise ValueError(
+                "MINI_APP_STREAM_PROXY_SECRET or BOT_TOKEN must be configured for stream proxying"
+            )
+        return secret
 
 
 settings = MiniAppSettings()
