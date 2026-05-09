@@ -8,6 +8,7 @@ import bot.utils.database as database_module
 from bot.utils.circuit_breaker import source_health_tracker
 from bot.utils.errors import PreviewOnlyError, SourceExhaustedError, FallbackExhaustedError, BotDetectionError
 
+from bot.utils.multi_tier_cache import multi_cache
 logger = logging.getLogger(__name__)
 
 try:
@@ -507,6 +508,13 @@ class MusicBackend:
     async def search(self, query: str, limit: int = 5) -> List[Track]:
         query = query.strip()
         if not query:
+            return []
+
+        cache_key = f"search:{query}:{limit}"
+        cached, _ = await multi_cache.get(cache_key)
+        if cached:
+            return [self._coerce_track(t) for t in cached]
+
             return []
 
         from config import config
