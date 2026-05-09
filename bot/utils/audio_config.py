@@ -56,6 +56,13 @@ class AudioConfig:
             logger.warning("Only mono (1) or stereo (2) supported. Using stereo.")
             self.channels = 2
 
+        # Detect environment limits
+        if os.getenv("DYNO") or os.getenv("RENDER"):
+            # Heroku/Render memory limits -> Cap to standard quality
+            self.max_bitrate = min(self.max_bitrate, 128)
+            self.bitrate = min(self.bitrate, 128)
+            self.quality = AudioQuality.STANDARD
+
 
 class AudioOptimizer:
     """Optimized audio processing for Telegram Video Chats."""
@@ -82,67 +89,75 @@ class AudioOptimizer:
             "compression_level": 10,
             "application": "audio",
         },
+        AudioQuality.AUTO: {
+            "bitrate": 192,
+            "compression_level": 10,
+            "application": "audio",
+        }
     }
     
     def __init__(self, config: Optional[AudioConfig] = None):
         self.config = config or AudioConfig()
         self.preset = self.QUALITY_PRESETS.get(self.config.quality, self.QUALITY_PRESETS[AudioQuality.HIGH])
+
+        # Override bitrate for environment constraints
+        if self.config.bitrate > self.config.max_bitrate:
+            self.config.bitrate = self.config.max_bitrate
     
-    def get_ffmpeg_params(self, input_url: str, seek: Optional[int] = None) -> Dict[str, Any]:
+    def get_ffmpeg_params(self, input_url: str, seek: Optional[int] = None, source: str = "auto") -> Dict[str, Any]:
         """Generate optimized FFmpeg parameters for high-quality audio streaming.
         
         Returns parameters compatible with the py-tgcalls streaming pipeline.
         """
         # Base FFmpeg command optimized for Opus -> PCM s16le 48kHz
-        # Note: py-tgcalls handles the Opus encoding internally
         ffmpeg_params = {
             "ffmpeg_parameters": {
-                # Input seeking (if needed)
                 "ss": str(seek) if seek else None,
-                
-                # Audio codec - raw PCM for py-tgcalls
                 "acodec": "pcm_s16le",
                 "ar": str(self.config.sample_rate),
                 "ac": str(self.config.channels),
-                
-                # Audio filters for quality enhancement
                 "af": self._build_audio_filter(),
-                
-                # Output format
                 "f": "s16le",
-                
-                # Buffer and thread optimization
                 "thread_queue_size": "4096",
                 "threads": "4",
-                
-                # Disable video
                 "vn": None,
-                
-                # Real-time streaming flags
                 "reconnect": "1",
                 "reconnect_streamed": "1",
                 "reconnect_delay_max": "5",
+                "err_detect": "ignore_err",
             },
             "audio_parameters": {
-                "bitrate": self.config.bitrate * 1000,  # Convert to bps
+                "bitrate": self.config.bitrate * 1000,
                 "channels": self.config.channels,
             }
         }
         
+        # Source-specific adaptations
+        if source == "youtube":
+            ffmpeg_params["ffmpeg_parameters"].update({
+                "reconnect_on_network_error": "1",
+                "reconnect_on_http_error": "4xx,5xx",
+                "multiple_requests": "1",
+                "bufsize": "2M",
+            })
+        elif source == "jiosaavn":
+            ffmpeg_params["ffmpeg_parameters"].update({
+                "reconnect_delay_max": "2",
+                "timeout": "5000000",
+            })
+        elif source == "direct":
+            ffmpeg_params["ffmpeg_parameters"].update({
+                "reconnect_delay_max": "10",
+                "bufsize": "4M",
+            })
+
         return ffmpeg_params
     
     def _build_audio_filter(self) -> str:
         """Build FFmpeg audio filter chain for optimal quality."""
         filters = []
-        
-        # 1. High-quality resampler (if needed)
         filters.append("aresample=resampler=soxr:precision=28")
-        
-        # 2. Dynamic range compression (gentle)
-        # Prevents sudden volume spikes while preserving dynamics
         filters.append("acompressor=threshold=-18dB:ratio=3:attack=10:release=100")
-        
-        # 3. EBU R128 Loudness Normalization (if enabled)
         if self.config.use_loudnorm:
             filters.append(
                 f"loudnorm=I={self.config.loudnorm_target}:"
@@ -150,27 +165,13 @@ class AudioOptimizer:
                 f"measured_I=0:measured_TP=0:"
                 f"measured_LRA=0:measured_thresh=0"
             )
-        
-        # 4. Equalizer - gentle high-pass to remove rumble
         filters.append("highpass=f=20")
-        
-        # 5. Limiter to prevent clipping
         filters.append("alimiter=level_in=1:level_out=1:limit=0.95:attack=5:release=50")
-        
-        # 6. Volume normalization (final stage)
         filters.append("volume=1.0")
-        
         return ",".join(filters)
     
     def get_ytdlp_format(self) -> str:
         """Get yt-dlp format string for highest quality audio extraction."""
-        # Prioritize: 
-        # 1. Lossless/FLAC if available
-        # 2. Opus (best compressed codec)
-        # 3. AAC 256k+
-        # 4. MP3 320k
-        # 5. Best available
-        
         format_spec = """
             bestaudio[ext=opus]/
             bestaudio[ext=webm]/
@@ -182,48 +183,41 @@ class AudioOptimizer:
             bestaudio[ext=wav]/
             bestaudio
         """
-        
         return "".join(format_spec.split())
     
     def get_ntgcalls_params(self) -> Dict[str, Any]:
         """Get NTgCalls (low-level) parameters for py-tgcalls 2.x."""
         return {
             "sample_rate": self.config.sample_rate,
-            "bits_per_sample": 16,  # PCM s16le
+            "bits_per_sample": 16,
             "channel_count": self.config.channels,
-            "buffer_duration": self.config.frame_duration,  # ms
+            "buffer_duration": self.config.frame_duration,
         }
 
-
-# Global optimizer instance
 _audio_optimizer: Optional[AudioOptimizer] = None
 
-
 def get_audio_optimizer() -> AudioOptimizer:
-    """Get the global audio optimizer instance."""
     global _audio_optimizer
     if _audio_optimizer is None:
-        from config import config
-        
-        # Parse quality from config if available
-        quality_str = getattr(config, 'AUDIO_QUALITY', 'high').lower()
-        quality = AudioQuality(quality_str) if quality_str in [q.value for q in AudioQuality] else AudioQuality.HIGH
-        
-        audio_config = AudioConfig(
-            quality=quality,
-            bitrate=getattr(config, 'AUDIO_BITRATE', 192),
-            use_loudnorm=getattr(config, 'AUDIO_LOUDNORM', True),
-        )
-        
+        try:
+            from config import config
+            quality_str = getattr(config, 'AUDIO_QUALITY', 'high').lower()
+            quality = AudioQuality(quality_str) if quality_str in [q.value for q in AudioQuality] else AudioQuality.HIGH
+
+            audio_config = AudioConfig(
+                quality=quality,
+                bitrate=getattr(config, 'AUDIO_BITRATE', 192),
+                use_loudnorm=getattr(config, 'AUDIO_LOUDNORM', True),
+            )
+        except ImportError:
+            audio_config = AudioConfig()
+
         _audio_optimizer = AudioOptimizer(audio_config)
     
     return _audio_optimizer
 
-
 def set_audio_quality(quality: AudioQuality):
-    """Change audio quality dynamically."""
     global _audio_optimizer
-    
     if _audio_optimizer:
         _audio_optimizer.config.quality = quality
         _audio_optimizer.preset = _audio_optimizer.QUALITY_PRESETS[quality]

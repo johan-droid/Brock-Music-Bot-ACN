@@ -23,6 +23,17 @@ from bot.utils.permissions import (
     require_owner,
     rate_limit,
 )
+
+from bot.utils.errors import (
+    MusicBotError,
+    SourceExhaustedError,
+    BotDetectionError,
+    GeoRestrictionError,
+    PreviewOnlyError,
+    CircuitBreakerOpenError,
+    FallbackExhaustedError,
+    format_error_message,
+)
 from bot.utils.logger import setup_logging, TelegramLogHandler
 
 __all__ = [
@@ -58,6 +69,15 @@ __all__ = [
     "require_sudo",
     "require_owner",
     "rate_limit",
+        # Errors
+    "MusicBotError",
+    "SourceExhaustedError",
+    "BotDetectionError",
+    "GeoRestrictionError",
+    "PreviewOnlyError",
+    "CircuitBreakerOpenError",
+    "FallbackExhaustedError",
+    "format_error_message",
     # Logger
     "setup_logging",
     "TelegramLogHandler",
