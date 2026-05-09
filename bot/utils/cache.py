@@ -6,6 +6,7 @@ import time
 import json
 from typing import Any, Dict, Optional
 from config import config
+from bot.utils.multi_tier_cache import multi_cache
 
 logger = logging.getLogger(__name__)
 
@@ -346,13 +347,14 @@ class Cache:
 
     # ── Resolved stream URL cache ─────────────────────────────────────────────
 
-    async def cache_stream_url(self, video_id: str, data: str, ttl: int = 19800) -> None:
-        """Cache a resolved stream URL (default TTL: 5.5 hours)."""
-        await self.set(f"yt_stream:{video_id}", data, ex=ttl)
+    async def cache_stream_url(self, video_id: str, data: str, ttl: int = 2700) -> None:
+        """Cache a resolved stream URL (default TTL: 45m)."""
+        await multi_cache.set(f"yt_stream:{video_id}", data, ttl=ttl)
 
     async def get_cached_stream_url(self, video_id: str) -> Optional[str]:
         """Retrieve a cached stream URL."""
-        return await self.get(f"yt_stream:{video_id}")
+        val, _ = await multi_cache.get(f"yt_stream:{video_id}", is_json=False)
+        return val
 
     # ── Playback state cache (for ultra-responsive buttons) ──────────────────
 
@@ -432,7 +434,9 @@ return out
     
     async def invalidate_playback_state(self, chat_id: int) -> None:
         """Invalidate playback state cache when stopping."""
-        await self.delete(f"playback_state:{chat_id}")
+        key = f"playback_state:{chat_id}"
+        await self.delete(key)
+        await multi_cache.delete(key)
 
     # ── Queue data cache (for batch queue button optimization) ───────────────
 
@@ -464,7 +468,9 @@ return out
     
     async def invalidate_queue_snapshot(self, chat_id: int) -> None:
         """Invalidate queue snapshot when queue changes."""
-        await self.delete(f"queue_snapshot:{chat_id}")
+        key = f"queue_snapshot:{chat_id}"
+        await self.delete(key)
+        await multi_cache.delete(key)
 
     # ── Mini App cache helpers ───────────────────────────────────────────────
 

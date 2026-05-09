@@ -6,6 +6,7 @@ from typing import Optional
 from io import BytesIO
 from PIL import Image, ImageDraw, ImageFont
 import aiohttp
+from bot.utils.http_pool import HTTPConnectionPool
 from bot.utils.formatters import create_progress_bar, format_duration
 
 logger = logging.getLogger(__name__)
@@ -43,9 +44,7 @@ class ThumbnailGenerator:
     
     async def _get_session(self) -> aiohttp.ClientSession:
         """Get or create aiohttp session."""
-        if not self.session:
-            self.session = aiohttp.ClientSession()
-        return self.session
+        return await HTTPConnectionPool.get_session()
     
     async def download_thumbnail(self, url: str) -> Optional[bytes]:
         """Download thumbnail image.
@@ -66,7 +65,7 @@ class ThumbnailGenerator:
         try:
             session = await self._get_session()
             
-            async with session.get(url, timeout=aiohttp.ClientTimeout(total=10)) as resp:
+            async with session.get(url) as resp:
                 if resp.status == 200:
                     data = await resp.read()
                     _thumb_cache[url] = data
