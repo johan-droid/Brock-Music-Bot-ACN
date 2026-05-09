@@ -6,6 +6,7 @@ from typing import Any, Dict, List, Optional
 
 import bot.utils.database as database_module
 
+from bot.utils.multi_tier_cache import multi_cache
 logger = logging.getLogger(__name__)
 
 try:
@@ -472,6 +473,13 @@ class MusicBackend:
         if not query:
             return []
 
+        cache_key = f"search:{query}:{limit}"
+        cached, _ = await multi_cache.get(cache_key)
+        if cached:
+            return [self._coerce_track(t) for t in cached]
+
+            return []
+
         from config import config
 
         # 1. Parallel Search Path (optimized for Heroku/Production)
@@ -608,6 +616,8 @@ class MusicBackend:
             else:
                 logger.debug("Background task limit reached; skipping index cache save.")
 
+        await multi_cache.set(cache_key, [t.__dict__ for t in tracks[:limit]], ttl=3600)
+        await multi_cache.set(cache_key, [t.__dict__ for t in tracks[:limit]], ttl=3600)
         return tracks[:limit]
 
 
