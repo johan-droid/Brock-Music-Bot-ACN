@@ -25,7 +25,6 @@ Safety:
 import os
 import sys
 import json
-import asyncio
 import argparse
 import logging
 from datetime import datetime
