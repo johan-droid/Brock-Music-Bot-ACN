@@ -1,0 +1,21 @@
+# prometheus_rules.yml
+groups:
+- name: application_alerts
+  rules:
+  - alert: HighErrorRate
+    expr: sum(rate(app_errors_total[5m])) / sum(rate(app_searches_total[5m]) + rate(app_plays_total[5m])) > 0.10
+    for: 2m
+    labels:
+      severity: critical
+
+  - alert: HighLatency
+    expr: rate(http_request_duration_seconds_sum[1m]) / rate(http_request_duration_seconds_count[1m]) > 5.0
+    for: 1m
+    labels:
+      severity: warning
+
+  - alert: WrapperDown
+    expr: app_wrapper_status == 0
+    for: 1m
+    labels:
+      severity: critical
