@@ -14,6 +14,7 @@ from typing import Optional
 from io import BytesIO
 from PIL import Image, ImageDraw, ImageFont
 import aiohttp
+from bot.utils.http_pool import HTTPConnectionPool
 from bot.utils.formatters import format_duration
 
 logger = logging.getLogger(__name__)
@@ -58,10 +59,7 @@ class SoulKingThumbnailGenerator:
     
     async def _get_session(self) -> aiohttp.ClientSession:
         """Get or create HTTP session."""
-        async with self._session_lock:
-            if self.session is None or self.session.closed:
-                self.session = aiohttp.ClientSession()
-        return self.session
+        return await HTTPConnectionPool.get_session()
     
     async def download_image(self, url: str, timeout: int = 10) -> Optional[Image.Image]:
         """Download and return PIL Image from URL."""
@@ -70,7 +68,7 @@ class SoulKingThumbnailGenerator:
         
         try:
             session = await self._get_session()
-            async with session.get(url, timeout=aiohttp.ClientTimeout(total=timeout)) as resp:
+            async with session.get(url) as resp:
                 if resp.status == 200:
                     data = await resp.read()
                     img = Image.open(BytesIO(data))
