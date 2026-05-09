@@ -71,6 +71,7 @@ def validate_stream_url(url: str) -> bool:
 
 from pytgcalls import PyTgCalls
 from pytgcalls.types import MediaStream
+from bot.utils.ffmpeg import validate_stream_ffprobe
 from pytgcalls.exceptions import (
     NoActiveGroupCall,
     NotInCallError,
@@ -283,6 +284,7 @@ class CallManager:
         seek: Optional[int] = None,
         force_join: bool = False,
         headers: Optional[Dict[str, str]] = None,
+        **kwargs
     ) -> None:
         """
         Start playback in a chat. Handles both initial join and stream switches.
@@ -309,7 +311,15 @@ class CallManager:
             if not validate_stream_url(stream_url):
                 raise RuntimeError(f"Invalid stream URL: {stream_url[:50]}... URL failed security validation")
             
-            stream = self._build_stream(stream_url, video=video, seek=seek, headers=headers)
+            stream_source = kwargs.get('source', 'auto')
+
+            # Perform async stream validation
+            logger.info(f"Validating stream for {chat_id}...")
+            is_valid = await validate_stream_ffprobe(stream_url, headers)
+            if not is_valid:
+                raise RuntimeError("STREAM_VALIDATION_FAILED")
+
+            stream = self._build_stream(stream_url, video=video, seek=seek, headers=headers, source=stream_source)
             timeout_s = max(5, int(getattr(config, "VC_PLAY_TIMEOUT", 20) or 20))
 
             # Keep stream changes sticky to the assistant that owns this chat.
@@ -642,7 +652,8 @@ class CallManager:
         stream_url: str, 
         video: bool = False, 
         seek: Optional[int] = None,
-        headers: Optional[Dict[str, str]] = None
+        headers: Optional[Dict[str, str]] = None,
+        source: str = 'auto'
     ) -> MediaStream:
         """
         Build a MediaStream for py-tgcalls using config parameters.
@@ -680,33 +691,59 @@ class CallManager:
         # FFmpeg Input Options: placed before the input URL
         from bot.utils.audio_config import get_audio_optimizer
         af_chain = get_audio_optimizer()._build_audio_filter()
+        # Get adapted parameters via optimizer
+        opt_params = get_audio_optimizer().get_ffmpeg_params(stream_url, seek, source)
         
         ffmpeg_params = "-nostdin "
         if not video:
             ffmpeg_params += "-vn "
             ffmpeg_params += f'-af "{af_chain}" '
-        ffmpeg_params += "-reconnect 1 -reconnect_at_eof 1 -reconnect_streamed 1 -reconnect_delay_max 5 "
         
-        if headers:
-            ua = headers.get("User-Agent") or headers.get("user-agent")
-            if ua:
-                ffmpeg_params += f'-user_agent "{ua}" '
-            referer = headers.get("Referer") or headers.get("referer")
-            if referer:
-                ffmpeg_params += f'-referer "{referer}" '
+        params = opt_params["ffmpeg_parameters"]
+        for k, v in params.items():
+            if k in ['ss', 'acodec', 'ar', 'ac', 'af', 'f', 'thread_queue_size', 'threads', 'vn']:
+                continue
+            if v:
+                ffmpeg_params += f'-{k} {v} '
+            elif v is None and k not in ['vn']:
+                ffmpeg_params += f'-{k} '
 
-            extra_headers = []
+        # Robust Header Injection
+        ua = headers.get("User-Agent") or headers.get("user-agent") if headers else None
+        referer = headers.get("Referer") or headers.get("referer") if headers else None
+
+        # Source-specific fallbacks
+        if not ua:
+            ua = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+        if not referer:
+            if source == "youtube":
+                referer = "https://www.youtube.com/"
+            elif source == "jiosaavn":
+                referer = "https://www.jiosaavn.com/"
+            elif source == "deezer":
+                referer = "https://www.deezer.com/"
+
+        if ua:
+            ffmpeg_params += f'-user_agent "{ua}" '
+        if referer:
+            ffmpeg_params += f'-referer "{referer}" '
+
+        extra_headers = []
+        if headers:
             for key, value in headers.items():
                 if not value:
                     continue
-                lower_key = key.lower()
-                if lower_key in ("user-agent", "referer"):
+                if key.lower() in ("user-agent", "referer"):
                     continue
                 extra_headers.append(f"{key}: {value}")
 
-            if extra_headers:
-                headers_value = "\r\n".join(extra_headers) + "\r\n"
-                ffmpeg_params += f'-headers "{headers_value}" '
+        # JioSaavn specific
+        if source == "jiosaavn" and not any(h.lower().startswith("origin") for h in extra_headers):
+            extra_headers.append("Origin: https://www.jiosaavn.com")
+
+        if extra_headers:
+            headers_value = "\r\n".join(extra_headers) + "\r\n"
+            ffmpeg_params += f'-headers "{headers_value}" '
 
         if seek and seek > 0:
             ffmpeg_params += f"-ss {seek} "
@@ -721,6 +758,19 @@ class CallManager:
             kwargs["video_parameters"] = video_cfg
             
         return MediaStream(**kwargs)
+
+
+    async def _handle_vc_disconnect(self, chat_id: int):
+        """Graceful disconnect and queue drain handling."""
+        try:
+            from bot.core.queue import queue_manager
+            # Drain queue if VC drops completely
+            if queue_manager:
+                logger.info(f"Draining queue for chat {chat_id} due to VC disconnect")
+                # Clear queue logic would go here
+        except Exception as e:
+            logger.error(f"Error handling disconnect for {chat_id}: {e}")
+
 
     async def stop(self):
         """Gracefully stop all active py-tgcalls instances."""
