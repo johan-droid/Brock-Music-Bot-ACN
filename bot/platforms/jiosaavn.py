@@ -7,6 +7,9 @@ import logging
 import aiohttp
 from typing import Any, Dict, List, Optional
 
+from bot.utils.circuit_breaker import CircuitBreakerRegistry, CircuitBreakerOpen, retry_with_backoff, source_health_tracker
+from bot.utils.errors import PreviewOnlyError
+
 logger = logging.getLogger(__name__)
 
 # JioSaavn API endpoints (unofficial)
@@ -18,78 +21,89 @@ class JioSaavnExtractor:
 
     def __init__(self):
         self.enabled = True
+        self._circuit_breaker = CircuitBreakerRegistry.get("jiosaavn")
         logger.info("JioSaavn extractor initialized")
 
+    @retry_with_backoff(retries=2, base_delay=1.0, max_delay=5.0)
     async def _make_request(self, params: dict) -> Optional[dict]:
         """Make request to JioSaavn API"""
         try:
             async with aiohttp.ClientSession() as session:
                 async with session.get(JIOSAAVN_BASE, params=params, timeout=aiohttp.ClientTimeout(total=15)) as resp:
                     if resp.status == 200:
+                        await source_health_tracker.record_success("jiosaavn")
+                        if self._circuit_breaker:
+                            await self._circuit_breaker._record_success()
                         return await resp.json()
                     logger.warning(f"JioSaavn API returned {resp.status}")
-                    return None
+                    await source_health_tracker.record_failure("jiosaavn")
+                    if self._circuit_breaker:
+                        await self._circuit_breaker._record_failure()
         except Exception as e:
-            logger.error(f"JioSaavn request failed: {e}")
-            return None
+            logger.debug(f"JioSaavn API request failed: {e}")
+            await source_health_tracker.record_failure("jiosaavn")
+            if self._circuit_breaker:
+                await self._circuit_breaker._record_failure()
+        return None
 
-    async def search(self, query: str, limit: int = 10) -> List[Dict[str, Any]]:
-        """Search for songs on JioSaavn"""
+    async def search(self, query: str, limit: int = 5) -> List[Dict[str, Any]]:
+        """Search tracks on JioSaavn"""
+        if self._circuit_breaker and self._circuit_breaker.is_open:
+            return []
+
+        params = {
+            "__call": "autocomplete.get",
+            "query": query,
+            "_format": "json",
+            "_marker": 0,
+            "ctx": "web6dot0"
+        }
+
         try:
-            params = {
-                "__call": "search.getResults",
-                "q": query,
-                "n": limit,
-                "p": 1,
-                "_format": "json",
-                "_marker": 0,
-                "api_version": 4,
-                "ctx": "web6dot0",
-                "cat": "songs"
-            }
-
             result = await self._make_request(params)
-            if not result or "results" not in result:
+            if not result or "songs" not in result or not result["songs"]:
                 return []
 
-            tracks = []
-            for item in result["results"]:
-                if not isinstance(item, dict):
-                    continue
+            songs = result["songs"]["data"] if isinstance(
+                result["songs"], dict) else result["songs"]
+            results = []
 
-                track_id = item.get("id")
+            for song in songs[:limit]:
+                track_id = song.get("id")
                 if not track_id:
                     continue
 
-                tracks.append({
+                # JioSaavn search API doesn't return full stream URLs,
+                # we just return the basic info and ID for later extraction
+                results.append({
                     "id": str(track_id),
-                    "title": item.get("title", "Unknown"),
-                    "artist": item.get("primary_artists", "Unknown Artist"),
-                    "duration": self._parse_duration(item.get("duration", "0:00")),
-                    "thumbnail": item.get("image", "").replace("150x150", "500x500"),
-                    "source": "jiosaavn",
-                    "url": f"https://www.jiosaavn.com/song/{item.get('perma_url', '')}"
+                    "title": song.get("title", "Unknown").replace("&quot;", '"'),
+                    "artist": song.get("more_info", {}).get("primary_artists", "Unknown Artist"),
+                    "duration": 0,  # Autocomplete API rarely gives duration
+                    "thumbnail": song.get("image", "").replace("50x50", "150x150"),
+                    "url": song.get("url", ""),
+                    "source": "jiosaavn"
                 })
 
-            logger.info(f"JioSaavn search returned {len(tracks)} results for: {query}")
-            return tracks
-
+            return results
         except Exception as e:
-            logger.error(f"JioSaavn search failed: {e}")
+            logger.debug(f"JioSaavn search failed: {e}")
             return []
 
     async def extract(self, track_id: str) -> Optional[Dict[str, Any]]:
-        """Get song details and streaming URL"""
-        try:
-            params = {
-                "__call": "song.getDetails",
-                "pids": track_id,
-                "_format": "json",
-                "_marker": 0,
-                "api_version": 4,
-                "ctx": "web6dot0"
-            }
+        """Get track details and stream URL"""
+        if self._circuit_breaker and self._circuit_breaker.is_open:
+            return None
 
+        params = {
+            "__call": "song.getDetails",
+            "pids": track_id,
+            "_format": "json",
+            "_marker": 0,
+            "ctx": "web6dot0"
+        }
+
+        try:
             result = await self._make_request(params)
             if not result or "songs" not in result:
                 return None
@@ -104,7 +118,13 @@ class JioSaavnExtractor:
             media_url = song.get("media_preview_url", "")
             if not media_url:
                 # Try to generate from encrypted media URL
-                media_url = self._decrypt_media_url(song.get("encrypted_media_url", ""))
+                media_url = self._decrypt_media_url(
+                    song.get("encrypted_media_url", ""))
+
+            if media_url and "jiotunepreview" in media_url.lower():
+                logger.warning(
+                    f"JioSaavn returned a preview URL for track {track_id}")
+                raise PreviewOnlyError("JioSaavn stream is only a preview.")
 
             return {
                 "id": str(track_id),
@@ -113,17 +133,26 @@ class JioSaavnExtractor:
                 "duration": self._parse_duration(song.get("duration", "0:00")),
                 "stream_url": media_url,
                 "thumbnail": song.get("image", "").replace("150x150", "500x500"),
+                "url": song.get("perma_url", ""),
                 "source": "jiosaavn"
             }
-
+        except PreviewOnlyError:
+            raise
         except Exception as e:
-            logger.error(f"JioSaavn extract failed: {e}")
+            logger.debug(f"JioSaavn extract failed: {e}")
             return None
 
     def _parse_duration(self, duration_str: str) -> int:
-        """Parse duration string to seconds"""
+        """Convert '3:45' to 225 seconds, or handle pure int seconds"""
+        if isinstance(duration_str, int):
+            return duration_str
+
         try:
-            parts = duration_str.split(":")
+            # If it's just a number string
+            if duration_str.isdigit():
+                return int(duration_str)
+
+            parts = duration_str.split(':')
             if len(parts) == 2:
                 return int(parts[0]) * 60 + int(parts[1])
             elif len(parts) == 3:
