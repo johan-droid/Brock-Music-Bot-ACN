@@ -30,6 +30,7 @@ import argparse
 import logging
 from datetime import datetime
 from typing import List, Dict, Any
+import psycopg2.extras
 
 # Setup logging
 logging.basicConfig(
@@ -178,12 +179,28 @@ class SupabaseToNeonMigrator:
             
             # Migrate in batches
             with self.neon_conn.cursor() as cur:
-                for i, track in enumerate(tracks):
+                for i in range(0, len(tracks), batch_size):
+                    batch = tracks[i:i + batch_size]
                     try:
-                        cur.execute("""
+                        values = [
+                            (
+                                track.get('track_id'),
+                                track.get('platform', 'unknown'),
+                                track.get('title'),
+                                track.get('artist'),
+                                track.get('duration'),
+                                track.get('thumbnail'),
+                                track.get('stream_url'),
+                                track.get('file_id'),
+                                track.get('created_at') or datetime.now()
+                            )
+                            for track in batch
+                        ]
+
+                        psycopg2.extras.execute_values(cur, """
                             INSERT INTO music_index 
                             (track_id, platform, title, artist, duration, thumbnail, stream_url, file_id, created_at)
-                            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                            VALUES %s
                             ON CONFLICT (track_id) DO UPDATE SET
                                 title = EXCLUDED.title,
                                 artist = EXCLUDED.artist,
@@ -192,31 +209,16 @@ class SupabaseToNeonMigrator:
                                 stream_url = EXCLUDED.stream_url,
                                 file_id = EXCLUDED.file_id,
                                 updated_at = CURRENT_TIMESTAMP
-                        """, (
-                            track.get('track_id'),
-                            track.get('platform', 'unknown'),
-                            track.get('title'),
-                            track.get('artist'),
-                            track.get('duration'),
-                            track.get('thumbnail'),
-                            track.get('stream_url'),
-                            track.get('file_id'),
-                            track.get('created_at') or datetime.now()
-                        ))
+                        """, values)
                         
-                        self.stats['tracks_migrated'] += 1
-                        
-                        # Commit every batch_size records
-                        if (i + 1) % batch_size == 0:
-                            self.neon_conn.commit()
-                            logger.info(f"  Migrated {i + 1}/{len(tracks)} tracks...")
+                        self.stats['tracks_migrated'] += len(batch)
+                        self.neon_conn.commit()
+                        logger.info(f"  Migrated {min(i + batch_size, len(tracks))}/{len(tracks)} tracks...")
                             
                     except Exception as e:
-                        self.stats['errors'].append(f"Track {track.get('track_id')}: {e}")
-                        logger.warning(f"  Error migrating track {track.get('track_id')}: {e}")
-                
-                # Final commit for remaining records
-                self.neon_conn.commit()
+                        self.neon_conn.rollback()
+                        self.stats['errors'].append(f"Batch starting at {i}: {e}")
+                        logger.warning(f"  Error migrating track batch starting at {i}: {e}")
                 
             logger.info(f"✓ Migrated {self.stats['tracks_migrated']} tracks")
             
@@ -245,35 +247,37 @@ class SupabaseToNeonMigrator:
             logger.info(f"  Found {len(queues)} queues in Supabase")
             
             with self.neon_conn.cursor() as cur:
-                for i, queue in enumerate(queues):
+                for i in range(0, len(queues), batch_size):
+                    batch = queues[i:i + batch_size]
                     try:
-                        queue_data = queue.get('queue_data', '{}')
-                        if isinstance(queue_data, dict):
-                            queue_data = json.dumps(queue_data)
+                        values = []
+                        for queue in batch:
+                            queue_data = queue.get('queue_data', '{}')
+                            if isinstance(queue_data, dict):
+                                queue_data = json.dumps(queue_data)
+
+                            values.append((
+                                queue.get('chat_id'),
+                                queue_data,
+                                queue.get('created_at') or datetime.now()
+                            ))
                         
-                        cur.execute("""
+                        psycopg2.extras.execute_values(cur, """
                             INSERT INTO queues (chat_id, queue_data, created_at)
-                            VALUES (%s, %s, %s)
+                            VALUES %s
                             ON CONFLICT (chat_id) DO UPDATE SET
                                 queue_data = EXCLUDED.queue_data,
                                 updated_at = CURRENT_TIMESTAMP
-                        """, (
-                            queue.get('chat_id'),
-                            queue_data,
-                            queue.get('created_at') or datetime.now()
-                        ))
+                        """, values)
                         
-                        self.stats['queues_migrated'] += 1
-                        
-                        if (i + 1) % batch_size == 0:
-                            self.neon_conn.commit()
-                            logger.info(f"  Migrated {i + 1}/{len(queues)} queues...")
+                        self.stats['queues_migrated'] += len(batch)
+                        self.neon_conn.commit()
+                        logger.info(f"  Migrated {min(i + batch_size, len(queues))}/{len(queues)} queues...")
                             
                     except Exception as e:
-                        self.stats['errors'].append(f"Queue {queue.get('chat_id')}: {e}")
-                        logger.warning(f"  Error migrating queue {queue.get('chat_id')}: {e}")
-                
-                self.neon_conn.commit()
+                        self.neon_conn.rollback()
+                        self.stats['errors'].append(f"Queue batch starting at {i}: {e}")
+                        logger.warning(f"  Error migrating queue batch starting at {i}: {e}")
                 
             logger.info(f"✓ Migrated {self.stats['queues_migrated']} queues")
             
@@ -302,37 +306,40 @@ class SupabaseToNeonMigrator:
             logger.info(f"  Found {len(chats)} chats in Supabase")
             
             with self.neon_conn.cursor() as cur:
-                for i, chat in enumerate(chats):
+                for i in range(0, len(chats), batch_size):
+                    batch = chats[i:i + batch_size]
                     try:
-                        cur.execute("""
+                        values = [
+                            (
+                                chat.get('chat_id'),
+                                chat.get('title'),
+                                chat.get('username'),
+                                chat.get('type'),
+                                chat.get('is_active', True),
+                                chat.get('created_at') or datetime.now()
+                            )
+                            for chat in batch
+                        ]
+
+                        psycopg2.extras.execute_values(cur, """
                             INSERT INTO chats (chat_id, title, username, type, is_active, created_at)
-                            VALUES (%s, %s, %s, %s, %s, %s)
+                            VALUES %s
                             ON CONFLICT (chat_id) DO UPDATE SET
                                 title = EXCLUDED.title,
                                 username = EXCLUDED.username,
                                 type = EXCLUDED.type,
                                 is_active = EXCLUDED.is_active,
                                 updated_at = CURRENT_TIMESTAMP
-                        """, (
-                            chat.get('chat_id'),
-                            chat.get('title'),
-                            chat.get('username'),
-                            chat.get('type'),
-                            chat.get('is_active', True),
-                            chat.get('created_at') or datetime.now()
-                        ))
+                        """, values)
                         
-                        self.stats['chats_migrated'] += 1
-                        
-                        if (i + 1) % batch_size == 0:
-                            self.neon_conn.commit()
-                            logger.info(f"  Migrated {i + 1}/{len(chats)} chats...")
+                        self.stats['chats_migrated'] += len(batch)
+                        self.neon_conn.commit()
+                        logger.info(f"  Migrated {min(i + batch_size, len(chats))}/{len(chats)} chats...")
                             
                     except Exception as e:
-                        self.stats['errors'].append(f"Chat {chat.get('chat_id')}: {e}")
-                        logger.warning(f"  Error migrating chat {chat.get('chat_id')}: {e}")
-                
-                self.neon_conn.commit()
+                        self.neon_conn.rollback()
+                        self.stats['errors'].append(f"Chat batch starting at {i}: {e}")
+                        logger.warning(f"  Error migrating chat batch starting at {i}: {e}")
                 
             logger.info(f"✓ Migrated {self.stats['chats_migrated']} chats")
             
@@ -361,30 +368,33 @@ class SupabaseToNeonMigrator:
             logger.info(f"  Found {len(history)} play history records in Supabase")
             
             with self.neon_conn.cursor() as cur:
-                for i, record in enumerate(history):
+                for i in range(0, len(history), batch_size):
+                    batch = history[i:i + batch_size]
                     try:
-                        cur.execute("""
+                        values = [
+                            (
+                                record.get('chat_id'),
+                                record.get('track_id'),
+                                record.get('title'),
+                                record.get('artist'),
+                                record.get('played_at') or datetime.now()
+                            )
+                            for record in batch
+                        ]
+                        
+                        psycopg2.extras.execute_values(cur, """
                             INSERT INTO play_history (chat_id, track_id, title, artist, played_at)
-                            VALUES (%s, %s, %s, %s, %s)
-                        """, (
-                            record.get('chat_id'),
-                            record.get('track_id'),
-                            record.get('title'),
-                            record.get('artist'),
-                            record.get('played_at') or datetime.now()
-                        ))
+                            VALUES %s
+                        """, values)
                         
-                        self.stats['history_migrated'] += 1
-                        
-                        if (i + 1) % batch_size == 0:
-                            self.neon_conn.commit()
-                            logger.info(f"  Migrated {i + 1}/{len(history)} history records...")
+                        self.stats['history_migrated'] += len(batch)
+                        self.neon_conn.commit()
+                        logger.info(f"  Migrated {min(i + batch_size, len(history))}/{len(history)} history records...")
                             
                     except Exception as e:
-                        self.stats['errors'].append(f"History {record.get('id')}: {e}")
-                        logger.warning(f"  Error migrating history record: {e}")
-                
-                self.neon_conn.commit()
+                        self.neon_conn.rollback()
+                        self.stats['errors'].append(f"History batch starting at {i}: {e}")
+                        logger.warning(f"  Error migrating history record batch starting at {i}: {e}")
                 
             logger.info(f"✓ Migrated {self.stats['history_migrated']} play history records")
             
