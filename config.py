@@ -90,6 +90,12 @@ class Config(BaseSettings):
     # Enable a basic Prometheus text exporter at /metrics/prometheus
     METRICS_PROMETHEUS_ENABLED: bool = False
 
+    # Webhook settings (optional - falls back to long polling if not set)
+    # Set this to your external URL (e.g. https://resumedia.herokuapp.com)
+    WEBHOOK_URL: Optional[str] = None
+    WEBHOOK_PATH: str = "/webhook"
+    WEBHOOK_SECRET: Optional[str] = None
+
     # Optional group binder: if set, only this group/chat ID may use the bot.
     BOUND_GROUP_ID: Optional[int] = None
 
