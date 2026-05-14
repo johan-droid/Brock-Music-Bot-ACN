@@ -7,6 +7,7 @@
 const express = require('express');
 const cors = require('cors');
 const axios = require('axios');
+const CryptoJS = require('crypto-js');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -49,18 +50,32 @@ function decryptJioSaavnUrl(encryptedUrl) {
   if (!encryptedUrl) return null;
   
   try {
-    // Decode base64 - JioSaavn URLs are base64 encoded
-    let decoded = Buffer.from(encryptedUrl, 'base64').toString('utf-8');
+    const key = '38346b346c336d31';
+    const keyHex = CryptoJS.enc.Utf8.parse(key);
     
-    // Check if it looks like a valid URL
-    if (!decoded.startsWith('http')) {
-      console.log('[DECRYPT] Decoded value is not a URL, using preview URL instead');
+    // Decrypt using DES-ECB
+    const decrypted = CryptoJS.DES.decrypt(
+      { ciphertext: CryptoJS.enc.Base64.parse(encryptedUrl) },
+      keyHex,
+      {
+        mode: CryptoJS.mode.ECB,
+        padding: CryptoJS.pad.Pkcs7
+      }
+    );
+    
+    let decoded = decrypted.toString(CryptoJS.enc.Utf8);
+    
+    if (!decoded || !decoded.startsWith('http')) {
+      console.log('[DECRYPT] Decryption failed or result is not a URL');
       return null;
     }
     
-    // Replace quality marker for higher quality (96->320, 160->320)
-    decoded = decoded.replace(/_96\.mp4/g, '_320.mp4');
-    decoded = decoded.replace(/_160\.mp4/g, '_320.mp4');
+    // Replace quality markers for maximum quality
+    // JioSaavn uses specific suffixes for bitrates
+    decoded = decoded.replace('_96.mp4', '_320.mp4')
+                     .replace('_160.mp4', '_320.mp4')
+                     .replace('_96.m4a', '_320.m4a')
+                     .replace('_160.m4a', '_320.m4a');
     
     // Ensure HTTPS
     if (decoded.startsWith('http://')) {

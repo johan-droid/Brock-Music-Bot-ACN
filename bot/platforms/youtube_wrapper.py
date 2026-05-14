@@ -85,8 +85,8 @@ class YouTubeWrapperExtractor:
 
         # Adaptive timeout configuration
         self._timeout_config = {
-            'initial': 60,      # 60s for Render free-tier cold start
-            'healthy': 12,      # 12s when warm
+            'initial': 90,      # 90s for Render free-tier cold start
+            'healthy': 20,      # Increased to 20s for more stability
             'circuit_open': 5   # Fast fail when circuit open
         }
         self._last_success_time = 0.0
