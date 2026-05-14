@@ -381,13 +381,18 @@ class MusicBackend:
             stream_url = _normalize_url_text(
                 item.get("stream_url") or item.get("url") or item.get("play_url") or "")
 
-        if not stream_url and track_id:
-            if source == "vk":
-                stream_url = f"vk://{track_id}"
-            elif source == "deezer":
-                stream_url = f"deezer://{track_id}"
-
         # Allow tracks without stream_url for sources that support extraction by ID
+        # Also fall back to 'url' or 'play_url' if stream_url is missing
+        if not stream_url:
+            if track_id:
+                if source == "vk":
+                    stream_url = f"vk://{track_id}"
+                elif source == "deezer":
+                    stream_url = f"deezer://{track_id}"
+            
+            if not stream_url:
+                stream_url = _normalize_url_text(item.get("url") or item.get("play_url") or "")
+
         if not stream_url and source not in {"youtube", "jiosaavn"}:
             return None
 
@@ -502,7 +507,11 @@ class MusicBackend:
             tracks.append(track)
             if len(tracks) >= limit:
                 break
-
+                
+        if not tracks:
+            logger.debug(f"Extractor {default_source} returned no valid tracks for query: {query}")
+        else:
+            logger.debug(f"Extractor {default_source} returned {len(tracks)} tracks for query: {query}")
         return tracks
 
     async def search(self, query: str, limit: int = 5) -> List[Track]:
@@ -542,16 +551,20 @@ class MusicBackend:
             combined = []
             seen = set()
 
-            for res in results:
-                if isinstance(res, Exception) or not res:
+            for i, res in enumerate(results):
+                if isinstance(res, Exception):
+                    logger.warning(f"Search task {i} failed: {res}")
+                    continue
+                if not res:
                     continue
                 for t in res:
-                    # Deduplicate based on ID if available, otherwise title+artist
-                    identity = f"{t.source}:{t.track_id}" if t.track_id else f"{t.title}:{t.artist}"
-                    if identity not in seen:
+                    identity = f"{t.source}:{t.track_id}" if t.track_id else t.stream_url
+                    if identity and identity not in seen:
                         seen.add(identity)
                         combined.append(t)
 
+            logger.debug(f"Parallel search combined {len(combined)} unique tracks from {len(results)} results")
+            combined.sort(key=calculate_track_quality, reverse=True)
             tracks = combined[:limit]
         else:
             # Sequential search using health tracker

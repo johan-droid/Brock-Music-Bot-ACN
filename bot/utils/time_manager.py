@@ -18,7 +18,7 @@ from apscheduler.triggers.date import DateTrigger
 from apscheduler.triggers.interval import IntervalTrigger
 
 from bot.core.queue import queue_manager
-from bot.core.call import call_manager
+from bot.core import call
 from bot.utils.cache import cache
 
 logger = logging.getLogger(__name__)
@@ -151,14 +151,16 @@ class TimeManager:
 
     async def monitor_inactivity(self):
         """Check for inactive VCs and leave them."""
-        active_chats = list(call_manager.active_chats.keys())
+        if not call.call_manager:
+            return
+        active_chats = list(call.call_manager.active_chats.keys())
         
         for chat_id in active_chats:
             try:
-                status = await queue_manager.get_status(chat_id)
+                status = call.call_manager.active_chats.get(chat_id, "idle")
                 
                 # Check participant count if possible
-                participants = await call_manager.get_participant_count(chat_id)
+                participants = await call.call_manager.get_participant_count(chat_id)
                 
                 # If only the bot is left or idle for too long
                 if participants <= 1 or status == "idle":
