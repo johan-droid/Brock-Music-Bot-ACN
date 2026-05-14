@@ -11,7 +11,6 @@ from bot.utils.cache import cache, init_redis
 
 async def main():
     # Init cache (uses SQLite fallback when Redis not configured)
-    await init_redis()
 
     print("--- format_track_info output ---")
     print(format_track_info("Test Song", 215, position=12, source="telegram"))
@@ -21,6 +20,11 @@ async def main():
 
     print("\n--- cache incr/expire test ---")
     key = "dev:smoke:test:rl"
+    from bot.utils.cache import init_redis
+    await init_redis()
+    val = await cache.incr(key)
+    from bot.utils.cache import init_redis
+    await init_redis()
     val = await cache.incr(key)
     print("incr ->", val)
     ok = await cache.expire(key, 5)
