@@ -249,27 +249,13 @@ async def play_cmd(client: Client, message: Message):
         )
         return
 
-    # URL detection
-    _url_rx = re.compile(
-        r"^(?:https?://|www\.|vk\.com|m\.vk\.com|vkvideo\.ru|deezer\.com|deezer\.page\.link).+$",
-        re.IGNORECASE,
-    )
-
     search_msg = await message.reply(
         "💀 <i>The Soul King is scouting the seas for your song...</i>",
         parse_mode=ParseMode.HTML,
     )
 
     try:
-        if _url_rx.match(query):
-            track = await asyncio.wait_for(extract_audio(query, message), timeout=35)
-
-            if not track:
-                await search_msg.edit("❌ <b>Couldn't extract audio from that URL!</b>\n<i>\"Even I couldn't find treasure there! Yohohoho!\"</i>", parse_mode=ParseMode.HTML)
-                return
-            await add_track_and_play(message, chat_id, user_id, track, search_msg)
-
-        else:
+        if True:
             # Text search with conflict detection using unified backend
             logger.info("Searching music for query: %s", query)
             result = await conflict_resolver.search_with_conflicts(
@@ -282,8 +268,7 @@ async def play_cmd(client: Client, message: Message):
             if result["status"] == "not_found":
                 logger.warning("No search results for query: %s", query)
                 await search_msg.edit(
-                    "💀 <b>No songs found!</b>\n"
-                    "<i>\"The seas are empty of that melody... Yohohoho!\"</i>",
+                    "No results found.",
                     parse_mode=ParseMode.HTML,
                 )
                 return
@@ -303,8 +288,7 @@ async def play_cmd(client: Client, message: Message):
                 return
 
             await search_msg.edit(
-                "💀 <b>No songs found!</b>\n"
-                "<i>\"The seas are empty of that melody... Yohohoho!\"</i>",
+                "No results found.",
                 parse_mode=ParseMode.HTML,
             )
             return
@@ -313,7 +297,7 @@ async def play_cmd(client: Client, message: Message):
         await search_msg.edit("⏱ <b>Search timed out!</b>\n<i>\"The seas were too vast this time! Try again, Yohoho!\"</i>", parse_mode=ParseMode.HTML)
     except Exception as exc:
         logger.error(f"play_cmd failed: {summarize_exception(exc)}")
-        await search_msg.edit(f"❌ <b>Error:</b> <code>{summarize_exception(exc)}</code>", parse_mode=ParseMode.HTML)
+        await search_msg.edit("Music service temporarily unavailable, try again later.", parse_mode=ParseMode.HTML)
 
 
 # ── /vplay ────────────────────────────────────────────────────────────────────
@@ -1256,6 +1240,16 @@ async def resolve_conflict(chat_id: int, user_id: int, index: int, message: Mess
 
     if not chat_conflicts:
         _pending_conflicts.pop(chat_id, None)
+
+    try:
+        import bot.utils.database as app_db
+        db = getattr(app_db, "db", None)
+        if db is not None and hasattr(db, "save_track_to_index"):
+            track_key = track.get("track_id") or track.get("id")
+            if track_key is not None and track_key != "":
+                await db.save_track_to_index(str(track_key), track)
+    except Exception as exc:
+        pass
 
     await add_track_and_play(message, chat_id, user_id, track, orig_msg)
 
