@@ -195,7 +195,7 @@ health_checker = HealthChecker()
 async def check_jamendo() -> HealthCheckResult:
     start_time = time.time()
     try:
-        from bot.platforms.jamendo import JAMENDO_CLIENT_ID
+        from bot.platforms.jamendo import JAMENDO_CLIENT_ID, JamendoClient
         if not JAMENDO_CLIENT_ID:
             return HealthCheckResult(
                 service="jamendo",

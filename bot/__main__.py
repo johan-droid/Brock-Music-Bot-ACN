@@ -23,6 +23,7 @@ from bot.core.music_backend import music_backend
 from config import config
 from bot.utils.resilience import global_watchdog, setup_json_logging, log_error, notify_owner
 import sys
+import os
 import traceback
 
 
