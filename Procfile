@@ -1,1 +1,1 @@
-web: supervisord -n -c supervisor.conf
+worker: supervisord -n -c supervisor.conf
