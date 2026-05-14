@@ -126,6 +126,11 @@ async def main():
             start_scheduler()
             logger.info("Cleanup scheduler started")
 
+            # Start time management system
+            from bot.utils.time_manager import time_manager
+            time_manager.start()
+            logger.info("Time management system started")
+
             # Initialize bot client (this will block)
             bot = await init_bot()
             logger.info("Bot started successfully")
@@ -164,6 +169,14 @@ async def main():
 
         # Avoid unclosed session warnings
         await music_backend.close()
+
+        # Stop time management system
+        try:
+            from bot.utils.time_manager import time_manager
+            time_manager.stop()
+        except Exception as e:
+            logger.debug(f"Error during time manager stop: {e}")
+
         logger.info("Bot shutdown complete")
 
 
