@@ -435,8 +435,8 @@ async def stats_cmd(client: Client, message: Message):
 
     # Count active voice chats
     try:
-        from bot.core.call import call_manager
-        active_vc = len(call_manager.active_chats)
+        from bot.core import call
+        active_vc = len(call.call_manager.active_chats) if call.call_manager else 0
     except Exception:
         active_vc = 0
 

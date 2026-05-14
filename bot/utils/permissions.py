@@ -53,8 +53,8 @@ async def is_vc_participant(chat_id: int, user_id: int) -> bool:
     # Query Telegram for current participants
     try:
         # Get active voice chat participants
-        from bot.core.call import call_manager
-        if chat_id not in call_manager.active_chats:
+        from bot.core import call
+        if not call.call_manager or chat_id not in call.call_manager.active_chats:
             return False
         
         # Check if user is in the chat via participant list
@@ -238,8 +238,8 @@ async def get_permission_level(user_id: int, chat_id: int = None, check_vc: bool
     
     # Check VC participant if requested and chat_id provided
     if check_vc and chat_id:
-        from bot.core.call import call_manager
-        if chat_id in call_manager.active_chats:
+        from bot.core import call
+        if call.call_manager and chat_id in call.call_manager.active_chats:
             # VC is active, allow participants
             return 2
     

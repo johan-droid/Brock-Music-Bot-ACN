@@ -70,9 +70,10 @@ async def main():
                     
                     # 5. Once userbots are ready, initialize Calls
                     await init_calls(userbots)
-                    from bot.core.call import call_manager
+                    from bot.core import call
                     from bot.plugins.play import on_track_end
-                    call_manager.on_stream_end_handlers.append(on_track_end)
+                    if call.call_manager:
+                        call.call_manager.on_stream_end_handlers.append(on_track_end)
                     
                     start_scheduler()
                     from bot.utils.time_manager import time_manager
@@ -104,8 +105,8 @@ async def main():
         except Exception: pass
 
         try:
-            from bot.core.call import call_manager
-            if call_manager: await call_manager.stop()
+            from bot.core import call
+            if call.call_manager: await call.call_manager.stop()
         except Exception: pass
 
         try:

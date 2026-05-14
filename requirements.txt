@@ -1,8 +1,8 @@
 # Production Dependencies for Brook Music Bot
 # Core Telegram
 pyrogram==2.0.106
-py-tgcalls==2.2.11
-# tgcrypto==1.2.5 (Omitted for Windows dev due to missing build tools; included in production Docker)
+py-tgcalls==2.2.12
+tgcrypto==1.2.5
 
 # Web Framework
 fastapi>=0.115.0

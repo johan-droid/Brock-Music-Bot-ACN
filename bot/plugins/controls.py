@@ -9,7 +9,7 @@ from bot.utils.formatters import format_duration
 from bot.utils.progress_tracker import progress_tracker
 from bot.utils.cache import cache
 import bot.utils.database as app_db
-from bot.core.call import call_manager
+from bot.core import call
 from bot.core.queue import queue_manager
 from bot.core import bot as bot_module
 from bot.plugins.play import persist_playback_state
@@ -48,7 +48,8 @@ async def pause_cmd(client: Client, message: Message):
 
     try:
         await queue_manager.set_status(chat_id, "paused")
-        await call_manager.pause(chat_id)
+        if call.call_manager:
+            await call.call_manager.pause(chat_id)
         progress_tracker.pause(chat_id)
         current = await queue_manager.get_current(chat_id)
         await persist_playback_state(chat_id, "paused", current)
@@ -81,7 +82,8 @@ async def resume_cmd(client: Client, message: Message):
     
     try:
         await queue_manager.set_status(chat_id, "playing")
-        await call_manager.resume(chat_id)
+        if call.call_manager:
+            await call.call_manager.resume(chat_id)
         progress_tracker.resume(chat_id)
         current = await queue_manager.get_current(chat_id)
         await persist_playback_state(chat_id, "playing", current)
@@ -191,7 +193,8 @@ async def skip_cmd(client: Client, message: Message):
     
     try:
         # Stop current stream
-        await call_manager.leave_call(chat_id)
+        if call.call_manager:
+            await call.call_manager.leave_call(chat_id)
         
         # Trigger next playback
         from bot.plugins.play import start_playback
@@ -301,8 +304,8 @@ async def seek_cmd(client: Client, message: Message):
         is_video = current.get("is_video", False)
         
         # Change stream (py-tgcalls handles the transition)
-        # change_stream may be absent on some builds; call_manager handles compatibility
-        await call_manager.change_stream(chat_id, current["url"], video=is_video, seek=seconds)
+        if call.call_manager:
+            await call.call_manager.change_stream(chat_id, current["url"], video=is_video, seek=seconds)
         
         # Update position
         await queue_manager.update_position(chat_id, seconds)
@@ -342,8 +345,8 @@ async def replay_cmd(client: Client, message: Message):
         
         # Replay is just seeking to 0
         is_video = current.get("is_video", False)
-        # change_stream may be absent on some builds; call_manager handles compatibility
-        await call_manager.change_stream(chat_id, current["url"], video=is_video, seek=0)
+        if call.call_manager:
+            await call.call_manager.change_stream(chat_id, current["url"], video=is_video, seek=0)
         
         # Reset position
         await queue_manager.update_position(chat_id, 0)
@@ -382,7 +385,8 @@ async def volume_cmd(client: Client, message: Message):
     try:
         # Note: In py-tgcalls 2.0 volume is managed differently, or we can use the bot_client or CallManager directly.
         # Let's add set_volume in call.py
-        await call_manager.set_volume(chat_id, volume)
+        if call.call_manager:
+            await call.call_manager.set_volume(chat_id, volume)
         
         # We store it for future streams and settings
         await app_db.db.update_group(chat_id, {"settings": {"vol_default": volume}})
@@ -403,7 +407,7 @@ async def userbotjoin_cmd(client: Client, message: Message):
     """Prompt the userbot to join/create a voice chat and provide promotion hints."""
     chat_id = message.chat.id
 
-    if chat_id in call_manager.active_chats:
+    if chat_id in (call.call_manager.active_chats if call.call_manager else {}):
         await message.reply(
             "✅ Userbot is already in the voice chat for this group. "
             "If no audio is playing, use /play <song> now."
@@ -412,7 +416,7 @@ async def userbotjoin_cmd(client: Client, message: Message):
 
     success = False
     try:
-        success = await call_manager._start_voice_chat(chat_id, 0)
+        success = await call.call_manager._start_voice_chat(chat_id, 0) if call.call_manager else False
     except Exception as exc:
         logger.warning(f"userbotjoin failed: {exc}")
 
@@ -439,8 +443,8 @@ async def vcdebug_cmd(client: Client, message: Message):
     """Inspect voice chat state to help debug join/play issues."""
     chat_id = message.chat.id
 
-    active = chat_id in call_manager.active_chats
-    activeChatLists = [f"{c} (userbot #{i+1})" for c, i in call_manager.active_chats.items()]
+    active = chat_id in (call.call_manager.active_chats if call.call_manager else {})
+    activeChatLists = [f"{c} (userbot #{i+1})" for c, i in (call.call_manager.active_chats.items() if call.call_manager else [])]
     queue_status = await queue_manager.get_status(chat_id)
     current = await queue_manager.get_current(chat_id)
     qlen = await queue_manager.get_queue_length(chat_id)
@@ -449,14 +453,14 @@ async def vcdebug_cmd(client: Client, message: Message):
 
     bot_admin_state = await check_bot_admin(chat_id)
     userbot_admin_state = await check_userbot_admin(chat_id)
-    balancer = call_manager.get_balancer_snapshot() if call_manager else {"loads": {}}
+    balancer = call.call_manager.get_balancer_snapshot() if call.call_manager else {"loads": {}}
     loads = balancer.get("loads", {})
     load_text = ", ".join([f"#{int(idx) + 1}:{count}" for idx, count in loads.items()]) if loads else "n/a"
 
     text = (
         f"🔍 <b>VC Debug Status</b>\n"
         f"• Active for this group: {'✅' if active else '❌'}\n"
-        f"• Active chats tracked: {len(call_manager.active_chats)}\n"
+        f"• Active chats tracked: {len(call.call_manager.active_chats) if call.call_manager else 0}\n"
         f"• Active chat IDs: {', '.join(activeChatLists) if activeChatLists else 'None'}\n"
         f"• Queue status: {queue_status}\n"
         f"• Queue length: {qlen}\n"
