@@ -13,6 +13,12 @@ from bot.utils.multi_tier_cache import multi_cache
 logger = logging.getLogger(__name__)
 
 try:
+    from bot.platforms.jamendo import jamendo_client
+except Exception as e:
+    logger.error(f"Failed to load Jamendo extractor: {e}")
+    jamendo_client = None
+
+try:
     from bot.platforms.youtube import youtube_extractor
 except Exception as e:
     logger.error(f"Failed to load YouTube extractor: {e}")
