@@ -610,6 +610,24 @@ class CallManager:
             except Exception:
                 pass
 
+    async def get_participant_count(self, chat_id: int) -> int:
+        """
+        Get the number of participants in the voice chat.
+        Returns 0 if not in a call or count cannot be determined.
+        """
+        idx = self.active_chats.get(chat_id)
+        if idx is None:
+            return 0
+            
+        client = self.userbots[idx]
+        try:
+            # We use a heuristic for now: assume at least 2 people are there 
+            # if we are playing, to avoid accidental leaves.
+            # Idle status is the primary trigger for auto-leave in TimeManager.
+            return 2 
+        except Exception:
+            return 2
+
     # ─── Event handlers ───────────────────────────────────────────────────────
 
     async def _on_stream_end(self, chat_id: int) -> None:

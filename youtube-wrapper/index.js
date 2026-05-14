@@ -15,6 +15,7 @@ const logger = pino({ name: 'App', level: process.env.LOG_LEVEL || 'info' });
 const pinoMiddleware = pinoHttp({ logger });
 
 const app = express();
+app.set('trust proxy', 1);
 const PORT = process.env.PORT || 3000;
 
 // Security & Parsing Middleware

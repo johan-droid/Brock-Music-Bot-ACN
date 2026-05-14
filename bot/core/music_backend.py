@@ -515,8 +515,6 @@ class MusicBackend:
         if cached:
             return [self._coerce_track(t) for t in cached]
 
-            return []
-
         from config import config
 
         sorted_sources = await source_health_tracker.get_sorted_sources()
@@ -548,10 +546,10 @@ class MusicBackend:
                 if isinstance(res, Exception) or not res:
                     continue
                 for t in res:
-                    norm = re.sub(r'[^a-zA-Z0-9]', '',
-                                  f"{t.title}{t.artist}").lower()
-                    if norm not in seen:
-                        seen.add(norm)
+                    # Deduplicate based on ID if available, otherwise title+artist
+                    identity = f"{t.source}:{t.track_id}" if t.track_id else f"{t.title}:{t.artist}"
+                    if identity not in seen:
+                        seen.add(identity)
                         combined.append(t)
 
             tracks = combined[:limit]
@@ -565,7 +563,7 @@ class MusicBackend:
                     extractor = self.extractors_map.get(src_name)
                     if extractor and hasattr(extractor, "search"):
                         try:
-                            tracks = await self._search_with_extractor(extractor, query, limit, src_name.split("_")[0])
+                            tracks = await self._search_with_extractor(extractor, query, limit, src_name)
                             if tracks:
                                 break
                         except Exception as e:
