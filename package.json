@@ -1,5 +1,8 @@
 {
   "dependencies": {
     "@supabase/supabase-js": "^2.100.1"
+  },
+  "scripts": {
+    "postinstall": "cd jiosaavn-wrapper && npm install && cd ../youtube-wrapper && npm install"
   }
 }
