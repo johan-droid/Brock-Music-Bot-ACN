@@ -21,6 +21,7 @@ from pyrogram.errors import MessageNotModified, MessageDeleteForbidden
 from bot.utils.permissions import rate_limit, require_member, require_admin, get_permission_level
 from bot.utils.formatters import format_duration, truncate_text
 from bot.utils.thumbnails import generate_np_thumbnail
+from bot.utils.effects_engine import get_active_effect, process_track
 from bot.utils.title_detector import conflict_resolver, normalize_text, calculate_similarity
 from bot.utils.progress_tracker import progress_tracker
 from bot.utils.cache import cache
@@ -546,6 +547,26 @@ async def start_playback(chat_id: int, prefetched_track: Optional[Dict[str, Any]
         headers = (stream_payload or {}).get("headers") if stream_payload else None
         if headers is None:
             headers = music_backend.get_source_headers(effective_source)
+
+        # --- Audio Effects Engine ---
+        active_effect = get_active_effect(chat_id)
+        if active_effect:
+            logger.info(f"Processing audio effect '{active_effect}' for {track_id} in {chat_id}")
+            try:
+                processed_url = await process_track(track_id, url, active_effect)
+                if processed_url != url:
+                    url = processed_url
+                    logger.info(f"Using processed audio file: {url}")
+            except Exception as e:
+                logger.error(f"Effects processing failed: {e}")
+                # Send error message but continue playing original stream
+                try:
+                    from bot.core.bot import bot_client
+                    if bot_client:
+                        await bot_client.send_message(chat_id, f"⚠️ Failed to apply effect **{active_effect}**. Playing original track.")
+                except Exception:
+                    pass
+        # ----------------------------
 
         # Never pass page URLs to py-tgcalls, otherwise it may trigger a probing fallback.
         if _looks_like_supported_page_url(url):
