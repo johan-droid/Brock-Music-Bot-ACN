@@ -78,13 +78,13 @@ class SQLiteDatabase:
         conn.execute("""
             CREATE TABLE IF NOT EXISTS global_music_index (
                 query_key TEXT PRIMARY KEY,
-                track_id TEXT,
+                jamendo_track_id INTEGER,
                 title TEXT,
                 artist TEXT,
                 duration INTEGER,
-                thumbnail TEXT,
-                source TEXT,
-                stream_url TEXT,
+                thumbnail_url TEXT,
+
+                audio_url TEXT,
                 metadata TEXT DEFAULT '{}',  -- JSON string
                 sources TEXT DEFAULT '[]',    -- JSON string
                 last_played TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -372,13 +372,13 @@ class SQLiteDatabase:
                 "artist": row["artist"],
                 "uploader": row["artist"],
                 "duration": row["duration"] or 0,
-                "url": row["stream_url"] or "",
-                "stream_url": row["stream_url"] or "",
-                "thumbnail": row["thumbnail"],
+                "url": row["audio_url"] or "",
+                "stream_url": row["audio_url"] or "",
+                "thumbnail": row["thumbnail_url"],
                 "source": "global_index",
-                "origin_source": row["source"] or "unknown",
-                "id": row["track_id"],
-                "track_id": row["track_id"],
+                "origin_source": "jamendo" or "unknown",
+                "id": row["jamendo_track_id"],
+                "track_id": row["jamendo_track_id"],
                 "metadata": metadata,
                 "sources": sources,
                 "query_key": row["query_key"],
@@ -390,7 +390,7 @@ class SQLiteDatabase:
         """Save a track to the local SQLite global index."""
         try:
             query_key = query.strip().lower()
-            track_id = track.get("id") or track.get("track_id")
+            jamendo_track_id = track.get("id") or track.get("jamendo_track_id")
             source_name = track.get("source", "unknown")
             stream_url = track.get("url") or track.get("stream_url") or ""
             saved_at = datetime.utcnow().isoformat()
@@ -411,16 +411,15 @@ class SQLiteDatabase:
             conn = self._get_conn()
             conn.execute("""
                 INSERT OR REPLACE INTO global_music_index 
-                (query_key, track_id, title, artist, duration, thumbnail, source, stream_url, metadata, sources, last_played)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                (query_key, jamendo_track_id, title, artist, duration, thumbnail_url,  audio_url, metadata, sources, last_played)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
                 query_key,
-                track_id,
+                jamendo_track_id,
                 track.get("title"),
                 track.get("artist") or track.get("uploader"),
                 track.get("duration") or 0,
-                track.get("thumbnail"),
-                source_name,
+                track.get("thumbnail_url") or track.get("thumbnail"),
                 stream_url,
                 json.dumps(metadata),
                 json.dumps(sources),
