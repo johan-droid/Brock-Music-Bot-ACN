@@ -189,9 +189,14 @@ async def start_health_server():
     except Exception:
         logger.exception("Failed to register metrics endpoints")
 
+    port_str = os.getenv("PORT")
+    if not port_str:
+        logger.info("PORT environment variable not found. Skipping health check server (Worker mode).")
+        return None
+
     runner = web.AppRunner(app)
     await runner.setup()
-    port = int(os.getenv("PORT", "8080"))
+    port = int(port_str)
     site = web.TCPSite(runner, "0.0.0.0", port)
     await site.start()
     logger.info("Health check server started on port %s", port)
@@ -233,10 +238,12 @@ async def init_bot():
         plugins=dict(root="bot/plugins"),
     )
 
-    # Start health check server for production
+    # Start health check server (only if PORT is available)
     await start_health_server()
 
-    if config.WEBHOOK_URL:
+    # Determine update method: Webhook vs Polling
+    # Note: Webhooks require a 'web' process and a PORT.
+    if config.WEBHOOK_URL and os.getenv("PORT"):
         # Webhook mode
         webhook_addr = f"{config.WEBHOOK_URL.rstrip('/')}{config.WEBHOOK_PATH}"
         logger.info(f"Setting webhook to: {webhook_addr}")
@@ -247,17 +254,19 @@ async def init_bot():
         )
         # In webhook mode, we only CONNECT the client, we don't START polling
         await bot_client.connect()
-        logger.info("Bot connected in WEBHOOK mode. Note: Manual dispatching is required for updates.")
-        logger.warning("POLLING mode is highly recommended for Pyrogram bots. Unset WEBHOOK_URL to use polling.")
+        logger.info("Bot connected in WEBHOOK mode.")
     else:
         # Polling mode: Ensure no stale webhooks exist
+        if config.WEBHOOK_URL and not os.getenv("PORT"):
+            logger.warning("WEBHOOK_URL is set but no PORT found (Worker mode). Falling back to POLLING.")
+            
         try:
             await bot_client.delete_webhook()
-            logger.info("Deleted existing webhook for polling mode")
+            logger.info("Stale webhooks cleared.")
         except Exception:
             pass
         await bot_client.start()
-        logger.info("Bot started in POLLING mode")
+        logger.info("Bot started in POLLING mode (Worker).")
 
     bot_info = await bot_client.get_me()
     logger.info(f"Bot info: @{bot_info.username} (id={bot_info.id})")
