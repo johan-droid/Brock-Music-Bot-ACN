@@ -904,3 +904,102 @@ def init_supabase(url: str, key: str):
     global supabase_db
     supabase_db = SupabaseDatabase(url, key)
     logger.info("Supabase database initialized")
+
+    # Radio Shows Implementation for Supabase
+    async def create_radio_show(self, chat_id: int, host_user_id: int, show_name: str, description: str, day: int, time: str, genre: str, duration: int) -> int:
+        """Create a new radio show."""
+        try:
+            data = {
+                "chat_id": chat_id,
+                "host_user_id": host_user_id,
+                "show_name": show_name,
+                "description": description,
+                "schedule_day_of_week": day,
+                "schedule_time": time,
+                "genre_tags": genre,
+                "duration_minutes": duration,
+                "is_active": True
+            }
+            result = self.client.table("radio_shows").insert(data).execute()
+            if result.data:
+                return result.data[0].get("id", -1)
+            return -1
+        except Exception as e:
+            logger.error(f"Error creating radio show in Supabase: {e}")
+            return -1
+
+    async def add_track_to_show(self, show_id: int, track_id: int, added_by: int) -> bool:
+        """Add a track to a radio show."""
+        try:
+            # Get current max position
+            result = self.client.table("show_tracks").select("position").eq("show_id", show_id).order("position", desc=True).limit(1).execute()
+            pos = 0
+            if result.data and len(result.data) > 0:
+                pos = result.data[0].get("position", 0)
+
+            data = {
+                "show_id": show_id,
+                "jamendo_track_id": track_id,
+                "position": pos + 1,
+                "added_by": added_by
+            }
+            self.client.table("show_tracks").insert(data).execute()
+            return True
+        except Exception as e:
+            logger.error(f"Error adding track to show in Supabase: {e}")
+            return False
+
+    async def get_upcoming_shows(self, chat_id: int) -> List[Dict[str, Any]]:
+        """Get all upcoming shows for a chat."""
+        try:
+            result = self.client.table("radio_shows").select("*").eq("chat_id", chat_id).eq("is_active", True).order("schedule_day_of_week").order("schedule_time").execute()
+            return result.data if result.data else []
+        except Exception as e:
+            logger.error(f"Error getting upcoming shows from Supabase: {e}")
+            return []
+
+    async def get_show_tracks(self, show_id: int) -> List[Dict[str, Any]]:
+        """Get all tracks for a radio show."""
+        try:
+            result = self.client.table("show_tracks").select("*").eq("show_id", show_id).order("position").execute()
+            return result.data if result.data else []
+        except Exception as e:
+            logger.error(f"Error getting show tracks from Supabase: {e}")
+            return []
+
+    async def get_shows_by_time(self, day: int, time: str) -> List[Dict[str, Any]]:
+        """Get all shows scheduled for a specific time."""
+        try:
+            result = self.client.table("radio_shows").select("*").eq("schedule_day_of_week", day).eq("schedule_time", time).eq("is_active", True).execute()
+            return result.data if result.data else []
+        except Exception as e:
+            logger.error(f"Error getting shows by time from Supabase: {e}")
+            return []
+
+    async def delete_show(self, show_id: int) -> bool:
+        """Delete a radio show."""
+        try:
+            self.client.table("show_tracks").delete().eq("show_id", show_id).execute()
+            self.client.table("radio_shows").delete().eq("id", show_id).execute()
+            return True
+        except Exception as e:
+            logger.error(f"Error deleting radio show in Supabase: {e}")
+            return False
+
+    async def get_past_shows(self, chat_id: int) -> List[Dict[str, Any]]:
+        """Get past shows for a chat."""
+        try:
+            result = self.client.table("radio_shows").select("*").eq("chat_id", chat_id).eq("is_active", False).order("created_at", desc=True).execute()
+            return result.data if result.data else []
+        except Exception as e:
+            logger.error(f"Error getting past shows from Supabase: {e}")
+            return []
+
+    async def set_show_inactive(self, show_id: int) -> bool:
+        """Mark a show as inactive (past)."""
+        try:
+            self.client.table("radio_shows").update({"is_active": False}).eq("id", show_id).execute()
+            return True
+        except Exception as e:
+            logger.error(f"Error setting show inactive in Supabase: {e}")
+            return False
