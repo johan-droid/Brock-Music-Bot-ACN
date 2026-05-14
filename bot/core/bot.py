@@ -245,9 +245,10 @@ async def init_bot():
             secret_token=config.WEBHOOK_SECRET,
             max_connections=int(os.getenv("WEBHOOK_MAX_CONNECTIONS", "40")),
         )
-        # In webhook mode, start() doesn't poll
-        await bot_client.start()
-        logger.info("Bot started in WEBHOOK mode")
+        # In webhook mode, we only CONNECT the client, we don't START polling
+        await bot_client.connect()
+        logger.info("Bot connected in WEBHOOK mode. Note: Manual dispatching is required for updates.")
+        logger.warning("POLLING mode is highly recommended for Pyrogram bots. Unset WEBHOOK_URL to use polling.")
     else:
         # Polling mode: Ensure no stale webhooks exist
         try:

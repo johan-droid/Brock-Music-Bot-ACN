@@ -60,31 +60,33 @@ async def main():
             await init_bot()
             logger.info("Main bot client started and responding to updates.")
 
-        # 4. Initialize Userbots (Assistants) with retry logic
+        # 4. Initialize Userbots (Assistants) in the background
+        # This prevents the bot from being "stuck" if an assistant session is invalid.
         async def init_userbots_with_autoretry():
             while True:
                 try:
                     userbots = await init_userbots()
                     logger.info(f"Initialized {len(userbots)} userbot(s)")
+                    
+                    # 5. Once userbots are ready, initialize Calls
+                    await init_calls(userbots)
+                    from bot.core.call import call_manager
+                    from bot.plugins.play import on_track_end
+                    call_manager.on_stream_end_handlers.append(on_track_end)
+                    
+                    start_scheduler()
+                    from bot.utils.time_manager import time_manager
+                    time_manager.start()
+                    logger.info("Music streaming engine ready.")
                     return userbots
                 except Exception as exc:
                     logger.warning(f"Assistant auth issue: {exc}. Retrying in 30s...")
                     await asyncio.sleep(30)
                     continue
 
-        userbots = await init_userbots_with_autoretry()
-
-        # 5. Initialize Calls & Scheduling
-        if config.TELEGRAM_ENABLED and userbots:
-            await init_calls(userbots)
-            from bot.core.call import call_manager
-            from bot.plugins.play import on_track_end
-            call_manager.on_stream_end_handlers.append(on_track_end)
-            
-            start_scheduler()
-            from bot.utils.time_manager import time_manager
-            time_manager.start()
-            logger.info("Music streaming engine ready.")
+        # Start assistant init task without blocking the main bot
+        asyncio.create_task(init_userbots_with_autoretry())
+        logger.info("Assistant initialization task started in background.")
         
         # 6. Block until termination
         from pyrogram.sync import idle
