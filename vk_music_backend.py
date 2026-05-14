@@ -1,7 +1,7 @@
 """VK-first music backend with FastAPI and shared aggregation logic."""
 
-from __future__ import annotations
 
+from __future__ import annotations
 import asyncio
 import hashlib
 import json
@@ -74,12 +74,13 @@ _DEEZER_PAGE_URL_RX = re.compile(
     re.IGNORECASE,
 )
 _UNSUPPORTED_PAGE_DOMAINS = (
-    ".com",
-    "-nocookie.com",
+    "youtube.com",
+    "jiosaavn.com",
+    "youtube-nocookie.com",
     "youtu.be",
     "spotify.com",
     "soundcloud.com",
-    ".com",
+    "jiosaavn.com",
     "audiomack.com",
 )
 

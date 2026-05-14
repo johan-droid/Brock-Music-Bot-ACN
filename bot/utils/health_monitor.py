@@ -192,94 +192,9 @@ health_checker = HealthChecker()
 
 # Health check implementations
 
-    """Check JioSaavn wrapper health."""
-    from bot.platforms.jiosaavn_wrapper import JIOSAAVN_API_BASE_URL
-    
-    if not JIOSAAVN_API_BASE_URL:
-        return HealthCheckResult(
-            service="jiosaavn_wrapper",
-            status=HealthStatus.UNHEALTHY,
-            response_time_ms=0,
-            message="JIOSAAVN_API_BASE_URL not configured"
-        )
-    
-    start_time = time.time()
-    try:
-        async with aiohttp.ClientSession() as session:
-            async with session.get(
-                f"{JIOSAAVN_API_BASE_URL}/",
-                timeout=aiohttp.ClientTimeout(total=10)
-            ) as resp:
-                response_time = (time.time() - start_time) * 1000
-                
-                if resp.status == 200:
-                    data = await resp.json()
-                    return HealthCheckResult(
-                        service="jiosaavn_wrapper",
-                        status=HealthStatus.HEALTHY,
-                        response_time_ms=response_time,
-                        message="Service healthy",
-                        details={"version": data.get("version", "unknown")}
-                    )
-                else:
-                    return HealthCheckResult(
-                        service="jiosaavn_wrapper",
-                        status=HealthStatus.UNHEALTHY,
-                        response_time_ms=response_time,
-                        message=f"HTTP {resp.status}"
-                    )
-    except Exception as e:
-        response_time = (time.time() - start_time) * 1000
-        return HealthCheckResult(
-            service="jiosaavn_wrapper",
-            status=HealthStatus.UNHEALTHY,
-            response_time_ms=response_time,
-            message=str(e)
-        )
 
 
-    """Check YouTube wrapper health."""
-    from bot.platforms.youtube_wrapper import YOUTUBE_WRAPPER_BASE_URL
-    
-    if not YOUTUBE_WRAPPER_BASE_URL:
-        return HealthCheckResult(
-            service="youtube_wrapper",
-            status=HealthStatus.DEGRADED,
-            response_time_ms=0,
-            message="YOUTUBE_WRAPPER_BASE_URL not configured (using direct)"
-        )
-    
-    start_time = time.time()
-    try:
-        async with aiohttp.ClientSession() as session:
-            async with session.get(
-                f"{YOUTUBE_WRAPPER_BASE_URL}/health",
-                timeout=aiohttp.ClientTimeout(total=10)
-            ) as resp:
-                response_time = (time.time() - start_time) * 1000
-                
-                if resp.status == 200:
-                    return HealthCheckResult(
-                        service="youtube_wrapper",
-                        status=HealthStatus.HEALTHY,
-                        response_time_ms=response_time,
-                        message="Service healthy"
-                    )
-                else:
-                    return HealthCheckResult(
-                        service="youtube_wrapper",
-                        status=HealthStatus.UNHEALTHY,
-                        response_time_ms=response_time,
-                        message=f"HTTP {resp.status}"
-                    )
-    except Exception as e:
-        response_time = (time.time() - start_time) * 1000
-        return HealthCheckResult(
-            service="youtube_wrapper",
-            status=HealthStatus.UNHEALTHY,
-            response_time_ms=response_time,
-            message=str(e)
-        )
+
 
 
 async def check_database() -> HealthCheckResult:
