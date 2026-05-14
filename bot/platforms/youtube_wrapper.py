@@ -151,6 +151,8 @@ class YouTubeWrapperExtractor:
                         "YouTube returned 403 Bot Detection")
 
                 if response.status >= 400:
+                    logger.warning(
+                        f"YouTube wrapper returned HTTP {response.status} for {endpoint}")
                     await source_health_tracker.record_failure("youtube_wrapper")
                     if self._circuit_breaker:
                         await self._circuit_breaker._record_failure()
