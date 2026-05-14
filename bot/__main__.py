@@ -55,11 +55,10 @@ async def main():
         await music_backend.init()
         
         # 3. Initialize main Bot Client first (Responsive immediately)
-        if config.TELEGRAM_ENABLED and not os.getenv("SKIP_BOT_CLIENT"):
+        # This allows the bot to respond to /start while assistants initialize.
+        if config.TELEGRAM_ENABLED:
             await init_bot()
             logger.info("Main bot client started and responding to updates.")
-        elif os.getenv("SKIP_BOT_CLIENT"):
-            logger.info("SKIP_BOT_CLIENT is set; main bot client is handled elsewhere.")
 
         # 4. Initialize Userbots (Assistants) in the background
         # This prevents the bot from being "stuck" if an assistant session is invalid.
