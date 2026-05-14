@@ -15,7 +15,6 @@ error_history: List[Dict[str, Any]] = []
 
 def add_to_error_history(exc_type, exc_value, exc_traceback):
     """Add an error to the history, keeping only the last 10."""
-    global error_history
     tb_str = "".join(traceback.format_exception(exc_type, exc_value, exc_traceback))
 
     error_record = {
