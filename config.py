@@ -117,7 +117,7 @@ class Config(BaseSettings):
 
     # Source policy settings
     LEGAL_SOURCES_FIRST: bool = True
-    PRIORITIZE_EXTRACTORS: bool = True     # Use VK/Deezer before Supabase Index
+    PRIORITIZE_EXTRACTORS: bool = True     # Use high-quality extractors before Supabase Index
     PARALLEL_SEARCH: bool = True          # Search all sources at once for speed
 
     # Now Playing card auto-clean (seconds)

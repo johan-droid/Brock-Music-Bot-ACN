@@ -13,18 +13,6 @@ from bot.utils.multi_tier_cache import multi_cache
 logger = logging.getLogger(__name__)
 
 try:
-    from bot.platforms.vk import vk_extractor
-except Exception as e:
-    logger.error(f"Failed to load VK extractor: {e}")
-    vk_extractor = None
-
-try:
-    from bot.platforms.deezer import deezer_extractor
-except Exception as e:
-    logger.error(f"Failed to load Deezer extractor: {e}")
-    deezer_extractor = None
-
-try:
     from bot.platforms.youtube import youtube_extractor
 except Exception as e:
     logger.error(f"Failed to load YouTube extractor: {e}")
@@ -271,9 +259,7 @@ class MusicBackend:
             "youtube_wrapper": youtube_wrapper_extractor,
             "youtube": youtube_extractor,
             "jiosaavn_wrapper": jiosaavn_wrapper_extractor,
-            "jiosaavn": jiosaavn_extractor,
-            "deezer": deezer_extractor,
-            "vk": vk_extractor
+            "jiosaavn": jiosaavn_extractor
         }
 
     async def init(self):
@@ -285,9 +271,7 @@ class MusicBackend:
             ("youtube_wrapper", 1.0),
             ("youtube", 0.8),
             ("jiosaavn_wrapper", 1.1),
-            ("jiosaavn", 0.9),
-            ("deezer", 1.2),
-            ("vk", 1.3)
+            ("jiosaavn", 0.9)
         ]
         for name, score in sources:
             await source_health_tracker.register_source(name, base_score=score)
@@ -301,6 +285,34 @@ class MusicBackend:
     @staticmethod
     def _normalize_query_key(query: str) -> str:
         return (query or "").strip().lower()
+
+    @staticmethod
+    def _clean_search_query(query: str) -> str:
+        """Strip common garbage from track titles to improve search accuracy on fallbacks."""
+        if not query:
+            return ""
+        
+        # Remove common suffixes and bracketed info
+        # e.g. "Song (Official Lyrics)" -> "Song"
+        # e.g. "Song | Vibe Bird" -> "Song"
+        text = query
+        text = re.sub(r'\(.*?\)', '', text)  # (text)
+        text = re.sub(r'\[.*?\]', '', text)  # [text]
+        text = re.sub(r'\|.*$', '', text)    # | everything after
+        text = re.sub(r'-.*$', '', text)     # - everything after (if it's a suffix)
+        
+        # Strip common tags
+        tags = [
+            "official video", "official audio", "official lyrics", 
+            "lyrics", "video", "audio", "full song", "full video",
+            "vibe bird", "t-series", "zee music company", "sony music"
+        ]
+        for tag in tags:
+            text = re.sub(re.escape(tag), '', text, flags=re.IGNORECASE)
+            
+        # Clean up whitespace
+        text = re.sub(r'\s+', ' ', text).strip()
+        return text or query
 
     @staticmethod
     def _extract_metadata(row: Dict[str, Any]) -> Dict[str, Any]:
@@ -336,10 +348,8 @@ class MusicBackend:
                 first.get("stream_url") or first.get("url") or "")
 
         if not stream_url and track_id:
-            if source == "vk":
-                stream_url = f"vk://{track_id}"
-            elif source == "deezer":
-                stream_url = f"deezer://{track_id}"
+            # Fallback to direct URL construction if needed
+            pass
 
         if not stream_url:
             return None
@@ -386,12 +396,6 @@ class MusicBackend:
         # Allow tracks without stream_url for sources that support extraction by ID
         # Also fall back to 'url' or 'play_url' if stream_url is missing
         if not stream_url:
-            if track_id:
-                if source == "vk":
-                    stream_url = f"vk://{track_id}"
-                elif source == "deezer":
-                    stream_url = f"deezer://{track_id}"
-            
             if not stream_url:
                 stream_url = _normalize_url_text(item.get("url") or item.get("play_url") or "")
 
@@ -408,7 +412,7 @@ class MusicBackend:
 
         # Whitelist known sources to preserve their identity
         # Whitelist of sources that don't need re-inference (wrapper results are already categorized)
-        if source not in {"youtube", "jiosaavn", "vk", "deezer", "telegram", "direct", "youtube_wrapper", "jiosaavn_wrapper", "unknown"}:
+        if source not in {"youtube", "jiosaavn", "telegram", "direct", "youtube_wrapper", "jiosaavn_wrapper", "unknown"}:
             source = _infer_source_from_url(stream_url)
 
         if source == "unsupported":
@@ -538,7 +542,7 @@ class MusicBackend:
         if not sorted_sources:
             # Fallback if tracker is empty
             sorted_sources = ["youtube_wrapper", "youtube",
-                              "jiosaavn_wrapper", "jiosaavn", "deezer", "vk"]
+                              "jiosaavn_wrapper", "jiosaavn"]
 
         tracks = []
 
@@ -658,7 +662,7 @@ class MusicBackend:
             sorted_sources = await source_health_tracker.get_sorted_sources()
             if not sorted_sources:
                 sorted_sources = ["youtube_wrapper", "youtube",
-                                  "jiosaavn_wrapper", "jiosaavn", "deezer", "vk"]
+                                  "jiosaavn_wrapper", "jiosaavn"]
 
             for src_name in sorted_sources:
                 # Skip what we already tried or what we know is the same source
@@ -684,7 +688,14 @@ class MusicBackend:
         if not resolved and track.title:
             logger.info(
                 f"ID-based extraction failed, trying search fallback for '{track.title}'")
-            search_query = f"{track.title} {track.artist}" if track.artist and track.artist != "Unknown Artist" else track.title
+            
+            # Clean the title and artist for a better search match
+            clean_title = self._clean_search_query(track.title)
+            clean_artist = self._clean_search_query(track.artist) if track.artist and track.artist != "Unknown Artist" else ""
+            
+            search_query = f"{clean_title} {clean_artist}".strip()
+            if not search_query:
+                search_query = track.title
 
             sorted_sources = await source_health_tracker.get_sorted_sources()
             for src_name in sorted_sources:

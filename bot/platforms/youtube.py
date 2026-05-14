@@ -82,11 +82,22 @@ class YouTubeExtractor:
         # Apply cookies if configured
         if self.cookies_file and os.path.exists(self.cookies_file):
             self._base_ydl_opts["cookiefile"] = self.cookies_file
-            logger.info("YouTube Extractor: Using cookies file")
+            logger.info("YouTube Extractor: Using cookies file from path")
         elif self.cookie_string:
-            # We would need to write it to a temp file, but for now just log
-            logger.info(
-                "YouTube Extractor: Has YOUTUBE_COOKIES env var but writing to file is not implemented here")
+            try:
+                # Ensure data directory exists
+                data_dir = os.path.join(os.getcwd(), "data")
+                os.makedirs(data_dir, exist_ok=True)
+                
+                # Write cookies to a temporary file for yt-dlp
+                temp_cookies_path = os.path.join(data_dir, "youtube_cookies.txt")
+                with open(temp_cookies_path, "w", encoding="utf-8") as f:
+                    f.write(self.cookie_string)
+                
+                self._base_ydl_opts["cookiefile"] = temp_cookies_path
+                logger.info("YouTube Extractor: Using cookies from environment variable")
+            except Exception as e:
+                logger.error(f"Failed to write YOUTUBE_COOKIES to file: {e}")
 
         # Get circuit breaker
         self._circuit_breaker = CircuitBreakerRegistry.get("youtube")
