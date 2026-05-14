@@ -77,6 +77,7 @@ class YouTubeExtractor:
             "source_address": "0.0.0.0",
             # Ignore errors like Geo-blocks to keep searching
             "ignoreerrors": True,
+            "socket_timeout": 90,  # Increased for stability
         }
 
         # Apply cookies if configured
