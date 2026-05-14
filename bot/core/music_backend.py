@@ -1,3 +1,4 @@
+from bot.platforms.jamendo import JamendoClient
 import asyncio
 import logging
 import re
@@ -238,6 +239,8 @@ class MusicBackend:
         }
 
     async def init(self):
+        # Default extractors initialization logic
+        self.extractors_map["jamendo"] = JamendoClient()
         self._index_misses = 0
         self._index_skip_until = 0.0
         

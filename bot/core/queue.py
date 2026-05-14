@@ -2,6 +2,9 @@
 
 import json
 import logging
+from bot.platforms.jamendo import JamendoClient
+from bot.utils.resilience import log_error
+
 import asyncio
 from typing import List, Optional, Dict, Any
 from bot.utils.cache import cache
@@ -219,6 +222,38 @@ class QueueManager:
                 for t in queue:
                     await cache.rpush(key, json.dumps(t))
     
+    async def revalidate_queue(self, chat_id: int):
+        try:
+            queue = await self.get_queue(chat_id)
+            valid_queue = []
+            changed = False
+            for track in queue:
+                if track.get("source") == "jamendo":
+                    # Check if valid
+                    try:
+                        valid = await JamendoClient.extract(track.get("id"))
+                        if valid and valid.get("url"):
+                            valid_queue.append(track)
+                        else:
+                            logger.warning(f"Removing invalid jamendo track from queue: {track.get('id')}")
+                            changed = True
+                    except Exception as e:
+                        log_error("Failed to revalidate jamendo track", e)
+                        valid_queue.append(track) # Keep on transient error
+                else:
+                    valid_queue.append(track)
+
+            if changed:
+                key = self._queue_key(chat_id)
+                import json
+                from bot.utils.cache import cache
+                async with self._locks[chat_id]:
+                    await cache.delete(key)
+                    if valid_queue:
+                        await cache.rpush(key, *[json.dumps(t) for t in valid_queue])
+        except Exception as e:
+            log_error("Queue revalidation failed", e)
+
     async def get_queue_length(self, chat_id: int) -> int:
         """Get number of songs in queue."""
         key = self._queue_key(chat_id)
