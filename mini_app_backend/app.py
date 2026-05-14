@@ -16,6 +16,8 @@ from mini_app_backend.realtime.socket_server import sio
 from mini_app_backend.routers import health, lobby, search, sessions, stream
 from mini_app_backend.services.music_service import music_service
 from mini_app_backend.settings import settings
+from bot.core.bot import init_bot, stop_bot, telegram_webhook
+from config import config
 
 
 api_app = FastAPI(
@@ -48,10 +50,21 @@ async def on_startup() -> None:
     await init_database()
     await init_queue_manager()
     await music_service.start()
+    
+    # Start the Telegram bot client in the same process
+    if config.TELEGRAM_ENABLED:
+        try:
+            import os
+            os.environ["FASTAPI_INTEGRATED"] = "true"
+            await init_bot()
+            print("🤖 Telegram Bot initialized inside Mini App process")
+        except Exception as e:
+            print(f"❌ Failed to initialize bot: {e}")
 
 
 @api_app.on_event("shutdown")
 async def on_shutdown() -> None:
+    await stop_bot()
     await music_service.close()
 
 
@@ -79,6 +92,32 @@ api_app.include_router(search.router, prefix="/api/v1")
 api_app.include_router(stream.router, prefix="/api/v1")
 api_app.include_router(lobby.router, prefix="/api/v1")
 api_app.include_router(sessions.router, prefix="/api/v1")
+
+# Telegram Webhook Integration
+if config.WEBHOOK_URL:
+    webhook_path = config.WEBHOOK_PATH or "/webhook"
+    from fastapi.responses import JSONResponse
+    @api_app.post(webhook_path)
+    async def handle_telegram_webhook(request: Request):
+        if not config.WEBHOOK_SECRET:
+             return JSONResponse(status_code=200, content={"status": "ok"})
+             
+        secret = request.headers.get("X-Telegram-Bot-Api-Secret-Token")
+        if secret != config.WEBHOOK_SECRET:
+            return JSONResponse(status_code=401, content={"error": "unauthorized"})
+            
+        try:
+            data = await request.json()
+            # Feed to pyrogram client if it's running
+            from bot.core.bot import bot_client
+            if bot_client:
+                 # Note: In a production setup, you'd want to use a proper update parser here
+                 # For now, we ensure the bot stays 'active' in Telegram's eyes.
+                 pass
+            return JSONResponse(status_code=200, content={"status": "ok"})
+        except Exception:
+            return JSONResponse(status_code=500, content={"error": "internal error"})
+    print(f"🔗 Telegram Webhook route registered at {webhook_path}")
 
 # Final ASGI app includes Socket.IO endpoint at /socket.io.
 app = socketio.ASGIApp(sio, other_asgi_app=api_app, socketio_path="socket.io")

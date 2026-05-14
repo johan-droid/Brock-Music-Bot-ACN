@@ -112,7 +112,7 @@ async def start_health_server():
     """Start health check server on port 8080."""
     global _health_runner
 
-    if _health_runner is not None:
+    if _health_runner is not None or os.getenv("FASTAPI_INTEGRATED") == "true":
         return _health_runner
 
     app = web.Application()
@@ -243,7 +243,8 @@ async def init_bot():
 
     # Determine update method: Webhook vs Polling
     # Note: Webhooks require a 'web' process and a PORT.
-    if config.WEBHOOK_URL and os.getenv("PORT"):
+    # On Heroku with FastAPI integration, we force POLLING for maximum reliability.
+    if config.WEBHOOK_URL and os.getenv("PORT") and os.getenv("FASTAPI_INTEGRATED") != "true":
         # Webhook mode
         webhook_addr = f"{config.WEBHOOK_URL.rstrip('/')}{config.WEBHOOK_PATH}"
         logger.info(f"Setting webhook to: {webhook_addr}")
@@ -257,7 +258,9 @@ async def init_bot():
         logger.info("Bot connected in WEBHOOK mode.")
     else:
         # Polling mode: Ensure no stale webhooks exist
-        if config.WEBHOOK_URL and not os.getenv("PORT"):
+        if config.WEBHOOK_URL and os.getenv("FASTAPI_INTEGRATED") == "true":
+            logger.info("FASTAPI_INTEGRATED is true. Forcing POLLING mode for reliability.")
+        elif config.WEBHOOK_URL and not os.getenv("PORT"):
             logger.warning("WEBHOOK_URL is set but no PORT found (Worker mode). Falling back to POLLING.")
             
         try:

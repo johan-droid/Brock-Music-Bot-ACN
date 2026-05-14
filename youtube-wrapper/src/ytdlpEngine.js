@@ -17,11 +17,12 @@ class YtdlpEngine {
     async search(query, limit) {
         const args = this.getBaseArgs().concat([
             `ytsearch${limit}:${query}`,
-            '--dump-json'
+            '--dump-json',
+            '--flat-playlist'
         ]);
 
         try {
-            const { stdout } = await execFilePromise('yt-dlp', args);
+            const { stdout } = await execFilePromise('yt-dlp', args, { timeout: 40000 });
             const lines = stdout.split('\n').filter(line => line.trim().length > 0);
             return lines.map(line => {
                 const data = JSON.parse(line);
@@ -55,8 +56,8 @@ class YtdlpEngine {
 
         try {
              const [streamUrlResult, metadataResult] = await Promise.all([
-                execFilePromise('yt-dlp', streamArgs),
-                execFilePromise('yt-dlp', metadataArgs)
+                execFilePromise('yt-dlp', streamArgs, { timeout: 45000 }),
+                execFilePromise('yt-dlp', metadataArgs, { timeout: 45000 })
             ]);
 
             const stream_url = streamUrlResult.stdout.trim();
