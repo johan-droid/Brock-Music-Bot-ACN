@@ -5,28 +5,19 @@ from dataclasses import asdict, dataclass
 from typing import Any, Dict, List, Optional
 
 import bot.utils.database as database_module
-from bot.utils.circuit_breaker import CircuitBreakerRegistry, CircuitBreakerOpen, source_health_tracker
+from bot.utils.circuit_breaker import source_health_tracker
 from bot.utils.errors import BotDetectionError, PreviewOnlyError, summarize_exception, FallbackExhaustedError
-from bot.utils.cache import cache
 
 from bot.utils.multi_tier_cache import multi_cache
 logger = logging.getLogger(__name__)
 
-try:
-except Exception as e:
-    logger.error(f"Failed to load YouTube extractor: {e}")
 
-try:
-except Exception as e:
-    logger.error(f"Failed to load YouTube wrapper extractor: {e}")
 
-try:
-except Exception as e:
-    logger.error(f"Failed to load JioSaavn extractor: {e}")
 
-try:
-except Exception as e:
-    logger.error(f"Failed to load JioSaavn wrapper extractor: {e}")
+
+
+
+
 
 # Limit the number of concurrent Supabase save requests
 _save_semaphore = asyncio.Semaphore(5)
@@ -223,6 +214,7 @@ class MusicBackend:
     @property
     def extractors_map(self):
         return {
+
         }
 
     async def init(self):
@@ -357,7 +349,7 @@ class MusicBackend:
         if source == "unsupported":
             return None
 
-        if source not in {"telegram", "direct", "unknown"}:
+        if source not in {"telegram", "direct", "vk", "deezer", "unknown"}:
             source = _infer_source_from_url(stream_url)
 
         if source == "unsupported":
