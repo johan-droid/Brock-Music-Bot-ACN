@@ -1,1 +1,1 @@
-worker: python -m bot
+web: supervisord -n -c supervisor.conf

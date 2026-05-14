@@ -85,21 +85,28 @@ class YouTubeWrapperExtractor:
 
         # Adaptive timeout configuration
         self._timeout_config = {
-            'initial': 25,      # 25s for cold start
-            'healthy': 10,      # 10s when warm
+            'initial': 60,      # 60s for Render free-tier cold start
+            'healthy': 12,      # 12s when warm
             'circuit_open': 5   # Fast fail when circuit open
         }
+        self._last_success_time = 0.0
         self._last_response_time = None
 
         # Get circuit breaker
         self._circuit_breaker = CircuitBreakerRegistry.get("youtube_wrapper")
 
     def _get_timeout(self) -> int:
-        """Get adaptive timeout based on service health."""
+        """Get adaptive timeout based on service health and activity gaps."""
         if self._circuit_breaker and self._circuit_breaker.is_open:
             return self._timeout_config['circuit_open']
 
-        # If we have fast recent responses, use shorter timeout
+        # Render free tier spins down after 15 mins. Use long timeout if gap is large.
+        gap = time.time() - self._last_success_time
+        if gap > 840:  # 14 minutes
+            logger.info(f"YouTube wrapper potentially cold (last activity: {int(gap)}s ago). Using {self._timeout_config['initial']}s timeout.")
+            return self._timeout_config['initial']
+
+        # If we have fast recent responses, use healthy timeout
         if self._last_response_time and self._last_response_time < 5:
             return self._timeout_config['healthy']
 
@@ -151,6 +158,7 @@ class YouTubeWrapperExtractor:
 
                 try:
                     data = await response.json()
+                    self._last_success_time = time.time()
                     await source_health_tracker.record_success("youtube_wrapper")
                     if self._circuit_breaker:
                         await self._circuit_breaker._record_success()

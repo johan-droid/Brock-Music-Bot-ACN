@@ -211,21 +211,8 @@ class TitleConflictResolver:
                         all_results.extend(results)
                     else:
                         all_results.append(results)
-            except Exception as e:
-                logger.debug(f"Search variant failed: {e}")
-        
-        if not all_results:
-            fallback_variants = generate_search_fallbacks(query)
-            for variant in fallback_variants:
-                try:
-                    results = await search_func(variant)
-                    if results:
-                        if isinstance(results, list):
-                            all_results.extend(results)
-                        else:
-                            all_results.append(results)
                 except Exception as e:
-                    logger.debug(f"Search fallback variant failed: {e}")
+                    logger.error(f"Search variant/fallback failed: {e}")
 
         if not all_results:
             return {

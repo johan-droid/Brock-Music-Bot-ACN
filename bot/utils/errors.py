@@ -27,3 +27,28 @@ def format_error_message(e: Exception) -> str:
     if isinstance(e, MusicBotError):
         return e.user_message
     return "An unexpected error occurred while processing your request. Our team has been notified."
+
+
+def summarize_exception(e: Exception) -> str:
+    """Provide a concise, one-line summary of an exception for cleaner logging."""
+    if not e:
+        return "Unknown Error"
+    
+    exc_type = type(e).__name__
+    exc_msg = str(e).strip()
+    
+    # Handle common nested or long messages
+    if "STREAM_VALIDATION_FAILED" in exc_msg:
+        return "Stream Validation Failed (IP Block or Geo-Restriction)"
+    if "TimeoutError" in exc_type or "timeout" in exc_msg.lower():
+        return f"Service Timeout ({exc_type})"
+    if "403" in exc_msg:
+        return "Access Forbidden (403) - Bot Detection likely"
+    if "503" in exc_msg:
+        return "Service Unavailable (503) - Render/Heroku cold start or down"
+    
+    # Truncate long messages
+    if len(exc_msg) > 100:
+        exc_msg = exc_msg[:97] + "..."
+        
+    return f"{exc_type}: {exc_msg}"

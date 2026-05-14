@@ -5,8 +5,9 @@ from dataclasses import asdict, dataclass
 from typing import Any, Dict, List, Optional
 
 import bot.utils.database as database_module
-from bot.utils.circuit_breaker import source_health_tracker
-from bot.utils.errors import PreviewOnlyError, SourceExhaustedError, FallbackExhaustedError, BotDetectionError
+from bot.utils.circuit_breaker import CircuitBreakerRegistry, CircuitBreakerOpen, source_health_tracker
+from bot.utils.errors import BotDetectionError, PreviewOnlyError, summarize_exception, FallbackExhaustedError
+from bot.utils.cache import cache
 
 from bot.utils.multi_tier_cache import multi_cache
 logger = logging.getLogger(__name__)
@@ -393,14 +394,20 @@ class MusicBackend:
             if not stream_url:
                 stream_url = _normalize_url_text(item.get("url") or item.get("play_url") or "")
 
-        if not stream_url and source not in {"youtube", "jiosaavn"}:
-            return None
+        # Ensure YouTube search results (which lack stream_url initially) are correctly preserved
+        if not stream_url and source in {"youtube", "youtube_wrapper"}:
+            if track_id:
+                # We can keep it; extraction will happen on play
+                pass
+            else:
+                return None
 
         if source == "unsupported":
             return None
 
         # Whitelist known sources to preserve their identity
-        if source not in {"youtube", "jiosaavn", "vk", "deezer", "telegram", "direct", "unknown"}:
+        # Whitelist of sources that don't need re-inference (wrapper results are already categorized)
+        if source not in {"youtube", "jiosaavn", "vk", "deezer", "telegram", "direct", "youtube_wrapper", "jiosaavn_wrapper", "unknown"}:
             source = _infer_source_from_url(stream_url)
 
         if source == "unsupported":
@@ -536,36 +543,49 @@ class MusicBackend:
 
         # If parallel search
         if config.PARALLEL_SEARCH:
+            # PARALLEL SEARCH: Try all enabled sources concurrently
             tasks = []
             for src_name in sorted_sources:
                 extractor = self.extractors_map.get(src_name)
                 if extractor and hasattr(extractor, "search"):
-                    tasks.append(self._search_with_extractor(
-                        extractor, query, limit, src_name))
+                    tasks.append(asyncio.create_task(self._search_with_extractor(
+                        extractor, query, limit, src_name)))
 
-            if config.PRIORITIZE_EXTRACTORS:
-                tasks.append(self._search_index(query, limit))
+            if tasks:
+                # Use wait with timeout (65s) to handle Render cold starts
+                # This returns when ALL finish or when timeout is reached
+                done, pending = await asyncio.wait(tasks, timeout=65)
+                
+                results = []
+                for task in done:
+                    try:
+                        res = task.result()
+                        if res:
+                            results.append(res)
+                    except Exception as e:
+                        logger.error(f"Search task failed: {summarize_exception(e)}")
+                
+                # If timeout reached, cancel pending tasks
+                if pending:
+                    logger.warning(f"{len(pending)} search tasks timed out after 65s (potentially cold wrappers)")
+                    for task in pending:
+                        task.cancel()
 
-            results = await asyncio.gather(*tasks, return_exceptions=True)
+                combined = []
+                seen = set()
 
-            combined = []
-            seen = set()
+                for res in results:
+                    for t in res:
+                        # Harden identity generation to handle missing IDs or URLs
+                        identity = f"{t.source}:{t.track_id or t.stream_url or t.title}"
+                        if identity and identity not in seen:
+                            seen.add(identity)
+                            combined.append(t)
 
-            for i, res in enumerate(results):
-                if isinstance(res, Exception):
-                    logger.warning(f"Search task {i} failed: {res}")
-                    continue
-                if not res:
-                    continue
-                for t in res:
-                    identity = f"{t.source}:{t.track_id}" if t.track_id else t.stream_url
-                    if identity and identity not in seen:
-                        seen.add(identity)
-                        combined.append(t)
-
-            logger.debug(f"Parallel search combined {len(combined)} unique tracks from {len(results)} results")
-            combined.sort(key=calculate_track_quality, reverse=True)
-            tracks = combined[:limit]
+                tracks = combined
+            logger.debug(f"Parallel search combined {len(tracks)} unique tracks from {len(tasks)} attempted tasks")
+            tracks.sort(key=calculate_track_quality, reverse=True)
+            tracks = tracks[:limit]
         else:
             # Sequential search using health tracker
             if not config.PRIORITIZE_EXTRACTORS:
@@ -586,7 +606,8 @@ class MusicBackend:
                 tracks = await self._search_index(query, limit)
 
         if tracks and len(_background_tasks) < _MAX_BACKGROUND_TASKS:
-            task = asyncio.create_task(self._save_to_index(tracks))
+            # FIX: Use correct method _cache_to_index instead of non-existent _save_to_index
+            task = asyncio.create_task(self._cache_to_index(query, tracks))
             _background_tasks.add(task)
             task.add_done_callback(_background_tasks.discard)
 
@@ -646,10 +667,6 @@ class MusicBackend:
                 extractor = self.extractors_map.get(src_name)
                 if extractor and hasattr(extractor, "extract"):
                     try:
-                        # Attempt to use the same track_id. Note: cross-platform ID matching is rare,
-                        # but if an extractor handles standard IDs, it might work. Otherwise, we fallback to search.
-                        # Realistically, if track_id is a YT id, Jiosaavn won't resolve it.
-                        # We will skip direct extraction and go to search fallback below.
                         pass
                     except Exception:
                         pass
@@ -684,6 +701,8 @@ class MusicBackend:
                             f"Bot detection during fallback search on {src_name}")
                         continue
                     except Exception as e:
+                        logger.error(f"Stream payload resolution failed: {summarize_exception(e)}")
+                        return None
                         logger.debug(
                             f"Fallback search failed for {src_name}: {e}")
                         continue

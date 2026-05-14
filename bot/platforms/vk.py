@@ -60,6 +60,9 @@ class VKExtractor:
         try:
             async with aiohttp.ClientSession(timeout=timeout) as session:
                 async with session.get(endpoint, params=params, headers=self._headers()) as response:
+                    if response.status == 503:
+                        logger.warning("VK search unavailable (503) - likely cold start or overload")
+                        return []
                     if response.status >= 400:
                         logger.warning("VK search returned HTTP %s", response.status)
                         return []
