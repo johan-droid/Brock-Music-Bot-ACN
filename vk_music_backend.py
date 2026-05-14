@@ -34,7 +34,7 @@ class BackendSettings(BaseSettings):
     )
 
     SOURCE_ORDER: str = "vk,deezer"
-    HTTP_TIMEOUT: int = 15
+    HTTP_TIMEOUT: int = 10
     SEARCH_CACHE_TTL: int = 900
     RESOLVE_CACHE_TTL: int = 19800
     RATE_LIMIT_PER_MINUTE: int = 120
@@ -74,12 +74,12 @@ _DEEZER_PAGE_URL_RX = re.compile(
     re.IGNORECASE,
 )
 _UNSUPPORTED_PAGE_DOMAINS = (
-    "youtube.com",
-    "youtube-nocookie.com",
+    ".com",
+    "-nocookie.com",
     "youtu.be",
     "spotify.com",
     "soundcloud.com",
-    "jiosaavn.com",
+    ".com",
     "audiomack.com",
 )
 

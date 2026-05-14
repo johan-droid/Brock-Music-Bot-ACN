@@ -13,28 +13,20 @@ from bot.utils.multi_tier_cache import multi_cache
 logger = logging.getLogger(__name__)
 
 try:
-    from bot.platforms.youtube import youtube_extractor
 except Exception as e:
     logger.error(f"Failed to load YouTube extractor: {e}")
-    youtube_extractor = None
 
 try:
-    from bot.platforms.youtube_wrapper import youtube_wrapper_extractor
 except Exception as e:
     logger.error(f"Failed to load YouTube wrapper extractor: {e}")
-    youtube_wrapper_extractor = None
 
 try:
-    from bot.platforms.jiosaavn import jiosaavn_extractor
 except Exception as e:
     logger.error(f"Failed to load JioSaavn extractor: {e}")
-    jiosaavn_extractor = None
 
 try:
-    from bot.platforms.jiosaavn_wrapper import jiosaavn_wrapper_extractor
 except Exception as e:
     logger.error(f"Failed to load JioSaavn wrapper extractor: {e}")
-    jiosaavn_wrapper_extractor = None
 
 # Limit the number of concurrent Supabase save requests
 _save_semaphore = asyncio.Semaphore(5)
@@ -231,10 +223,6 @@ class MusicBackend:
     @property
     def extractors_map(self):
         return {
-            "youtube_wrapper": youtube_wrapper_extractor,
-            "youtube": youtube_extractor,
-            "jiosaavn_wrapper": jiosaavn_wrapper_extractor,
-            "jiosaavn": jiosaavn_extractor
         }
 
     async def init(self):
@@ -369,7 +357,7 @@ class MusicBackend:
         if source == "unsupported":
             return None
 
-        if source not in {"youtube", "jiosaavn", "telegram", "direct", "youtube_wrapper", "jiosaavn_wrapper", "unknown"}:
+        if source not in {"telegram", "direct", "unknown"}:
             source = _infer_source_from_url(stream_url)
 
         if source == "unsupported":
@@ -478,8 +466,7 @@ class MusicBackend:
 
         sorted_sources = await source_health_tracker.get_sorted_sources()
         if not sorted_sources:
-            sorted_sources = ["youtube_wrapper", "youtube",
-                              "jiosaavn_wrapper", "jiosaavn"]
+            sorted_sources = ["vk", "deezer"]
 
         tracks = []
 
@@ -574,8 +561,7 @@ class MusicBackend:
         if not resolved and track.track_id:
             sorted_sources = await source_health_tracker.get_sorted_sources()
             if not sorted_sources:
-                sorted_sources = ["youtube_wrapper", "youtube",
-                                  "jiosaavn_wrapper", "jiosaavn"]
+                sorted_sources = ["vk", "deezer"]
 
             for src_name in sorted_sources:
                 if src_name in [f"{track.source}_wrapper", track.source]:

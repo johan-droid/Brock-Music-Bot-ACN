@@ -6,6 +6,8 @@ from pyrogram import Client, filters
 from pyrogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton
 from bot.utils.permissions import require_admin, rate_limit
 from config import config
+import time
+import asyncio
 
 
 @Client.on_message(filters.command("help") & (filters.private | filters.group))
@@ -51,37 +53,5 @@ async def help_cmd(client: Client, message: Message):
 @Client.on_message(filters.command("ping") & (filters.private | filters.group))
 @rate_limit
 async def ping_cmd(client: Client, message: Message):
-    """Check bot latency with a Brook-themed response."""
-    import os
-    import asyncio
-
-    start = time.monotonic()
-    reply = await message.reply("💀 *Pinging... even a skeleton can feel the beat!*")
-    latency = (time.monotonic() - start) * 1000
-
-    # Emoji quality indicator
-    if latency < 100:
-        quality = "🟢 Excellent"
-        brook_quote = "Fast as the rhythm of my violin! YOHOHOHO!"
-    elif latency < 300:
-        quality = "🟡 Good"
-        brook_quote = "Steady, like a soulful ballad!"
-    else:
-        quality = "🔴 High"
-        brook_quote = "A bit slow... even my bones react faster! Yohoho!"
-
-    # Build a mini visual bar for latency
-    bar_len = min(int(latency / 30), 10)
-    bar = "▰" * bar_len + "▱" * (10 - bar_len)
-
-    text = f"""
-💀 **PONG! The Soul King responds!**
-
-⚡ **Latency:** `{latency:.1f}ms`
-📊 **Signal:** `{bar}` {quality}
-🐍 **Python:** `{platform.python_version()}`
-
-💬 *\"{brook_quote}\"*
-    """
-
-    await reply.edit(text)
+    """Check bot latency and connectivity."""
+    await message.reply("Bot is alive")
