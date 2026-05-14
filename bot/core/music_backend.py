@@ -234,7 +234,8 @@ class MusicBackend:
             "youtube_wrapper": youtube_wrapper_extractor,
             "youtube": youtube_extractor,
             "jiosaavn_wrapper": jiosaavn_wrapper_extractor,
-            "jiosaavn": jiosaavn_extractor
+            "jiosaavn": jiosaavn_extractor,
+            "jamendo": jamendo_client
         }
 
     async def init(self):
@@ -245,7 +246,8 @@ class MusicBackend:
             ("youtube_wrapper", 1.0),
             ("youtube", 0.8),
             ("jiosaavn_wrapper", 1.1),
-            ("jiosaavn", 0.9)
+            ("jiosaavn", 0.9),
+            ("jamendo", 0.95)
         ]
         for name, score in sources:
             await source_health_tracker.register_source(name, base_score=score)
