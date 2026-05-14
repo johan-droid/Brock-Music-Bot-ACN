@@ -24,7 +24,7 @@ class YtdlpEngine {
         ]);
 
         try {
-            const { stdout } = await execFilePromise('yt-dlp', args, { timeout: 60000 });
+            const { stdout } = await execFilePromise('yt-dlp', args, { timeout: 150000 });
             const lines = stdout.split('\n').filter(line => line.trim().length > 0);
             return lines.map(line => {
                 const data = JSON.parse(line);
@@ -56,7 +56,7 @@ class YtdlpEngine {
         ]);
 
         try {
-            const { stdout } = await execFilePromise('yt-dlp', args, { timeout: 60000 });
+            const { stdout } = await execFilePromise('yt-dlp', args, { timeout: 150000 });
             const data = JSON.parse(stdout);
 
             return {

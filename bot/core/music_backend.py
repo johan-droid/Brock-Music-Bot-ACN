@@ -661,6 +661,27 @@ class MusicBackend:
             return None
         return payload.get("url") or payload.get("stream_url")
 
+    def get_source_headers(self, source: str) -> Dict[str, str]:
+        """Get appropriate HTTP headers for the given source."""
+        source = _normalize_source(source)
+        if source in {"youtube", "youtube_wrapper"}:
+            return {
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36",
+                "Accept": "*/*",
+                "Accept-Language": "en-US,en;q=0.9",
+                "Origin": "https://music.youtube.com",
+                "Referer": "https://music.youtube.com/",
+            }
+        if source in {"jiosaavn", "jiosaavn_wrapper"}:
+            return {
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+                "Accept": "*/*",
+                "Referer": "https://www.jiosaavn.com/",
+            }
+        return {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+        }
+
     def _build_payload(self, track: Track, resolved: Optional[Dict[str, Any]], source: str) -> Dict[str, Any]:
         """Helper to build a unified payload for play.py"""
         if resolved:

@@ -126,7 +126,7 @@ class JioSaavnExtractor:
             if not media_url:
                 media_url = song.get("media_preview_url") or song.get("more_info", {}).get("media_preview_url")
 
-            if media_url and "jiotunepreview" in media_url.lower():
+            if media_url and ("jiotunepreview" in media_url.lower() or "preview.saavncdn.com" in media_url.lower()):
                 logger.warning(
                     f"JioSaavn returned a preview URL for track {track_id}")
                 raise PreviewOnlyError("JioSaavn stream is only a preview.")

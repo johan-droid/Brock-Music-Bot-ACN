@@ -154,7 +154,7 @@ class JioSaavnWrapperExtractor:
 
             stream_url = result.get("stream_url")
 
-            if stream_url and "jiotunepreview" in stream_url.lower():
+            if stream_url and ("jiotunepreview" in stream_url.lower() or "preview.saavncdn.com" in stream_url.lower()):
                 logger.warning(
                     f"JioSaavn wrapper returned a preview URL for track {track_id}")
                 raise PreviewOnlyError("JioSaavn stream is only a preview.")
