@@ -29,7 +29,7 @@ from bot.utils.soul_king_thumbnail import soul_king_thumbnail
 from bot.utils.metrics import metrics_collector
 from bot.platforms import extract_audio
 from bot.core.queue import queue_manager
-from bot.core.call import call_manager
+from bot.core import call
 from bot.core import bot as bot_module
 from bot.core.music_backend import music_backend, Track
 from config import config
@@ -379,7 +379,7 @@ async def add_track_and_play(
 
     # Recover from stale state after process restarts/crashes:
     # queue status may persist as playing while no active VC call exists in memory.
-    if is_playing and chat_id not in call_manager.active_chats:
+    if is_playing and chat_id not in (call.call_manager.active_chats if call.call_manager else {}):
         logger.warning(
             f"Stale playback state detected in chat {chat_id}: status={status} without active VC; resetting to idle"
         )
@@ -499,7 +499,8 @@ async def start_playback(chat_id: int, prefetched_track: Optional[Dict[str, Any]
             await cache.invalidate_playback_state(chat_id)
             # If no more tracks are queued, auto-leave VC to keep the call assistant clean.
             try:
-                await call_manager.leave_call(chat_id)
+                if call.call_manager:
+                    await call.call_manager.leave_call(chat_id)
                 logger.info(f"Auto-left VC for chat {chat_id} after queue drained")
             except Exception as exc:
                 logger.debug(f"Auto-leave VC failed for chat {chat_id}: {exc}")
@@ -577,7 +578,8 @@ async def start_playback(chat_id: int, prefetched_track: Optional[Dict[str, Any]
 
         # Use consolidated play method
         try:
-            await call_manager.play(chat_id, url, video=is_video, headers=headers)
+            if call.call_manager:
+                await call.call_manager.play(chat_id, url, video=is_video, headers=headers)
         except Exception as exc:
             exc_str = str(exc)
             logger.warning(f"Playback failed on initial URL for '{track.get('title', 'unknown')}' in {chat_id}: {exc}")
@@ -607,7 +609,8 @@ async def start_playback(chat_id: int, prefetched_track: Optional[Dict[str, Any]
                             alt_source = alt_payload.get("source", alt_track.source)
                             
                             try:
-                                await call_manager.play(chat_id, alt_url, video=is_video, headers=alt_headers)
+                                if call.call_manager:
+                                    await call.call_manager.play(chat_id, alt_url, video=is_video, headers=alt_headers)
                                 logger.info(f"Alternative playback succeeded: {alt_track.title} [{alt_source}]")
                                 url = alt_url
                                 headers = alt_headers
@@ -640,7 +643,8 @@ async def start_playback(chat_id: int, prefetched_track: Optional[Dict[str, Any]
                         track["source"] = fallback_source
 
                     try:
-                        await call_manager.play(chat_id, fallback_url, video=is_video, headers=fallback_headers)
+                        if call.call_manager:
+                            await call.call_manager.play(chat_id, fallback_url, video=is_video, headers=fallback_headers)
                         logger.info(f"Fallback playback succeeded for '{track.get('title','unknown')}' in {chat_id}")
                         url = fallback_url
                         headers = fallback_headers
@@ -735,7 +739,8 @@ async def cleanup_vc_session(chat_id: int, send_message: bool = False, preserve_
     
     # Leave the voice call
     try:
-        await call_manager.leave_call(chat_id)
+        if call.call_manager:
+            await call.call_manager.leave_call(chat_id)
         logger.info(f"Left VC for chat {chat_id}")
     except Exception as e:
         logger.debug(f"Leave call (cleanup) for {chat_id}: {e}")
@@ -797,7 +802,8 @@ async def on_track_end(chat_id: int) -> None:
         await persist_playback_state(chat_id, "idle")
         # If no more tracks are queued, auto-leave VC to keep the call assistant clean.
         try:
-            await call_manager.leave_call(chat_id)
+            if call.call_manager:
+                await call.call_manager.leave_call(chat_id)
             logger.info(f"Auto-left VC for chat {chat_id} after queue drained")
         except Exception as exc:
             logger.debug(f"Auto-leave VC failed for chat {chat_id}: {exc}")

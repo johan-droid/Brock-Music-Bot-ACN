@@ -194,10 +194,9 @@ def get_available_userbot() -> Client:
 
     # Prefer load-aware selection from call manager when initialized.
     try:
-        from bot.core.call import call_manager
-
-        if call_manager:
-            snapshot = call_manager.get_balancer_snapshot()
+        from bot.core import call
+        if call.call_manager:
+            snapshot = call.call_manager.get_balancer_snapshot()
             loads = snapshot.get("loads", {})
             candidates = sorted(
                 range(len(userbot_clients)),

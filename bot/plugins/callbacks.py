@@ -7,7 +7,7 @@ from pyrogram.enums import ParseMode
 from pyrogram.types import CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
 from bot.utils.permissions import get_permission_level
 from bot.core.queue import queue_manager
-from bot.core.call import call_manager, CallManager
+from bot.core import call
 from bot.utils.progress_tracker import progress_tracker
 from bot.utils.cache import cache
 from bot.core import bot as bot_module
@@ -17,10 +17,10 @@ import time
 from bot.utils.metrics import metrics_collector, CallbackMetrics
 
 
-def _get_call_manager() -> CallManager:
-    if call_manager is None:
+def _get_call_manager():
+    if call.call_manager is None:
         raise RuntimeError("Call manager is not initialized")
-    return call_manager
+    return call.call_manager
 
 logger = logging.getLogger(__name__)
 
