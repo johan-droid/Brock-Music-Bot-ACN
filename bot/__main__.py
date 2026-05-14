@@ -20,6 +20,8 @@ from bot.utils.cache import init_redis
 from bot.utils.logger import setup_logging
 from bot.utils.scheduler import start_scheduler
 from bot.core.music_backend import music_backend
+import os
+from bot.core.jamendo_client import jamendo_client
 from config import config
 
 
@@ -53,6 +55,7 @@ async def main():
         await init_redis()
         await init_queue_manager()
         await music_backend.init()
+        jamendo_client.client_id = os.environ.get('JAMENDO_CLIENT_ID', '56d30c95')
         
         # 3. Initialize main Bot Client first (Responsive immediately)
         # This allows the bot to respond to /start while assistants initialize.
