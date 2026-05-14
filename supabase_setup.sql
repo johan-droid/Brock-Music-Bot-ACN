@@ -180,3 +180,23 @@ CREATE POLICY "Service role full access" ON global_music_index FOR ALL TO servic
 
 -- Refresh PostgREST schema cache so new columns become visible without waiting for a restart.
 NOTIFY pgrst, 'reload schema';
+
+-- anon_requests table: Stores anonymous song requests
+CREATE TABLE IF NOT EXISTS anon_requests (
+    request_id BIGSERIAL PRIMARY KEY,
+    track_id TEXT,
+    requested_by TEXT,
+    chat_id BIGINT,
+    time TIMESTAMP DEFAULT NOW()
+);
+
+-- vote_sessions table: Tracks active voting sessions
+CREATE TABLE IF NOT EXISTS vote_sessions (
+    message_id BIGINT,
+    chat_id BIGINT,
+    track_id TEXT,
+    PRIMARY KEY (chat_id, message_id),
+    yes_votes INTEGER DEFAULT 0,
+    no_votes INTEGER DEFAULT 0,
+    expired BOOLEAN DEFAULT FALSE
+);
