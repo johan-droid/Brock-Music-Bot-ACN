@@ -279,20 +279,21 @@ class MusicBackend:
     async def init(self):
         self._index_misses = 0
         self._index_skip_until = 0.0
+        
+        # Register all sources in the health tracker to enable fallback logic
+        sources = [
+            ("youtube_wrapper", 1.0),
+            ("youtube", 0.8),
+            ("jiosaavn_wrapper", 1.1),
+            ("jiosaavn", 0.9),
+            ("deezer", 1.2),
+            ("vk", 1.3)
+        ]
+        for name, score in sources:
+            await source_health_tracker.register_source(name, base_score=score)
+            
         logger.info(
             "MusicBackend initialized (YouTube + JioSaavn Wrapper + Fallback Chain)")
-        if not youtube_wrapper_extractor:
-            logger.warning(
-                "YouTube wrapper not available - falling back to direct YouTube (may fail on Heroku)")
-        if not jiosaavn_wrapper_extractor:
-            logger.warning(
-                "JioSaavn wrapper not available - set JIOSAAVN_API_BASE_URL for Indian music")
-        if not jiosaavn_extractor:
-            logger.info("JioSaavn direct extractor not available")
-        if not deezer_extractor:
-            logger.info("Deezer extractor not available")
-        if not vk_extractor:
-            logger.info("VK extractor not available")
 
     async def close(self):
         return None
@@ -660,16 +661,24 @@ class MusicBackend:
                                   "jiosaavn_wrapper", "jiosaavn", "deezer", "vk"]
 
             for src_name in sorted_sources:
-                # Skip what we already tried
+                # Skip what we already tried or what we know is the same source
                 if src_name in [f"{track.source}_wrapper", track.source]:
                     continue
 
                 extractor = self.extractors_map.get(src_name)
                 if extractor and hasattr(extractor, "extract"):
                     try:
-                        pass
-                    except Exception:
-                        pass
+                        # Only attempt ID extraction if the source matches the ID format
+                        # (e.g. don't try YouTube ID on VK unless they happen to match)
+                        # For now, we only try if the source is the same type (wrapper vs direct)
+                        if src_name.split("_")[0] == track.source:
+                            resolved = await extractor.extract(track.track_id)
+                            if resolved:
+                                logger.info(f"Fallback extraction success via {src_name} for {track.title}")
+                                source = src_name.split("_")[0]
+                                break
+                    except Exception as e:
+                        logger.debug(f"Fallback extraction failed for {src_name}: {e}")
 
         # FINAL FALLBACK: Search for the track by title across healthy sources
         if not resolved and track.title:

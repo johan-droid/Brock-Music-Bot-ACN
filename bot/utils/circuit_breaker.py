@@ -289,7 +289,14 @@ class SourceHealthTracker:
     """Tracks health and availability of different music sources to adjust their priorities dynamically."""
 
     def __init__(self):
-        self._sources: Dict[str, Dict[str, Any]] = {}
+        self._sources: Dict[str, Dict[str, Any]] = {
+            "youtube_wrapper": {"base_score": 1.0, "health": 1.0, "failures": 0, "successes": 0, "last_failure": 0, "circuit_open": False},
+            "youtube": {"base_score": 0.8, "health": 1.0, "failures": 0, "successes": 0, "last_failure": 0, "circuit_open": False},
+            "jiosaavn_wrapper": {"base_score": 1.1, "health": 1.0, "failures": 0, "successes": 0, "last_failure": 0, "circuit_open": False},
+            "jiosaavn": {"base_score": 0.9, "health": 1.0, "failures": 0, "successes": 0, "last_failure": 0, "circuit_open": False},
+            "deezer": {"base_score": 1.2, "health": 1.0, "failures": 0, "successes": 0, "last_failure": 0, "circuit_open": False},
+            "vk": {"base_score": 1.3, "health": 1.0, "failures": 0, "successes": 0, "last_failure": 0, "circuit_open": False}
+        }
         self._lock = asyncio.Lock()
 
     async def register_source(self, name: str, base_score: float = 1.0):
