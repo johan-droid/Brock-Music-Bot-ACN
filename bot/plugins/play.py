@@ -32,6 +32,7 @@ from bot.core.queue import queue_manager
 from bot.core import call
 from bot.core import bot as bot_module
 from bot.core.music_backend import music_backend, Track
+from bot.utils.errors import summarize_exception
 from config import config
 
 logger = logging.getLogger(__name__)
@@ -311,8 +312,8 @@ async def play_cmd(client: Client, message: Message):
     except asyncio.TimeoutError:
         await search_msg.edit("⏱ <b>Search timed out!</b>\n<i>\"The seas were too vast this time! Try again, Yohoho!\"</i>", parse_mode=ParseMode.HTML)
     except Exception as exc:
-        logger.exception("play_cmd failed")
-        await search_msg.edit(f"❌ <b>Error:</b> <code>{str(exc)[:120]}</code>", parse_mode=ParseMode.HTML)
+        logger.error(f"play_cmd failed: {summarize_exception(exc)}")
+        await search_msg.edit(f"❌ <b>Error:</b> <code>{summarize_exception(exc)}</code>", parse_mode=ParseMode.HTML)
 
 
 # ── /vplay ────────────────────────────────────────────────────────────────────
@@ -353,8 +354,8 @@ async def vplay_cmd(client: Client, message: Message):
     except asyncio.TimeoutError:
         await search_msg.edit("⏱ <b>Search timed out!</b>", parse_mode=ParseMode.HTML)
     except Exception as exc:
-        logger.exception("vplay_cmd failed")
-        await search_msg.edit(f"❌ <b>Error:</b> <code>{str(exc)[:120]}</code>", parse_mode=ParseMode.HTML)
+        logger.error(f"vplay_cmd failed: {summarize_exception(exc)}")
+        await search_msg.edit(f"❌ <b>Error:</b> <code>{summarize_exception(exc)}</code>", parse_mode=ParseMode.HTML)
 
 
 # ── Core playback pipeline ────────────────────────────────────────────────────
