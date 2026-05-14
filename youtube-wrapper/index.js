@@ -146,7 +146,7 @@ app.get('/search',
             const results = await circuitBreaker.execute(
                 ytdlpEngine.search.bind(ytdlpEngine),
                 [query, limit],
-                { maxRetries: 2 }
+                { maxRetries: 1 }
             );
             timer();
 
