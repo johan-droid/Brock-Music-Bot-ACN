@@ -211,8 +211,8 @@ class TitleConflictResolver:
                         all_results.extend(results)
                     else:
                         all_results.append(results)
-                except Exception as e:
-                    logger.error(f"Search variant/fallback failed: {e}")
+            except Exception as e:
+                logger.error(f"Search variant/fallback failed: {e}")
 
         if not all_results:
             return {
