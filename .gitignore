@@ -87,10 +87,14 @@ node_modules/
 # --- Project Specific ---
 temp/
 tmp/
+scratch/
 cookies.txt
 pytgcalls_dir.txt
 downloads/
+mediastream_sig.txt
+muzs.py
 
 # --- Test Artifacts ---
 test_*.py
 !test_suite.py
+!test_extraction.py

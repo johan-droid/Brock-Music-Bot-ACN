@@ -2,7 +2,7 @@
 
 import logging
 from typing import Optional
-from pyrogram.client import Client
+from pyrogram import Client
 from pyrogram.enums import ParseMode
 from pyrogram.types import CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
 from bot.utils.permissions import get_permission_level

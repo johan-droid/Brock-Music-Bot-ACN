@@ -5,8 +5,7 @@ import asyncio
 from typing import Optional
 import os
 from aiohttp import web
-from pyrogram.client import Client
-from pyrogram.sync import idle
+from pyrogram import Client, idle
 from pyrogram.types import BotCommand
 from config import config
 from bot.utils.metrics import metrics_collector, log_metrics_periodically

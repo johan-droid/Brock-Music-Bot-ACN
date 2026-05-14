@@ -1,0 +1,16 @@
+{
+  "venvPath": ".",
+  "venv": ".venv",
+  "extraPaths": [
+    "./bot",
+    "./.venv/Lib/site-packages"
+  ],
+  "include": [
+    "bot",
+    "config.py",
+    "generate_session.py"
+  ],
+  "pythonVersion": "3.12",
+  "reportMissingImports": "none",
+  "reportMissingModuleSource": "none"
+}

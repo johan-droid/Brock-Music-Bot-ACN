@@ -90,7 +90,7 @@ async def main():
         logger.info("Assistant initialization task started in background.")
         
         # 6. Block until termination
-        from pyrogram.sync import idle
+        from pyrogram import idle
         await idle()
         
     except Exception as e:

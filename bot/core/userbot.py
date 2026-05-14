@@ -6,7 +6,7 @@ import tempfile
 from pathlib import Path
 from typing import List
 import pyrogram.errors
-from pyrogram.client import Client
+from pyrogram import Client
 from config import config
 
 logger = logging.getLogger(__name__)
