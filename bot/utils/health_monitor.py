@@ -192,7 +192,6 @@ health_checker = HealthChecker()
 
 # Health check implementations
 
-async def check_jiosaavn_wrapper() -> HealthCheckResult:
     """Check JioSaavn wrapper health."""
     from bot.platforms.jiosaavn_wrapper import JIOSAAVN_API_BASE_URL
     
@@ -239,7 +238,6 @@ async def check_jiosaavn_wrapper() -> HealthCheckResult:
         )
 
 
-async def check_youtube_wrapper() -> HealthCheckResult:
     """Check YouTube wrapper health."""
     from bot.platforms.youtube_wrapper import YOUTUBE_WRAPPER_BASE_URL
     
@@ -332,8 +330,6 @@ async def check_database() -> HealthCheckResult:
 
 def register_default_health_checks():
     """Register all default health checks."""
-    health_checker.register_check("jiosaavn_wrapper", check_jiosaavn_wrapper)
-    health_checker.register_check("youtube_wrapper", check_youtube_wrapper)
     health_checker.register_check("database", check_database)
     
     # Register circuit breaker status checks
