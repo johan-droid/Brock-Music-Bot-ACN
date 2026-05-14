@@ -338,7 +338,7 @@ def synchronize_api_credentials():
 
         logger.warning(
             "CRITICAL: TELEGRAM_ENABLED is true but missing/invalid credentials: %s. "
-            "Please ensure these are set in your Railway Dashboard Variables exactly. "
+            "Please ensure these are set in your Platform Dashboard Variables exactly. "
             "Bot will idle until configured.",
             ", ".join(missing),
         )

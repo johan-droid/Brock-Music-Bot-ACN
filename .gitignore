@@ -1,59 +1,96 @@
-# Ignore Python cache
+# --- Python ---
 __pycache__/
 *.py[cod]
 *$py.class
 *.so
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.nox/
+.cache/
+nosetests.xml
+coverage.xml
+*.cover
+*.pyo
+*.pyd
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
 
-# Virtual environments
+# --- Virtual Environments ---
 venv/
 env/
 ENV/
 .venv/
+env.bak/
+venv.bak/
 
-# Node.js
-node_modules/
-
-# IDE & Assistant
-.vscode/
-.idea/
-.gemini/
-*.swp
-*.swo
-
-# Environment variables (NEVER commit)
+# --- Environment & Secrets ---
 .env
+.env.*
+!.env.example
 .env.local
 bot/.env.local
 
-# Sessions and sensitive data
+# --- Telegram Sessions ---
 sessions/
 *.session
 *.session-journal
 my_account.session*
 
-# Logs
+# --- Databases & Data ---
+data/
+*.db
+*.db-journal
+*.sqlite
+*.sqlite3
+mongo-data/
+redis-data/
+
+# --- Logs ---
 logs/
 *.log
 bot_output.log
 bot_startup.log
 startup.log
 
-# Downloaded files
-tmp/
+# --- IDE & Editors ---
+.vscode/
+.idea/
+.gemini/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# --- Deployment & Platforms ---
+.railway/
+.heroku/
+dist-heroku/
+node_modules/
+
+# --- Project Specific ---
 temp/
+tmp/
+cookies.txt
+pytgcalls_dir.txt
 downloads/
 
-# Test codes
+# --- Test Artifacts ---
 test_*.py
-
-# Cookies
-cookies.txt
-
-# Docker volumes
-mongo-data/
-redis-data/
-
-# Misc
-pytgcalls_dir.txt
-.DS_Store
-
+!test_suite.py

@@ -1,54 +1,74 @@
-/**
- * YouTube Music Wrapper Microservice
- * Uses yt-dlp with cookies to bypass YouTube bot detection
- * Deploy to Render to bypass Heroku IP blocks
- */
-
 const express = require('express');
 const cors = require('cors');
-const { exec } = require('child_process');
-const { promisify } = require('util');
-const path = require('path');
-const fs = require('fs');
+const helmet = require('helmet');
+const pinoHttp = require('pino-http');
+const pino = require('pino');
+const { query, param, validationResult } = require('express-validator');
 
-const execAsync = promisify(exec);
+const CookieManager = require('./src/cookieManager');
+const YtdlpEngine = require('./src/ytdlpEngine');
+const CacheLayer = require('./src/cacheLayer');
+const CircuitBreaker = require('./src/circuitBreaker');
+const { limiters, errorHandler, metrics, register, activeRequestsMiddleware } = require('./src/middleware');
+
+const logger = pino({ name: 'App', level: process.env.LOG_LEVEL || 'info' });
+const pinoMiddleware = pinoHttp({ logger });
+
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Middleware
+// Security & Parsing Middleware
+app.use(helmet());
 app.use(cors());
 app.use(express.json());
+app.use(pinoMiddleware);
+app.use(activeRequestsMiddleware);
 
-// Check for cookies file or environment variable
-const COOKIES_PATH = path.join(__dirname, 'cookies.txt');
-const COOKIES_ENV = process.env.YOUTUBE_COOKIES;
-const hasCookiesFile = fs.existsSync(COOKIES_PATH);
-const hasCookiesEnv = !!COOKIES_ENV;
+// Initialize Core Services
+const cookieManager = new CookieManager();
+const hasCookies = cookieManager.init();
 
-console.log(`[INIT] Environment check: COOKIES_ENV present=${hasCookiesEnv}, length=${COOKIES_ENV ? COOKIES_ENV.length : 0}`);
-console.log(`[INIT] Cookies file exists: ${hasCookiesFile}`);
+const ytdlpEngine = new YtdlpEngine(cookieManager);
+const cacheLayer = new CacheLayer();
+const circuitBreaker = new CircuitBreaker({
+    failureThreshold: 5,
+    resetTimeout: 30000 // 30s
+});
 
-// Always update cookies from env if provided (allows cookie refresh)
-if (hasCookiesEnv) {
-  try {
-    fs.writeFileSync(COOKIES_PATH, COOKIES_ENV);
-    console.log('[INIT] Cookies written from environment variable');
-    // Verify write
-    const written = fs.readFileSync(COOKIES_PATH, 'utf8');
-    console.log(`[INIT] Cookies file verified: ${written.length} bytes, starts with: ${written.substring(0, 50)}...`);
-  } catch (e) {
-    console.error('[INIT] Failed to write cookies:', e.message);
-  }
-}
+// Graceful Shutdown Hook
+let server;
+const shutdown = async (signal) => {
+    logger.info(`Received ${signal}, shutting down gracefully...`);
+    if (server) {
+        server.close(async () => {
+            logger.info('HTTP server closed.');
+            await cacheLayer.close();
+            process.exit(0);
+        });
 
-const hasCookies = fs.existsSync(COOKIES_PATH) && fs.statSync(COOKIES_PATH).size > 0;
-console.log(`[INIT] Final cookies status: ${hasCookies ? 'AVAILABLE' : 'NOT AVAILABLE'}`);
+        // Force exit after 10s if connections are hanging
+        setTimeout(() => {
+            logger.warn('Forcing shutdown after 10s timeout.');
+            process.exit(1);
+        }, 10000).unref();
+    } else {
+        process.exit(0);
+    }
+};
 
-// Build yt-dlp command with cookies
-function buildYtdlpCommand(args) {
-  const cookiesArg = hasCookies ? `--cookies "${COOKIES_PATH}"` : '';
-  return `yt-dlp ${cookiesArg} ${args}`;
-}
+process.on('SIGTERM', () => shutdown('SIGTERM'));
+process.on('SIGINT', () => shutdown('SIGINT'));
+
+const validateRequest = (req, res, next) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+        const err = new Error('Validation failed');
+        err.status = 400;
+        err.details = errors.array();
+        return next(err);
+    }
+    next();
+};
 
 /**
  * Health check endpoint
@@ -57,254 +77,180 @@ app.get('/', (req, res) => {
   res.json({
     status: 'healthy',
     service: 'youtube-music-wrapper',
-    version: '1.0.0'
+    version: '1.1.0',
+    cookies_available: cookieManager.hasCookies,
+    circuit_state: circuitBreaker.state
   });
 });
 
+app.get('/health', (req, res) => {
+  res.status(200).send('OK');
+});
+
 /**
- * Search YouTube Music using yt-dlp with cookies
+ * Prometheus Metrics Endpoint
+ */
+app.get('/metrics', async (req, res) => {
+    try {
+        res.set('Content-Type', register.contentType);
+        res.end(await register.metrics());
+    } catch (ex) {
+        res.status(500).end(ex);
+    }
+});
+
+/**
+ * Cache Invalidation Endpoint (Admin)
+ */
+app.post('/flush-cache', async (req, res, next) => {
+    try {
+        await cacheLayer.invalidate();
+        res.json({ status: 'success', message: 'Caches invalidated' });
+    } catch (err) {
+        next(err);
+    }
+});
+
+/**
+ * Search YouTube Music
  * GET /search?q=<query>&limit=<n>
  */
-app.get('/search', async (req, res) => {
-  try {
-    const query = req.query.q;
-    const limit = parseInt(req.query.limit) || 5;
-
-    if (!query) {
-      return res.status(400).json({ error: 'Missing query parameter' });
-    }
-
-    console.log(`[SEARCH] Query: "${query}", Limit: ${limit}`);
-
-    try {
-      // Use yt-dlp with cookies to search
-      const searchQuery = `ytsearch${limit}:${query}`;
-      const cmd = buildYtdlpCommand(`-j --flat-playlist "${searchQuery}"`);
-
-      const { stdout, stderr } = await execAsync(cmd, { timeout: 30000 });
-
-      if (stderr) {
-        console.error('[SEARCH] stderr:', stderr);
-      }
-
-      // Parse JSON lines
-      const lines = stdout.trim().split('\n').filter(line => line.trim());
-      const results = [];
-
-      for (const line of lines) {
+app.get('/search',
+    limiters.search,
+    [
+        query('q').notEmpty().withMessage('Missing query parameter').trim(),
+        query('limit').optional().isInt({ min: 1, max: 20 }).toInt()
+    ],
+    validateRequest,
+    async (req, res, next) => {
         try {
-          const data = JSON.parse(line);
-          if (data.id && data.title) {
-            results.push({
-              id: data.id,
-              title: data.title,
-              artist: data.uploader || data.channel || 'Unknown Artist',
-              duration: data.duration || 0,
-              thumbnail: data.thumbnail || `https://i.ytimg.com/vi/${data.id}/mqdefault.jpg`,
-              url: `https://www.youtube.com/watch?v=${data.id}`
+            const query = req.query.q;
+            const limit = req.query.limit || 5;
+
+            // 1. Check Cache
+            const cachedResult = await cacheLayer.getSearch(query, limit);
+            if (cachedResult) {
+                metrics.cacheHits.labels('search').inc();
+                res.set('Cache-Control', 'public, max-age=300'); // 5m
+                return res.json({
+                    data: cachedResult,
+                    total: cachedResult.length,
+                    query: query,
+                    cached: true
+                });
+            }
+
+            // 2. Execute via Circuit Breaker
+            const timer = metrics.ytSearchDuration.startTimer();
+            const results = await circuitBreaker.execute(
+                ytdlpEngine.search.bind(ytdlpEngine),
+                [query, limit],
+                { maxRetries: 2 }
+            );
+            timer();
+
+            // 3. Set Cache
+            if (results && results.length > 0) {
+                 await cacheLayer.setSearch(query, limit, results);
+            }
+
+            res.set('Cache-Control', 'public, max-age=300'); // 5m
+            res.json({
+                data: results,
+                total: results.length,
+                query: query,
+                cached: false
             });
-          }
-        } catch (e) {
-          console.error('[SEARCH] Failed to parse line:', e.message);
+
+        } catch (error) {
+            if (error.is403) {
+                 await cacheLayer.invalidate();
+            }
+            next(error);
         }
-      }
-
-      console.log(`[SEARCH] Found ${results.length} results via yt-dlp`);
-
-      res.json({
-        data: results,
-        total: results.length,
-        query: query
-      });
-
-    } catch (execError) {
-      console.error('[SEARCH] yt-dlp error:', execError.message);
-      res.status(500).json({
-        error: 'Search failed',
-        message: execError.message,
-        data: [],
-        total: 0
-      });
-    }
-
-  } catch (error) {
-    console.error('[SEARCH] Error:', error.message);
-    res.status(500).json({
-      error: 'Search failed',
-      message: error.message,
-      data: [],
-      total: 0
-    });
-  }
 });
 
 /**
- * Get track stream URL using yt-dlp with cookies
+ * Get track stream URL
  * GET /track/:id
  */
-app.get('/track/:id', async (req, res) => {
-  try {
-    const videoId = req.params.id;
+app.get('/track/:id',
+    limiters.track,
+    [
+        param('id').matches(/^[a-zA-Z0-9_-]{11}$/).withMessage('Invalid video ID')
+    ],
+    validateRequest,
+    async (req, res, next) => {
+        try {
+            const videoId = req.params.id;
 
-    if (!videoId || !/^[a-zA-Z0-9_-]{11}$/.test(videoId)) {
-      return res.status(400).json({ error: 'Invalid video ID' });
-    }
+            // 1. Check Cache
+            const cachedResult = await cacheLayer.getTrack(videoId);
+            if (cachedResult) {
+                metrics.cacheHits.labels('track').inc();
+                res.set('Cache-Control', 'public, max-age=2700'); // 45m
+                return res.json({ ...cachedResult, cached: true });
+            }
 
-    console.log(`[TRACK] ID: ${videoId}`);
+            const videoUrl = `https://www.youtube.com/watch?v=${videoId}`;
 
-    const videoUrl = `https://www.youtube.com/watch?v=${videoId}`;
+            // 2. Execute via Circuit Breaker
+            const result = await circuitBreaker.execute(
+                ytdlpEngine.extract.bind(ytdlpEngine),
+                [videoUrl, videoId],
+                { maxRetries: 3 }
+            );
 
-    try {
-      // Get best audio format URL using yt-dlp with cookies
-      // -g: get URL, -f: format selector (best audio only)
-      const cmd = buildYtdlpCommand(`-g -f "bestaudio[ext=m4a]/bestaudio/best" "${videoUrl}"`);
-      console.log(`[TRACK] Executing: ${cmd.replace(/cookies ".*?"/, 'cookies "***"')}`);
-      console.log(`[TRACK] Cookies available: ${hasCookies}`);
+            // 3. Set Cache
+            await cacheLayer.setTrack(videoId, result);
+            metrics.ytExtractionSuccess.inc();
 
-      const { stdout, stderr } = await execAsync(cmd, { timeout: 30000 });
+            res.set('Cache-Control', 'public, max-age=2700'); // 45m
+            res.json({ ...result, cached: false });
 
-      if (stderr) {
-        console.error('[TRACK] stderr:', stderr);
-      }
-
-      const streamUrl = stdout.trim();
-      console.log(`[TRACK] Stream URL extracted: ${streamUrl ? 'YES' : 'NO'}`);
-
-      if (!streamUrl) {
-        return res.status(404).json({ error: 'Could not extract stream URL' });
-      }
-
-      // Get video info for metadata
-      const infoCmd = buildYtdlpCommand(`-j --skip-download "${videoUrl}"`);
-      let title = 'Unknown';
-      let artist = 'Unknown Artist';
-      let duration = 0;
-      let thumbnail = '';
-
-      try {
-        const { stdout: infoStdout } = await execAsync(infoCmd, { timeout: 15000 });
-        const info = JSON.parse(infoStdout);
-        title = info.title || 'Unknown';
-        artist = info.uploader || info.channel || 'Unknown Artist';
-        duration = info.duration || 0;
-        thumbnail = info.thumbnail || `https://i.ytimg.com/vi/${videoId}/mqdefault.jpg`;
-      } catch (e) {
-        console.error('[TRACK] Failed to get metadata:', e.message);
-        thumbnail = `https://i.ytimg.com/vi/${videoId}/mqdefault.jpg`;
-      }
-
-      console.log(`[TRACK] Success: ${title}`);
-
-      res.json({
-        id: videoId,
-        title: title,
-        artist: { name: artist },
-        duration: duration,
-        stream_url: streamUrl,
-        url: videoUrl,
-        thumbnail: thumbnail,
-        source: 'youtube'
-      });
-
-    } catch (execError) {
-      console.error('[TRACK] yt-dlp error:', execError.message);
-      console.error('[TRACK] Full error:', execError.stderr || 'No stderr');
-
-      // Check for specific errors
-      if (execError.message.includes('Video unavailable')) {
-        return res.status(404).json({ error: 'Video unavailable or private' });
-      }
-      if (execError.message.includes('Sign in') || execError.message.includes('confirm you')) {
-        return res.status(403).json({ error: 'Bot detection - cookies may be expired or invalid' });
-      }
-
-      res.status(500).json({
-        error: 'Extraction failed',
-        message: execError.message,
-        stderr: execError.stderr
-      });
-    }
-
-  } catch (error) {
-    console.error('[TRACK] Error:', error.message);
-    res.status(500).json({
-      error: 'Extraction failed',
-      message: error.message
-    });
-  }
+        } catch (error) {
+            if (error.is403) {
+                await cacheLayer.invalidate();
+           }
+            next(error);
+        }
 });
 
 /**
- * Extract from full URL using yt-dlp with cookies
+ * Extract from full URL
  * GET /extract?url=<youtube_url>
  */
-app.get('/extract', async (req, res) => {
-  try {
-    const url = req.query.url;
+app.get('/extract',
+    limiters.extract,
+    [
+        query('url').isURL().withMessage('Invalid URL parameter')
+    ],
+    validateRequest,
+    async (req, res, next) => {
+        try {
+            const url = req.query.url;
 
-    if (!url) {
-      return res.status(400).json({ error: 'Missing URL parameter' });
-    }
+            const result = await circuitBreaker.execute(
+                ytdlpEngine.extract.bind(ytdlpEngine),
+                [url, null],
+                { maxRetries: 2 }
+            );
 
-    console.log(`[EXTRACT] URL: ${url}`);
+            metrics.ytExtractionSuccess.inc();
+            res.json(result);
 
-    try {
-      // Get stream URL using yt-dlp with cookies
-      const cmd = buildYtdlpCommand(`-g -f "bestaudio[ext=m4a]/bestaudio/best" "${url}"`);
-      const { stdout } = await execAsync(cmd, { timeout: 30000 });
-      const streamUrl = stdout.trim();
-
-      if (!streamUrl) {
-        return res.status(404).json({ error: 'Could not extract stream URL' });
-      }
-
-      // Get metadata
-      const infoCmd = buildYtdlpCommand(`-j --skip-download "${url}"`);
-      const { stdout: infoStdout } = await execAsync(infoCmd, { timeout: 15000 });
-      const info = JSON.parse(infoStdout);
-
-      res.json({
-        id: info.id,
-        title: info.title || 'Unknown',
-        artist: { name: info.uploader || 'Unknown Artist' },
-        duration: info.duration || 0,
-        stream_url: streamUrl,
-        url: url,
-        thumbnail: info.thumbnail || '',
-        source: 'youtube'
-      });
-
-    } catch (execError) {
-      console.error('[EXTRACT] yt-dlp error:', execError.message);
-      res.status(500).json({
-        error: 'Extraction failed',
-        message: execError.message
-      });
-    }
-
-  } catch (error) {
-    console.error('[EXTRACT] Error:', error.message);
-    res.status(500).json({
-      error: 'Extraction failed',
-      message: error.message
-    });
-  }
+        } catch (error) {
+             if (error.is403) {
+                await cacheLayer.invalidate();
+            }
+            next(error);
+        }
 });
 
-// Error handling
-app.use((err, req, res, next) => {
-  console.error('[ERROR]', err);
-  res.status(500).json({ error: 'Internal server error' });
-});
+// Global Error Handler
+app.use(errorHandler);
 
-app.listen(PORT, () => {
-  console.log(`🎵 YouTube Music Wrapper running on port ${PORT}`);
-  console.log(`📺 Using yt-dlp with cookies to bypass bot detection`);
-  console.log(`🍪 Cookies file: ${hasCookies ? 'YES' : 'NO'}`);
-  console.log('');
-  console.log('Endpoints:');
-  console.log('  GET /                    - Health check');
-  console.log('  GET /search?q=<query>    - Search YouTube');
-  console.log('  GET /track/:id           - Get stream URL by video ID');
-  console.log('  GET /extract?url=<url>   - Extract from full URL');
+server = app.listen(PORT, () => {
+  logger.info(`🎵 YouTube Music Wrapper running on port ${PORT}`);
+  logger.info(`🍪 Cookies available: ${hasCookies}`);
 });

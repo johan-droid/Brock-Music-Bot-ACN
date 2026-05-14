@@ -18,9 +18,9 @@ logger = logging.getLogger(__name__)
 bot_client: Optional[Client] = None
 _health_runner = None
 
-# Health check server for Railway
+# Health check server for cloud platforms
 async def health_check(request):
-    """Simple health check endpoint for Railway."""
+    """Simple health check endpoint for production platforms."""
     return web.Response(text="OK", status=200)
 
 
@@ -197,7 +197,7 @@ async def init_bot():
         plugins=dict(root="bot/plugins"),
     )
 
-    # Start health check server for Railway
+    # Start health check server for production
     await start_health_server()
 
     await bot_client.start()
