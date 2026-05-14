@@ -115,11 +115,16 @@ class JioSaavnExtractor:
             song = songs[0]
 
             # Get highest quality audio URL
-            media_url = song.get("media_preview_url", "")
+            media_url = ""
+            
+            # PRIORITY: encrypted_media_url (Full quality) > media_preview_url (often preview)
+            # Try both top-level and more_info nested location
+            encrypted_url = song.get("encrypted_media_url") or song.get("more_info", {}).get("encrypted_media_url")
+            if encrypted_url:
+                media_url = self._decrypt_media_url(encrypted_url)
+                
             if not media_url:
-                # Try to generate from encrypted media URL
-                media_url = self._decrypt_media_url(
-                    song.get("encrypted_media_url", ""))
+                media_url = song.get("media_preview_url") or song.get("more_info", {}).get("media_preview_url")
 
             if media_url and "jiotunepreview" in media_url.lower():
                 logger.warning(
@@ -129,7 +134,7 @@ class JioSaavnExtractor:
             return {
                 "id": str(track_id),
                 "title": song.get("title", "Unknown"),
-                "artist": song.get("primary_artists", "Unknown Artist"),
+                "artist": song.get("primary_artists", "Unknown Artist") or song.get("more_info", {}).get("primary_artists", "Unknown Artist"),
                 "duration": self._parse_duration(song.get("duration", "0:00")),
                 "stream_url": media_url,
                 "thumbnail": song.get("image", "").replace("150x150", "500x500"),
@@ -162,10 +167,47 @@ class JioSaavnExtractor:
             return 0
 
     def _decrypt_media_url(self, encrypted_url: str) -> str:
-        """Decrypt JioSaavn media URL (simplified)"""
-        # This is a placeholder - actual decryption requires more complex logic
-        # For now, return preview URL if available
-        return encrypted_url
+        """Decrypt JioSaavn media URL using DES-ECB"""
+        if not encrypted_url:
+            return ""
+        
+        try:
+            import base64
+            from Crypto.Cipher import DES
+            
+            # Key used by JioSaavn for media URL encryption
+            key = b"38346b346c336d31"
+            cipher = DES.new(key, DES.MODE_ECB)
+            
+            # Decode base64 and decrypt
+            ciphertext = base64.b64decode(encrypted_url)
+            decrypted = cipher.decrypt(ciphertext)
+            
+            # Remove PKCS7 padding
+            padding_len = decrypted[-1]
+            if 1 <= padding_len <= 8:
+                decrypted = decrypted[:-padding_len]
+                
+            decoded = decrypted.decode("utf-8")
+            
+            if not decoded.startswith("http"):
+                return ""
+                
+            # Quality upgrades for high-fidelity audio
+            # 320kbps is the maximum supported bitrate
+            decoded = decoded.replace("_96.mp4", "_320.mp4")\
+                             .replace("_160.mp4", "_320.mp4")\
+                             .replace("_96.m4a", "_320.m4a")\
+                             .replace("_160.m4a", "_320.m4a")
+                             
+            # Ensure HTTPS for security and compatibility
+            if decoded.startswith("http://"):
+                decoded = decoded.replace("http://", "https://")
+                
+            return decoded
+        except Exception as e:
+            logger.debug(f"JioSaavn decryption failed: {e}")
+            return ""
 
 
 # Global extractor instance

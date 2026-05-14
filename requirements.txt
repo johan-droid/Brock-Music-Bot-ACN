@@ -45,3 +45,4 @@ psycopg2-binary>=2.9.0
 # Additional utilities
 httpx>=0.28.0
 typing-extensions>=4.12.0
+pycryptodome>=3.20.0
