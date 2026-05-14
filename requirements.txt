@@ -34,6 +34,7 @@ python-dotenv>=1.0.0
 
 # System
 psutil>=6.1.0
+supervisor>=4.2.5
 
 # Media Extraction
 yt-dlp>=2026.3.0
