@@ -1,0 +1,23 @@
+name: Keep Render Services Alive
+
+on:
+  schedule:
+    - cron: '*/10 * * * *'  # Run every 10 minutes
+  workflow_dispatch:  # Allow manual trigger
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping YouTube Wrapper
+        run: |
+          echo "Pinging YouTube wrapper service..."
+          curl -s -o /dev/null -w "%{http_code}" https://youtube-music-wrapper.onrender.com/ || echo "YouTube ping failed"
+      
+      - name: Ping JioSaavn Wrapper
+        run: |
+          echo "Pinging JioSaavn wrapper service..."
+          curl -s -o /dev/null -w "%{http_code}" https://jio-savan-music-wrapper.onrender.com/ || echo "JioSaavn ping failed"
+      
+      - name: Timestamp
+        run: echo "Cron job completed at $(date)"

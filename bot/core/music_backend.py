@@ -701,10 +701,7 @@ class MusicBackend:
                             f"Bot detection during fallback search on {src_name}")
                         continue
                     except Exception as e:
-                        logger.error(f"Stream payload resolution failed: {summarize_exception(e)}")
-                        return None
-                        logger.debug(
-                            f"Fallback search failed for {src_name}: {e}")
+                        logger.debug(f"Fallback search failed for {src_name}: {e}")
                         continue
 
         if resolved:

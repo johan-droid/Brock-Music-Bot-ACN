@@ -45,12 +45,15 @@ class YtdlpEngine {
             '-g',
             '-f',
             'bestaudio[ext=m4a]/bestaudio/best',
+            '--playlist-end', '10',
             url
         ]);
 
         const metadataArgs = this.getBaseArgs().concat([
             '-j',
             '--skip-download',
+            '--flat-playlist',
+            '--playlist-end', '10',
             url
         ]);
 
