@@ -24,6 +24,9 @@ class Config(BaseSettings):
     BOT_USERNAME: Optional[str] = None
     BOT_USERNAME_ALT: Optional[str] = None
     
+    # Admin Panel Password
+    ADMIN_PASSWORD: Optional[str] = None
+
     # Owner user ID
     OWNER_ID: Optional[int] = None
     
