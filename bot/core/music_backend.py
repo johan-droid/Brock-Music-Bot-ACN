@@ -65,16 +65,12 @@ _UNSUPPORTED_PAGE_DOMAINS = (
     "youtu.be",
     "spotify.com",
     "soundcloud.com",
-    # "jiosaavn.com",  # Removed - we have working JioSaavn wrapper with stream extraction
     "audiomack.com",
 )
 
 
 def _looks_like_supported_page_url(value: str) -> bool:
-    text = (value or "").strip().lower()
-    if not text:
-        return False
-    return any(domain in text for domain in ("vk.com", "vk.ru", "vkvideo.ru", "deezer.com", "deezer.page.link"))
+    return False
 
 
 def _looks_like_unsupported_page_url(value: str) -> bool:
@@ -90,7 +86,7 @@ def _normalize_url_text(value: str) -> str:
         return text
     if _URL_SCHEME_RX.match(text):
         return text
-    if text.startswith(("www.", "vk.com", "m.vk.com", "vkvideo.ru", "deezer.com", "deezer.page.link")):
+    if text.startswith(("www.", "youtube.com", "youtu.be", "music.youtube.com")):
         return f"https://{text}"
     return text
 
@@ -103,16 +99,8 @@ def _infer_source_from_url(value: str) -> str:
     text = _normalize_url_text(value).strip().lower()
     if not text:
         return "direct"
-    if text.startswith("vk://"):
-        return "vk"
-    if text.startswith("deezer://"):
-        return "deezer"
     if _looks_like_unsupported_page_url(text):
         return "unsupported"
-    if _looks_like_supported_page_url(text):
-        if "deezer" in text:
-            return "deezer"
-        return "vk"
     if text.startswith("http"):
         return "direct"
     return "direct"
@@ -126,17 +114,14 @@ def _looks_like_url(value: str) -> bool:
         return True
     return text.startswith((
         "www.",
-        "vk.com",
-        "m.vk.com",
-        "vkvideo.ru",
-        "deezer.com",
-        "deezer.page.link",
+        "youtube.com",
+        "youtu.be",
+        "music.youtube.com"
     ))
 
 
 def _looks_like_page_url(value: str) -> bool:
-    source = _infer_source_from_url(value)
-    return source in {"vk", "deezer"}
+    return False
 
 
 @dataclass
@@ -146,7 +131,7 @@ class Track:
     duration: int
     stream_url: str
     thumbnail: Optional[str] = None
-    source: str = "vk"
+    source: str = "youtube"
     track_id: Optional[str] = None
 
     def get(self, key: str, default: Any = None) -> Any:
@@ -175,11 +160,8 @@ class SourceRanker:
     """Compatibility ranking helper used by the selection logic in play.py."""
 
     _BASE_WEIGHTS = {
-        # YouTube - BEST (cookies working, no bot detection issues)
         "youtube": 1.0,
-        "jiosaavn": 1.2,     # JioSaavn - Good but preview URLs are geo-restricted
-        "vk": 1.3,
-        "deezer": 1.4,
+        "jiosaavn": 1.2,
         "global_index": 1.5,
         "telegram": 2.5,
         "direct": 2.5,
@@ -212,14 +194,10 @@ class SourceRanker:
     def get_source_priority(cls, source: str, query: str = "") -> int:
         _ = query
         source_name = _normalize_source(source)
-        # Lower base weight = better priority (JioSaavn 1.0 beats YouTube 2.0)
         base = cls._BASE_WEIGHTS.get(source_name, cls._BASE_WEIGHTS["unknown"])
         reliability = cls.get_reliability(source_name)
-        # Combine base weight with reliability factor
-        # Reliability bonus: up to -0.25 reduction for perfect reliability
         reliability_bonus = (1.0 - reliability) * 0.25
         final_score = base - reliability_bonus
-        # Return score * 100 for integer precision (lower = better rank)
         return int(final_score * 100)
 
 
@@ -247,10 +225,7 @@ def calculate_track_quality(track: Track) -> float:
 
 class MusicBackend:
     """
-    YouTube Music primary extractor with VK/Deezer/JioSaavn fallback and database cache.
-    Search order: YouTube -> JioSaavn (Indian) -> Deezer -> VK -> Database Index (when PRIORITIZE_EXTRACTORS=True)
-                  Database Index -> YouTube -> JioSaavn -> Deezer -> VK (when PRIORITIZE_EXTRACTORS=False)
-    YouTube Music works globally; JioSaavn specializes in Indian/Bollywood music.
+    YouTube Music primary extractor with JioSaavn fallback and database cache.
     """
 
     @property
@@ -266,7 +241,6 @@ class MusicBackend:
         self._index_misses = 0
         self._index_skip_until = 0.0
         
-        # Register all sources in the health tracker to enable fallback logic
         sources = [
             ("youtube_wrapper", 1.0),
             ("youtube", 0.8),
@@ -292,16 +266,12 @@ class MusicBackend:
         if not query:
             return ""
         
-        # Remove common suffixes and bracketed info
-        # e.g. "Song (Official Lyrics)" -> "Song"
-        # e.g. "Song | Vibe Bird" -> "Song"
         text = query
         text = re.sub(r'\(.*?\)', '', text)  # (text)
         text = re.sub(r'\[.*?\]', '', text)  # [text]
         text = re.sub(r'\|.*$', '', text)    # | everything after
         text = re.sub(r'-.*$', '', text)     # - everything after (if it's a suffix)
         
-        # Strip common tags
         tags = [
             "official video", "official audio", "official lyrics", 
             "lyrics", "video", "audio", "full song", "full video",
@@ -310,7 +280,6 @@ class MusicBackend:
         for tag in tags:
             text = re.sub(re.escape(tag), '', text, flags=re.IGNORECASE)
             
-        # Clean up whitespace
         text = re.sub(r'\s+', ' ', text).strip()
         return text or query
 
@@ -347,10 +316,6 @@ class MusicBackend:
             stream_url = stream_url or _normalize_url_text(
                 first.get("stream_url") or first.get("url") or "")
 
-        if not stream_url and track_id:
-            # Fallback to direct URL construction if needed
-            pass
-
         if not stream_url:
             return None
 
@@ -360,7 +325,7 @@ class MusicBackend:
         if source == "unsupported":
             return None
 
-        if source not in {"vk", "deezer", "telegram", "direct", "unknown"}:
+        if source not in {"telegram", "direct", "unknown"}:
             source = _infer_source_from_url(stream_url)
 
         if source == "unsupported":
@@ -383,26 +348,20 @@ class MusicBackend:
 
         source = _normalize_source(
             item.get("source") or default_source or "unknown")
-        track_id = item.get("id") or item.get(
-            "track_id") or item.get("vk_id") or item.get("deezer_id")
-        # For sources with ID-based extraction (JioSaavn, YouTube), only use stream_url if available
-        # Don't fall back to 'url' (web page) as that breaks playback
+        track_id = item.get("id") or item.get("track_id")
+        
         if source in {"jiosaavn", "youtube"}:
             stream_url = _normalize_url_text(item.get("stream_url") or "")
         else:
             stream_url = _normalize_url_text(
                 item.get("stream_url") or item.get("url") or item.get("play_url") or "")
 
-        # Allow tracks without stream_url for sources that support extraction by ID
-        # Also fall back to 'url' or 'play_url' if stream_url is missing
         if not stream_url:
             if not stream_url:
                 stream_url = _normalize_url_text(item.get("url") or item.get("play_url") or "")
 
-        # Ensure YouTube search results (which lack stream_url initially) are correctly preserved
         if not stream_url and source in {"youtube", "youtube_wrapper"}:
             if track_id:
-                # We can keep it; extraction will happen on play
                 pass
             else:
                 return None
@@ -410,8 +369,6 @@ class MusicBackend:
         if source == "unsupported":
             return None
 
-        # Whitelist known sources to preserve their identity
-        # Whitelist of sources that don't need re-inference (wrapper results are already categorized)
         if source not in {"youtube", "jiosaavn", "telegram", "direct", "youtube_wrapper", "jiosaavn_wrapper", "unknown"}:
             source = _infer_source_from_url(stream_url)
 
@@ -432,8 +389,6 @@ class MusicBackend:
     async def _search_index(self, query: str, limit: int) -> List[Track]:
         import time
         if time.time() < self._index_skip_until:
-            logger.debug(
-                "Skipping unreliable global index (circuit breaker active)")
             return []
 
         app_db = getattr(database_module, "db", None)
@@ -447,8 +402,6 @@ class MusicBackend:
             self._index_misses += 1
             if self._index_misses >= 3:
                 self._index_skip_until = time.time() + 300
-                logger.warning(
-                    "Global index circuit breaker triggered! Bypassing for 5 minutes.")
             return []
 
         tracks: List[Track] = []
@@ -470,20 +423,15 @@ class MusicBackend:
                 break
 
         if tracks:
-            logger.info("Global index hit for %r with %s track(s)",
-                        query, len(tracks))
-            self._index_misses = 0  # Reset miss counter on success
+            self._index_misses = 0
         else:
             self._index_misses += 1
             if self._index_misses >= 3:
                 self._index_skip_until = time.time() + 300
-                logger.info(
-                    "Global index is repeatedly empty; bypassing for 5 minutes.")
 
         return tracks
 
     async def _cache_to_index(self, query: str, tracks: List[Track]) -> None:
-        """Background task to save track results to the active database index."""
         app_db = getattr(database_module, "db", None)
         if app_db is None or not hasattr(app_db, "save_track_to_index") or not tracks:
             return
@@ -492,17 +440,13 @@ class MusicBackend:
             try:
                 best_track = tracks[0]
                 await app_db.save_track_to_index(self._normalize_query_key(query), best_track.to_dict())
-                logger.debug("Cached %r to database index", best_track.title)
             except Exception as exc:
                 logger.warning("Failed to cache to database: %s", exc)
 
     async def _search_with_extractor(self, extractor: Any, query: str, limit: int, default_source: str) -> List[Track]:
         if not extractor or not hasattr(extractor, "search"):
-            logger.info(
-                "Skipping extractor %s for query=%s because it is unavailable", default_source, query)
             return []
 
-        logger.info("Calling %s extractor for query=%s", default_source, query)
         try:
             raw_results = await extractor.search(query, limit)
         except Exception as exc:
@@ -515,15 +459,9 @@ class MusicBackend:
             track = self._item_to_track(item, default_source)
             if not track:
                 continue
-
             tracks.append(track)
             if len(tracks) >= limit:
                 break
-                
-        if not tracks:
-            logger.debug(f"Extractor {default_source} returned no valid tracks for query: {query}")
-        else:
-            logger.debug(f"Extractor {default_source} returned {len(tracks)} tracks for query: {query}")
         return tracks
 
     async def search(self, query: str, limit: int = 5) -> List[Track]:
@@ -540,15 +478,12 @@ class MusicBackend:
 
         sorted_sources = await source_health_tracker.get_sorted_sources()
         if not sorted_sources:
-            # Fallback if tracker is empty
             sorted_sources = ["youtube_wrapper", "youtube",
                               "jiosaavn_wrapper", "jiosaavn"]
 
         tracks = []
 
-        # If parallel search
         if config.PARALLEL_SEARCH:
-            # PARALLEL SEARCH: Try all enabled sources concurrently
             tasks = []
             for src_name in sorted_sources:
                 extractor = self.extractors_map.get(src_name)
@@ -557,10 +492,7 @@ class MusicBackend:
                         extractor, query, limit, src_name)))
 
             if tasks:
-                # Use wait with timeout (65s) to handle Render cold starts
-                # This returns when ALL finish or when timeout is reached
                 done, pending = await asyncio.wait(tasks, timeout=65)
-                
                 results = []
                 for task in done:
                     try:
@@ -570,29 +502,22 @@ class MusicBackend:
                     except Exception as e:
                         logger.error(f"Search task failed: {summarize_exception(e)}")
                 
-                # If timeout reached, cancel pending tasks
                 if pending:
-                    logger.warning(f"{len(pending)} search tasks timed out after 65s (potentially cold wrappers)")
                     for task in pending:
                         task.cancel()
 
                 combined = []
                 seen = set()
-
                 for res in results:
                     for t in res:
-                        # Harden identity generation to handle missing IDs or URLs
                         identity = f"{t.source}:{t.track_id or t.stream_url or t.title}"
                         if identity and identity not in seen:
                             seen.add(identity)
                             combined.append(t)
-
                 tracks = combined
-            logger.debug(f"Parallel search combined {len(tracks)} unique tracks from {len(tasks)} attempted tasks")
             tracks.sort(key=calculate_track_quality, reverse=True)
             tracks = tracks[:limit]
         else:
-            # Sequential search using health tracker
             if not config.PRIORITIZE_EXTRACTORS:
                 tracks = await self._search_index(query, limit)
 
@@ -611,7 +536,6 @@ class MusicBackend:
                 tracks = await self._search_index(query, limit)
 
         if tracks and len(_background_tasks) < _MAX_BACKGROUND_TASKS:
-            # FIX: Use correct method _cache_to_index instead of non-existent _save_to_index
             task = asyncio.create_task(self._cache_to_index(query, tracks))
             _background_tasks.add(task)
             task.add_done_callback(_background_tasks.discard)
@@ -622,14 +546,12 @@ class MusicBackend:
         if not track:
             return None
 
-        # Check direct URL
         if track.stream_url and track.stream_url.startswith("http") and _infer_source_from_url(track.stream_url) == "direct":
             return self._build_payload(track, None, "direct")
 
         resolved = None
         source = track.source or "unknown"
 
-        # Primary source extraction
         if source != "unknown":
             primary_wrapper = f"{source}_wrapper"
             primary_direct = source
@@ -643,98 +565,71 @@ class MusicBackend:
                             source = src_name.split("_")[0]
                             break
                     except PreviewOnlyError:
-                        logger.warning(
-                            f"Preview only error from {src_name}, falling back...")
                         resolved = None
                     except BotDetectionError:
-                        logger.warning(
-                            f"Bot detection error from {src_name}, falling back...")
                         resolved = None
-                    except Exception as e:
-                        logger.debug(f"Extraction failed for {src_name}: {e}")
+                    except Exception:
                         resolved = None
 
-        # Intelligent Fallback Chain
         if not resolved and track.track_id:
-            logger.info(
-                f"Primary extraction failed for {track.title}, engaging intelligent fallback...")
-
             sorted_sources = await source_health_tracker.get_sorted_sources()
             if not sorted_sources:
                 sorted_sources = ["youtube_wrapper", "youtube",
                                   "jiosaavn_wrapper", "jiosaavn"]
 
             for src_name in sorted_sources:
-                # Skip what we already tried or what we know is the same source
                 if src_name in [f"{track.source}_wrapper", track.source]:
                     continue
-
                 extractor = self.extractors_map.get(src_name)
                 if extractor and hasattr(extractor, "extract"):
                     try:
-                        # Only attempt ID extraction if the source matches the ID format
-                        # (e.g. don't try YouTube ID on VK unless they happen to match)
-                        # For now, we only try if the source is the same type (wrapper vs direct)
                         if src_name.split("_")[0] == track.source:
                             resolved = await extractor.extract(track.track_id)
                             if resolved:
-                                logger.info(f"Fallback extraction success via {src_name} for {track.title}")
                                 source = src_name.split("_")[0]
                                 break
-                    except Exception as e:
-                        logger.debug(f"Fallback extraction failed for {src_name}: {e}")
+                    except Exception:
+                        pass
 
-        # FINAL FALLBACK: Search for the track by title across healthy sources
         if not resolved and track.title:
-            logger.info(
-                f"ID-based extraction failed, trying search fallback for '{track.title}'")
-            
-            # Clean the title and artist for a better search match
             clean_title = self._clean_search_query(track.title)
             clean_artist = self._clean_search_query(track.artist) if track.artist and track.artist != "Unknown Artist" else ""
-            
-            search_query = f"{clean_title} {clean_artist}".strip()
-            if not search_query:
-                search_query = track.title
+            search_query = f"{clean_title} {clean_artist}".strip() or track.title
 
             sorted_sources = await source_health_tracker.get_sorted_sources()
             for src_name in sorted_sources:
                 extractor = self.extractors_map.get(src_name)
                 if extractor and hasattr(extractor, "search") and hasattr(extractor, "extract"):
                     try:
+                        logger.info(f"Trying fallback search via {src_name} for: {search_query}")
                         search_res = await extractor.search(search_query, limit=1)
                         if search_res:
                             track_id = search_res[0].get("id")
                             if track_id:
+                                logger.info(f"Extracting fallback match from {src_name} (ID: {track_id})")
                                 resolved = await extractor.extract(track_id)
                                 if resolved:
                                     logger.info(
                                         f"Fallback search success via {src_name} for {track.title}")
                                     source = src_name.split("_")[0]
                                     break
-                    except PreviewOnlyError:
-                        logger.warning(
-                            f"Preview only error during fallback search on {src_name}")
-                        continue
-                    except BotDetectionError:
-                        logger.warning(
-                            f"Bot detection during fallback search on {src_name}")
-                        continue
-                    except Exception as e:
-                        logger.debug(f"Fallback search failed for {src_name}: {e}")
+                                else:
+                                    logger.warning(f"Fallback extraction failed for {src_name} (ID: {track_id})")
+                            else:
+                                logger.warning(f"No ID found in search result from {src_name}")
+                        else:
+                            logger.info(f"No search results for fallback on {src_name}")
+                    except Exception:
                         continue
 
         if resolved:
             payload = self._build_payload(track, resolved, source)
             if payload["url"] and not _looks_like_unsupported_page_url(payload["url"]):
-                logger.info(
-                    f"Successfully resolved stream URL for {track.title} from {source}")
                 return payload
 
         if track.stream_url and track.stream_url.startswith("http") and _infer_source_from_url(track.stream_url) == "direct":
             return self._build_payload(track, None, source or "direct")
 
-        # Raise a user-friendly error if we exhaust all fallbacks
         raise FallbackExhaustedError(
             "Could not find a working stream for this track across all sources.")
 
@@ -755,7 +650,6 @@ class MusicBackend:
                     return None
                 return await self.get_stream_payload(self._coerce_track(text))
             return await self._resolve_from_search(text)
-
         return await self.get_stream_payload(self._coerce_track(target))
 
     async def _resolve_fallback_payload(self, track: Track) -> Optional[Dict[str, Any]]:
@@ -766,6 +660,39 @@ class MusicBackend:
         if not payload:
             return None
         return payload.get("url") or payload.get("stream_url")
+
+    def _build_payload(self, track: Track, resolved: Optional[Dict[str, Any]], source: str) -> Dict[str, Any]:
+        """Helper to build a unified payload for play.py"""
+        if resolved:
+            return {
+                "id": resolved.get("id") or track.track_id,
+                "title": resolved.get("title") or track.title,
+                "artist": resolved.get("artist") or track.artist,
+                "duration": resolved.get("duration") or track.duration,
+                "url": resolved.get("stream_url") or resolved.get("url"),
+                "thumbnail": resolved.get("thumbnail") or track.thumbnail,
+                "source": source,
+                "headers": resolved.get("headers"),
+            }
+        return {
+            "id": track.track_id,
+            "title": track.title,
+            "artist": track.artist,
+            "duration": track.duration,
+            "url": track.stream_url,
+            "thumbnail": track.thumbnail,
+            "source": source,
+        }
+
+    def _coerce_track(self, target: Any) -> Track:
+        """Compatibility helper to convert various types to Track object."""
+        if isinstance(target, Track):
+            return target
+        if isinstance(target, str):
+            return Track(title="Direct Link", artist="Unknown", duration=0, stream_url=target)
+        if isinstance(target, dict):
+            return self._row_to_track(target) or self._item_to_track(target, "unknown")
+        return Track(title="Unknown", artist="Unknown", duration=0, stream_url="")
 
 
 music_backend = MusicBackend()
