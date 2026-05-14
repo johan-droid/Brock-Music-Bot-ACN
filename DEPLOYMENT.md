@@ -26,34 +26,39 @@ This guide shows how to deploy the music bot completely free using various cloud
 
 ## Free Deployment Options
 
-### 1. Railway.app (Recommended - $5/month free credit)
+### 1. Heroku (Container Registry)
 
 **Pros:**
-- No sleep/idle timeout
-- Persistent storage
-- Easy deployment from GitHub
+- Run the same Docker image from your local or GitHub repo
+- Supports environment variables and ephemeral container storage
+- Heroku sets `PORT` automatically for the bot's health server
 
 **Steps:**
-1. Fork this repository to your GitHub
-2. Sign up at [railway.app](https://railway.app) with GitHub
-3. Click "New Project" → "Deploy from GitHub repo"
-4. Select your forked repo
-5. Add environment variables in Railway dashboard:
-   ```
-   API_ID=your_api_id
-   API_HASH=your_api_hash
-   BOT_TOKEN=your_bot_token
-   SESSION_STRING_1=your_session_string
-   # or SESSION_FILE_B64_1=your_base64_encoded_session_file
-   # or SESSION_FILE_PATH_1=/app/sessions/userbot_1.session
-   OWNER_ID=your_telegram_user_id
-   MONGO_URI=mongodb+srv://... (optional - uses SQLite if not set)
-   # VK_API_BASE_URL=https://your-vk-api.example.com (optional)
-   # DEEZER_TOKENS=token1,token2 (optional)
-   ```
-6. Deploy!
+1. Install and login to the Heroku CLI
+2. Create a new app:
+```bash
+heroku create your-app-name
+```
+3. Login to the container registry:
+```bash
+heroku container:login
+```
+4. Push and release the container as a worker process:
+```bash
+heroku container:push worker -a your-app-name
+heroku container:release worker -a your-app-name
+```
+5. Ensure the worker dyno is scaled up:
+```bash
+heroku ps:scale worker=1 -a your-app-name
+```
+6. Set required environment variables:
+```bash
+heroku config:set API_ID=your_api_id API_HASH=your_api_hash BOT_TOKEN=your_bot_token OWNER_ID=your_telegram_user_id SESSION_STRING_1="your_session_string_1"
+```
+6. Optional: set MongoDB/Redis/Supabase if used.
 
-### 2. Heroku (Container Registry)
+### 2. Render.com (Free Tier)
 
 **Pros:**
 - Run the same Docker image from your local or GitHub repo
@@ -255,9 +260,6 @@ Use the output `SESSION_FILE_B64_1=...` in cloud environment variables.
 
 ### Platform-specific issues
 
-**Railway:**
-- Check deployment logs in dashboard
-- Ensure all env vars are set
 
 **Render:**
 - Free tier sleeps after 15 min - use UptimeRobot to ping
@@ -275,7 +277,7 @@ Use the output `SESSION_FILE_B64_1=...` in cloud environment variables.
 
 | Platform | Cost | Limitations |
 |----------|------|-------------|
-| Railway | $5/mo credit | Spins down after idle (use cron job to wake) |
+| Heroku | Varies | Use worker dyno for 24/7 (paid) |
 | Render | Free | 15-min idle timeout |
 | Fly.io | Free | 3 VMs, 3GB volumes |
 | Oracle Cloud | Always Free | Requires credit card verification |
@@ -284,7 +286,7 @@ Use the output `SESSION_FILE_B64_1=...` in cloud environment variables.
 ## Recommendations
 
 1. **For testing:** Use Render.com free tier
-2. **For production (small scale):** Railway.app with $5 credit
+2. **For production:** Fly.io or Oracle Cloud
 3. **For production (24/7):** Oracle Cloud Free Tier or Fly.io
 4. **For learning:** Self-host on Raspberry Pi
 

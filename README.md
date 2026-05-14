@@ -29,7 +29,7 @@ A VK-first Telegram music bot with a shared FastAPI resolver, smart title detect
 
 ### 🚀 Zero-Cost Deployment
 - **No external services required**: SQLite database + cache (no Redis/MongoDB needed)
-- **Free cloud deployment**: Railway, Render, Fly.io, Oracle Cloud Free Tier
+- **Free cloud deployment**: Render, Fly.io, Oracle Cloud Free Tier
 - **Optional backends**: MongoDB Atlas, Redis, or Supabase if preferred
 - **Docker support**: Bot and backend services can run together in compose
 
@@ -107,7 +107,7 @@ To run the backend separately:
 uvicorn vk_music_backend:app --host 0.0.0.0 --port 8000
 ```
 
-**Option C: Free Cloud (Railway/Render/Fly.io)**
+**Option C: Free Cloud (Render/Fly.io)**
 See [DEPLOYMENT.md](DEPLOYMENT.md) for platform-specific instructions.
 
 **Option D: Heroku (Container Registry)**
@@ -280,7 +280,7 @@ docker-compose down
 
 | Platform | Cost | Best For |
 |----------|------|----------|
-| **Railway** | $5/mo credit | No idle timeout |
+| **Heroku** | Paid (Free tier removed) | No idle timeout (paid) |
 | **Render** | Free | Simple setup (15min idle) |
 | **Fly.io** | Free (3 VMs) | Good performance |
 | **Oracle Cloud** | Always Free | 24/7 operation |

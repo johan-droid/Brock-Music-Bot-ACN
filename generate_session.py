@@ -79,7 +79,7 @@ async def main():
         print("="*60 + "\n")
         print("SESSION_STRING_1=" + session_string)
         print("\n" + "="*60)
-        print("Add this SESSION_STRING_1 value to your Railway variables!")
+        print("Add this SESSION_STRING_1 value to your Platform variables!")
         print("="*60 + "\n")
 
 if __name__ == "__main__":

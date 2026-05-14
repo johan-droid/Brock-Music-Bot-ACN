@@ -1,4 +1,4 @@
-# Optimized Production Dockerfile for Brook Music Bot on Railway
+# Optimized Production Dockerfile for Brook Music Bot
 FROM python:3.12-slim
 
 # Install system dependencies (FFmpeg + build tools for TgCrypto)

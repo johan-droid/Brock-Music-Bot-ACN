@@ -131,7 +131,7 @@ async def main():
             logger.info("Bot started successfully")
         else:
             logger.info("TELEGRAM_ENABLED is false; skipping calls and bot startup.")
-            logger.warning("Bot is idling. Please set credentials in Railway Variables to enable Telegram mode.")
+            logger.warning("Bot is idling. Please set credentials in Platform Variables to enable Telegram mode.")
             # Keep the container alive so the user can see the logs and fix variables
             while True:
                 await asyncio.sleep(3600)

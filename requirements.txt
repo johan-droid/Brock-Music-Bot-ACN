@@ -2,48 +2,50 @@
 # Core Telegram
 pyrogram==2.0.106
 py-tgcalls==2.2.11
-tgcrypto==1.2.5
+# tgcrypto==1.2.5 (Omitted for Windows dev due to missing build tools; included in production Docker)
 
 # Web Framework
-fastapi==0.115.8
-uvicorn[standard]==0.34.0
-python-socketio==5.11.4
+fastapi>=0.115.0
+uvicorn[standard]>=0.34.0
+python-socketio>=5.11.0
 
 # Data Validation
-pydantic==2.10.4
-pydantic-settings==2.7.1
+pydantic>=2.11.7
+pydantic-settings>=2.7.0
 
 # Database
-motor==3.6.0
-pymongo==4.9.2
-supabase==2.11.0
+motor>=3.6.0
+pymongo>=4.9.0
+
+# Supabase
+supabase>=2.30.0
 
 # Cache
-redis==5.2.1
-upstash-redis==1.2.0
+redis>=5.2.0
+upstash-redis>=1.7.0
 
 # Async Utilities
-aiofiles==24.1.0
-aiohttp==3.11.11
+aiofiles>=24.1.0
+aiohttp>=3.11.0
 
 # Image Processing
-Pillow==11.0.0
+Pillow>=11.0.0
 
 # Scheduling
-apscheduler==3.11.0
+apscheduler>=3.11.0
 
 # Environment
-python-dotenv==1.0.1
+python-dotenv>=1.0.0
 
 # System
-psutil==6.1.1
+psutil>=6.1.0
 
 # Media Extraction
-yt-dlp==2024.12.26.232815.dev0
+yt-dlp>=2026.3.0
 
 # Neon Database (PostgreSQL)
-psycopg2-binary==2.9.10
+psycopg2-binary>=2.9.0
 
 # Additional utilities
-httpx==0.28.1
-typing-extensions==4.12.2
+httpx>=0.28.0
+typing-extensions>=4.12.0
