@@ -192,11 +192,6 @@ health_checker = HealthChecker()
 
 # Health check implementations
 
-
-
-
-
-
 async def check_database() -> HealthCheckResult:
     """Check database connectivity."""
     start_time = time.time()
@@ -248,7 +243,7 @@ def register_default_health_checks():
     health_checker.register_check("database", check_database)
     
     # Register circuit breaker status checks
-    for name in ["jiosaavn", "jiosaavn_wrapper", "youtube", "youtube_wrapper", "deezer", "vk"]:
+    for name in ["deezer", "vk"]:
         async def check_cb(name=name):
             cb = CircuitBreakerRegistry.get(name)
             if not cb:

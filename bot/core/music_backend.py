@@ -15,10 +15,6 @@ logger = logging.getLogger(__name__)
 
 
 
-
-
-
-
 # Limit the number of concurrent Supabase save requests
 _save_semaphore = asyncio.Semaphore(5)
 # Keep references to background tasks so they are not garbage-collected
@@ -43,8 +39,6 @@ def _background_task_done(task: asyncio.Task) -> None:
 
 _URL_SCHEME_RX = re.compile(r"^[a-zA-Z][a-zA-Z0-9+.-]*://")
 _UNSUPPORTED_PAGE_DOMAINS = (
-    "youtube.com",
-    "youtube-nocookie.com",
     "youtu.be",
     "spotify.com",
     "soundcloud.com",
@@ -69,9 +63,6 @@ def _normalize_url_text(value: str) -> str:
         return text
     if _URL_SCHEME_RX.match(text):
         return text
-    if text.startswith(("www.", "youtube.com", "youtu.be", "music.youtube.com")):
-        return f"https://{text}"
-    return text
 
 
 def _normalize_source(value: Optional[str]) -> str:
@@ -97,9 +88,7 @@ def _looks_like_url(value: str) -> bool:
         return True
     return text.startswith((
         "www.",
-        "youtube.com",
         "youtu.be",
-        "music.youtube.com"
     ))
 
 
@@ -114,7 +103,7 @@ class Track:
     duration: int
     stream_url: str
     thumbnail: Optional[str] = None
-    source: str = "youtube"
+    source: str = "direct"
     track_id: Optional[str] = None
 
     def get(self, key: str, default: Any = None) -> Any:
@@ -143,8 +132,6 @@ class SourceRanker:
     """Compatibility ranking helper used by the selection logic in play.py."""
 
     _BASE_WEIGHTS = {
-        "youtube": 1.0,
-        "jiosaavn": 1.2,
         "global_index": 1.5,
         "telegram": 2.5,
         "direct": 2.5,
@@ -213,20 +200,13 @@ class MusicBackend:
 
     @property
     def extractors_map(self):
-        return {
-
-        }
+        return {}
 
     async def init(self):
         self._index_misses = 0
         self._index_skip_until = 0.0
         
-        sources = [
-            ("youtube_wrapper", 1.0),
-            ("youtube", 0.8),
-            ("jiosaavn_wrapper", 1.1),
-            ("jiosaavn", 0.9)
-        ]
+        sources = []
         for name, score in sources:
             await source_health_tracker.register_source(name, base_score=score)
             
@@ -330,17 +310,12 @@ class MusicBackend:
             item.get("source") or default_source or "unknown")
         track_id = item.get("id") or item.get("track_id")
         
-        if source in {"jiosaavn", "youtube"}:
-            stream_url = _normalize_url_text(item.get("stream_url") or "")
-        else:
-            stream_url = _normalize_url_text(
-                item.get("stream_url") or item.get("url") or item.get("play_url") or "")
+        stream_url = _normalize_url_text(item.get("stream_url") or item.get("url") or item.get("play_url") or "")
 
         if not stream_url:
             if not stream_url:
                 stream_url = _normalize_url_text(item.get("url") or item.get("play_url") or "")
 
-        if not stream_url and source in {"youtube", "youtube_wrapper"}:
             if track_id:
                 pass
             else:

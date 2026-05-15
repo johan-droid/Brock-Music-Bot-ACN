@@ -21,6 +21,9 @@ CACHE_MODE = "sqlite"
 async def init_redis():
     """Initialize Redis connection if configured, otherwise use SQLite."""
     global redis_client, sqlite_cache, CACHE_MODE
+    from bot.utils.sqlite_cache import init_sqlite_cache, sqlite_cache as _sqlite
+    init_sqlite_cache()
+    sqlite_cache = _sqlite
     
     # Try Upstash Redis first
     if config.UPSTASH_REDIS_REST_URL and config.UPSTASH_REDIS_REST_TOKEN:
