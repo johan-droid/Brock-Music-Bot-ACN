@@ -369,10 +369,6 @@ async def add_track_and_play(
 ) -> None:
     """Add track to queue and start if idle. Handle search_msg auto-clean."""
     # Auto-clean search message if it was passed
-
-
-
-    # Auto-clean search message if it was passed
     if search_msg:
         try:
             await search_msg.delete()
@@ -389,10 +385,6 @@ async def add_track_and_play(
         await start_vote_session(search_msg._client if search_msg else app, chat_id, track, requester_id=user_id, is_anonymous=False)
         return
     # ---------------------------------
-        try:
-            await search_msg.delete()
-        except Exception:
-            pass
 
     status = await queue_manager.get_status(chat_id)
     is_playing = status in ("playing", "paused")
