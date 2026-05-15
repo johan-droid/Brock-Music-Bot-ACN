@@ -3,7 +3,7 @@ py-tgcalls call manager — production-grade Telegram Voice Chat streaming.
 
 CRITICAL ARCHITECTURAL NOTE:
 py-tgcalls v2.x + NTgCalls handles ALL FFmpeg transcoding internally.
-We pass the raw stream URL (from yt-dlp) directly to MediaStream().
+We pass the raw stream URL directly to MediaStream().
 NTgCalls runs its own embedded FFmpeg pipeline to decode → Opus → Telegram VC.
 DO NOT run a separate FFmpeg subprocess — it is redundant and causes instability.
 """
@@ -734,11 +734,7 @@ class CallManager:
         if not ua:
             ua = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
         if not referer:
-            if source == "youtube":
-                referer = "https://www.youtube.com/"
-            elif source == "jiosaavn":
-                referer = "https://www.jiosaavn.com/"
-            elif source == "deezer":
+            if source == "deezer":
                 referer = "https://www.deezer.com/"
 
         if ua:
@@ -754,10 +750,6 @@ class CallManager:
                 if key.lower() in ("user-agent", "referer"):
                     continue
                 extra_headers.append(f"{key}: {value}")
-
-        # JioSaavn specific
-        if source == "jiosaavn" and not any(h.lower().startswith("origin") for h in extra_headers):
-            extra_headers.append("Origin: https://www.jiosaavn.com")
 
         if extra_headers:
             headers_value = "\r\n".join(extra_headers) + "\r\n"

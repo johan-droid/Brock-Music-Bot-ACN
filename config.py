@@ -125,10 +125,6 @@ class Config(BaseSettings):
     SEARCH_MSG_AUTOCLEAN: int = 8      # delete "Searching..." msg N seconds after reply sent
     NP_UPDATE_INTERVAL: int = 3        # seconds between progress bar edits for live tracking
 
-    # yt-dlp concurrency & caching
-    YTDL_CONCURRENT_LIMIT: int = 3     # max parallel yt-dlp extractions
-    YTDL_CACHE_TTL: int = 19800        # CDN URL cache TTL seconds (5.5h)
-
     # Voice Chat control timeout (seconds) to avoid silent py-tgcalls hangs
     VC_PLAY_TIMEOUT: int = 20
     AUTO_START_VC: bool = True
