@@ -21,6 +21,12 @@ _health_runner = None
 # Health check server for cloud platforms
 async def health_check(request):
     """Simple health check endpoint for production platforms."""
+    import bot.utils.database as app_db
+    try:
+        if app_db.db is not None:
+            await app_db.db.get_stats()
+    except Exception as e:
+        logger.warning(f"Health check DB ping failed: {e}")
     return web.Response(text="OK", status=200)
 
 
@@ -118,6 +124,7 @@ async def start_health_server():
     app = web.Application()
     app.router.add_get("/", health_check)
     app.router.add_get("/health", health_check)
+    app.router.add_get("/ping", health_check)
 
     # Webhook endpoint
     if config.WEBHOOK_URL:
@@ -251,7 +258,10 @@ async def init_bot():
             url=webhook_addr,
             secret_token=config.WEBHOOK_SECRET,
             max_connections=int(os.getenv("WEBHOOK_MAX_CONNECTIONS", "40")),
+            drop_pending_updates=True
         )
+        webhook_info = await bot_client.get_webhook_info()
+        logger.info(f"Webhook status: {webhook_info}")
         # In webhook mode, we only CONNECT the client, we don't START polling
         await bot_client.connect()
         logger.info("Bot connected in WEBHOOK mode.")
