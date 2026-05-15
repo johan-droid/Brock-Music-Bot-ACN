@@ -21,6 +21,17 @@ class JamendoClient:
         self.circuit_open = False
         self.failures = 0
 
+    def is_configured(self) -> bool:
+        """Check if Jamendo API is configured."""
+        return bool(self.client_id)
+
+    def generate_oauth_url(self, state: Any) -> str:
+        """Generate OAuth URL for Jamendo."""
+        if not self.is_configured():
+            return ""
+        redirect_uri = getattr(config, "JAMENDO_REDIRECT_URI", "http://localhost:8000/callback")
+        return f"https://api.jamendo.com/v3.0/oauth/authorize?client_id={self.client_id}&redirect_uri={redirect_uri}&state={state}"
+
     async def get_session(self) -> aiohttp.ClientSession:
         if self._session is None or self._session.closed:
             # Enforce 8-second timeout on all requests per requirements
