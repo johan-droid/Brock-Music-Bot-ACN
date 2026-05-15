@@ -134,6 +134,40 @@ class NeonDatabase:
                     ON play_history(chat_id)
                 """)
                 
+
+                # Playlists table
+                cur.execute("""
+                    CREATE TABLE IF NOT EXISTS playlists (
+                        id SERIAL PRIMARY KEY,
+                        name TEXT NOT NULL,
+                        creator_user_id BIGINT NOT NULL,
+                        jamendo_playlist_id TEXT,
+                        is_collaborative BOOLEAN DEFAULT FALSE,
+                        is_public BOOLEAN DEFAULT FALSE,
+                        jamendo_token JSONB,
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    )
+                """)
+
+                # Playlist tracks table
+                cur.execute("""
+                    CREATE TABLE IF NOT EXISTS playlist_tracks (
+                        id SERIAL PRIMARY KEY,
+                        playlist_id INTEGER REFERENCES playlists(id) ON DELETE CASCADE,
+                        jamendo_track_id TEXT NOT NULL,
+                        position INTEGER,
+                        added_by BIGINT,
+                        added_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    )
+                """)
+
+                cur.execute("""
+                    CREATE INDEX IF NOT EXISTS idx_playlists_creator ON playlists(creator_user_id)
+                """)
+                cur.execute("""
+                    CREATE INDEX IF NOT EXISTS idx_playlist_tracks_playlist ON playlist_tracks(playlist_id)
+                """)
+
                 self.conn.commit()
                 logger.info("Neon Database tables initialized.")
         except Exception as e:
@@ -355,6 +389,122 @@ class NeonDatabase:
         except Exception as e:
             logger.debug(f"is_sudo check error: {e}")
             return False
+
+
+
+    async def create_playlist(self, name: str, user_id: int) -> int:
+        """Create a new playlist."""
+        try:
+            with self.conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute(
+                    "INSERT INTO playlists (name, creator_user_id) VALUES (%s, %s) RETURNING id",
+                    (name, user_id)
+                )
+                result = cur.fetchone()
+                self.conn.commit()
+                return result['id'] if result else -1
+        except Exception as e:
+            self.conn.rollback()
+            logger.error(f"Error creating playlist in Neon: {e}")
+            return -1
+
+    async def get_user_playlists(self, user_id: int) -> List[Dict[str, Any]]:
+        """Get playlists for a user."""
+        try:
+            with self.conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute("SELECT * FROM playlists WHERE creator_user_id = %s", (user_id,))
+                return [dict(row) for row in cur.fetchall()]
+        except Exception as e:
+            logger.error(f"Error getting user playlists from Neon: {e}")
+            return []
+
+    async def get_playlist_by_name(self, name: str) -> Optional[Dict[str, Any]]:
+        """Get playlist by name."""
+        try:
+            with self.conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute("SELECT * FROM playlists WHERE name = %s", (name,))
+                result = cur.fetchone()
+                return dict(result) if result else None
+        except Exception as e:
+            logger.error(f"Error getting playlist by name from Neon: {e}")
+            return None
+
+    async def get_playlist_tracks(self, playlist_id: int) -> List[Dict[str, Any]]:
+        """Get tracks in a playlist."""
+        try:
+            with self.conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute("SELECT * FROM playlist_tracks WHERE playlist_id = %s ORDER BY position, id", (playlist_id,))
+                return [dict(row) for row in cur.fetchall()]
+        except Exception as e:
+            logger.error(f"Error getting playlist tracks from Neon: {e}")
+            return []
+
+    async def add_track_to_playlist(self, playlist_id: int, track_id: str, added_by: int) -> bool:
+        """Add a track to a playlist."""
+        try:
+            with self.conn.cursor() as cur:
+                cur.execute("SELECT MAX(position) FROM playlist_tracks WHERE playlist_id = %s", (playlist_id,))
+                max_pos = cur.fetchone()[0]
+                pos = (max_pos + 1) if max_pos is not None else 1
+
+                cur.execute(
+                    "INSERT INTO playlist_tracks (playlist_id, jamendo_track_id, position, added_by) VALUES (%s, %s, %s, %s)",
+                    (playlist_id, track_id, pos, added_by)
+                )
+                self.conn.commit()
+                return True
+        except Exception as e:
+            self.conn.rollback()
+            logger.error(f"Error adding track to playlist in Neon: {e}")
+            return False
+
+    async def remove_track_from_playlist(self, playlist_id: int, position: int) -> bool:
+        """Remove a track from a playlist by position."""
+        try:
+            with self.conn.cursor() as cur:
+                cur.execute("DELETE FROM playlist_tracks WHERE playlist_id = %s AND position = %s", (playlist_id, position))
+                self.conn.commit()
+                return True
+        except Exception as e:
+            self.conn.rollback()
+            logger.error(f"Error removing track from playlist in Neon: {e}")
+            return False
+
+    async def toggle_playlist_collab(self, playlist_id: int, is_collab: bool) -> bool:
+        """Toggle collaborative mode for a playlist."""
+        try:
+            with self.conn.cursor() as cur:
+                cur.execute("UPDATE playlists SET is_collaborative = %s WHERE id = %s", (is_collab, playlist_id))
+                self.conn.commit()
+                return True
+        except Exception as e:
+            self.conn.rollback()
+            logger.error(f"Error toggling playlist collab in Neon: {e}")
+            return False
+
+    async def save_jamendo_token(self, user_id: int, token: Dict[str, Any]) -> bool:
+        """Save Jamendo token for user in playlists table."""
+        try:
+            import json
+            with self.conn.cursor() as cur:
+                cur.execute("UPDATE playlists SET jamendo_token = %s WHERE creator_user_id = %s", (json.dumps(token), user_id))
+                self.conn.commit()
+                return True
+        except Exception as e:
+            self.conn.rollback()
+            logger.error(f"Error saving jamendo token in Neon: {e}")
+            return False
+
+    async def get_jamendo_token(self, user_id: int) -> Optional[Dict[str, Any]]:
+        """Get Jamendo token for a user."""
+        try:
+            with self.conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute("SELECT jamendo_token FROM playlists WHERE creator_user_id = %s AND jamendo_token IS NOT NULL LIMIT 1", (user_id,))
+                result = cur.fetchone()
+                return dict(result['jamendo_token']) if result and result.get('jamendo_token') else None
+        except Exception as e:
+            logger.error(f"Error getting jamendo token from Neon: {e}")
+            return None
 
 
 def init_neon(database_url: str):
