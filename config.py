@@ -25,6 +25,9 @@ class Config(BaseSettings):
     BOT_USERNAME: Optional[str] = None
     BOT_USERNAME_ALT: Optional[str] = None
     
+    # Admin Panel Password
+    ADMIN_PASSWORD: Optional[str] = None
+
     # Owner user ID
     OWNER_ID: Optional[int] = None
     
@@ -126,16 +129,17 @@ class Config(BaseSettings):
     SEARCH_MSG_AUTOCLEAN: int = 8      # delete "Searching..." msg N seconds after reply sent
     NP_UPDATE_INTERVAL: int = 3        # seconds between progress bar edits for live tracking
 
-    # yt-dlp concurrency & caching
-    YTDL_CONCURRENT_LIMIT: int = 3     # max parallel yt-dlp extractions
-    YTDL_CACHE_TTL: int = 19800        # CDN URL cache TTL seconds (5.5h)
-
     # Voice Chat control timeout (seconds) to avoid silent py-tgcalls hangs
     VC_PLAY_TIMEOUT: int = 20
     AUTO_START_VC: bool = True
     AUTO_START_VC_TITLE: str = "Music Bot Live"
     # Per-assistant active VC cap. 0 means unlimited.
     ASSISTANT_MAX_ACTIVE_CHATS: int = 0
+
+    # Jamendo configuration
+    JAMENDO_CLIENT_ID: Optional[str] = None
+    JAMENDO_CLIENT_SECRET: Optional[str] = None
+    JAMENDO_REDIRECT_URI: Optional[str] = "http://localhost:8000/jamendo/callback"
 
     # Optional feature flags
     ENABLE_PREVIOUS_TRACK: bool = True
