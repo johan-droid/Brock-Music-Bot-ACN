@@ -55,10 +55,23 @@ CREATE TABLE IF NOT EXISTS group_bans (
 -- playlists table: User saved playlists (optional)
 CREATE TABLE IF NOT EXISTS playlists (
     id SERIAL PRIMARY KEY,
-    user_id BIGINT,
+    creator_user_id BIGINT,
     name TEXT,
-    tracks JSONB DEFAULT '[]'::jsonb,
+    jamendo_playlist_id TEXT,
+    is_collaborative BOOLEAN DEFAULT FALSE,
+    is_public BOOLEAN DEFAULT FALSE,
+    jamendo_token JSONB,
     created_at TIMESTAMP DEFAULT NOW()
+);
+
+-- playlist_tracks table
+CREATE TABLE IF NOT EXISTS playlist_tracks (
+    id SERIAL PRIMARY KEY,
+    playlist_id INTEGER REFERENCES playlists(id) ON DELETE CASCADE,
+    jamendo_track_id TEXT NOT NULL,
+    position INTEGER,
+    added_by BIGINT,
+    added_at TIMESTAMP DEFAULT NOW()
 );
 
 -- Create indexes for better performance
