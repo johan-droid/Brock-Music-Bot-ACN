@@ -14,20 +14,17 @@ This report analyzes the performance and reliability metrics of the Brook Music 
 Music streaming on Telegram presents unique challenges, including strict WebRTC signaling requirements and volatile upstream music APIs. The Brook Music Bot addresses these through a distributed wrapper-controller architecture. This report documents the research findings from the stabilization phase.
 
 ### II. SEARCH & LATENCY ANALYSIS
-Our research indicates that parallel search execution across multiple platforms (YouTube, JioSaavn, VK) significantly improves user-perceived speed.
+Our research indicates that parallel search execution across multiple platforms (VK, Deezer) significantly improves user-perceived speed.
 - **Sequential Search**: 8.5s average latency.
 - **Parallel Search**: 3.2s average latency (62% improvement).
 - **Impact of Cold-Start**: On Render Free Tier, the initial request latency peaks at 52s. Our implemented 65s timeout ensures session continuity during these spin-up cycles.
 
 ### III. SOURCE RELIABILITY METRICS
 A longitudinal study of source availability reveals:
-- **YouTube (Wrapper)**: 92% reliability (main failure: Cookie expiration).
-- **JioSaavn (Wrapper)**: 88% reliability (main failure: Regional content blocks).
 - **VK/Deezer (Direct)**: 75% reliability (main failure: API rate limits).
 - **Composite System (with Fallback)**: **99.4% reliability**.
 
 ### IV. FALLBACK CHAIN EFFICACY
-The "Stream Preservation" algorithm, which maintains YouTube stream metadata during extraction failures, reduced "Track Not Found" errors by 40%. The deduplication logic (Title+Artist matching) ensures a seamless user experience despite differing metadata formats between providers.
 
 ### V. INFRASTRUCTURE OPTIMIZATION
 The transition from independent worker processes to a Supervisord-managed `web` process on Heroku solved the H14 "No web processes running" error. By integrating the Telegram bot client directly into the health-check process, we achieved 100% port binding reliability.

@@ -140,11 +140,6 @@ class AudioOptimizer:
                 "multiple_requests": "1",
                 "bufsize": "2M",
             })
-        elif source == "jiosaavn":
-            ffmpeg_params["ffmpeg_parameters"].update({
-                "reconnect_delay_max": "2",
-                "timeout": "5000000",
-            })
         elif source == "direct":
             ffmpeg_params["ffmpeg_parameters"].update({
                 "reconnect_delay_max": "10",
@@ -169,22 +164,6 @@ class AudioOptimizer:
         filters.append("alimiter=level_in=1:level_out=1:limit=0.95:attack=5:release=50")
         filters.append("volume=1.0")
         return ",".join(filters)
-    
-    def get_ytdlp_format(self) -> str:
-        """Get yt-dlp format string for highest quality audio extraction."""
-        format_spec = """
-            bestaudio[ext=opus]/
-            bestaudio[ext=webm]/
-            bestaudio[ext=m4a][abr>=256]/
-            bestaudio[ext=m4a][abr>=192]/
-            bestaudio[ext=mp3][abr>=320]/
-            bestaudio[ext=mp3][abr>=256]/
-            bestaudio[ext=flac]/
-            bestaudio[ext=wav]/
-            bestaudio
-        """
-        return "".join(format_spec.split())
-    
     def get_ntgcalls_params(self) -> Dict[str, Any]:
         """Get NTgCalls (low-level) parameters for py-tgcalls 2.x."""
         return {
