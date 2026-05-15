@@ -123,6 +123,36 @@ class SQLiteDatabase:
             )
         """)
         conn.execute("CREATE INDEX IF NOT EXISTS idx_lobby_snapshots_updated_at ON lobby_snapshots(updated_at)")
+
+        # Playlists table
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS playlists (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL,
+                creator_user_id INTEGER NOT NULL,
+                jamendo_playlist_id TEXT,
+                is_collaborative INTEGER DEFAULT 0,
+                is_public INTEGER DEFAULT 0,
+                jamendo_token TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+
+        # Playlist tracks table
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS playlist_tracks (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                playlist_id INTEGER,
+                jamendo_track_id TEXT NOT NULL,
+                position INTEGER,
+                added_by INTEGER,
+                added_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY(playlist_id) REFERENCES playlists(id) ON DELETE CASCADE
+            )
+        """)
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_playlists_creator ON playlists(creator_user_id)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_playlist_tracks_playlist ON playlist_tracks(playlist_id)")
+
         
         conn.commit()
         logger.info(f"SQLite database initialized at {self.db_path} (with local index support)")

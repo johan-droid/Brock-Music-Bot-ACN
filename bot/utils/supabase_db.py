@@ -894,9 +894,110 @@ class SupabaseDatabase:
             logger.error(f"Migration failed: {e}")
             return False
 
+    async def create_playlist(self, name: str, user_id: int) -> int:
+        """Create a new playlist."""
+        try:
+            result = self.client.table("playlists").insert({
+                "name": name,
+                "creator_user_id": user_id
+            }).execute()
+            if result.data:
+                return result.data[0]['id']
+            return -1
+        except Exception as e:
+            logger.error(f"Error creating playlist in Supabase: {e}")
+            return -1
+
+    async def get_user_playlists(self, user_id: int) -> List[Dict[str, Any]]:
+        """Get playlists for a user."""
+        try:
+            result = self.client.table("playlists").select("*").eq("creator_user_id", user_id).execute()
+            return result.data or []
+        except Exception as e:
+            logger.error(f"Error getting user playlists from Supabase: {e}")
+            return []
+
+    async def get_playlist_by_name(self, name: str) -> Optional[Dict[str, Any]]:
+        """Get playlist by name."""
+        try:
+            result = self.client.table("playlists").select("*").eq("name", name).execute()
+            if result.data:
+                return result.data[0]
+            return None
+        except Exception as e:
+            logger.error(f"Error getting playlist by name from Supabase: {e}")
+            return None
+
+    async def get_playlist_tracks(self, playlist_id: int) -> List[Dict[str, Any]]:
+        """Get tracks in a playlist."""
+        try:
+            result = self.client.table("playlist_tracks").select("*").eq("playlist_id", playlist_id).order("position").execute()
+            return result.data or []
+        except Exception as e:
+            logger.error(f"Error getting playlist tracks from Supabase: {e}")
+            return []
+
+    async def add_track_to_playlist(self, playlist_id: int, track_id: str, added_by: int) -> bool:
+        """Add a track to a playlist."""
+        try:
+            # Get max position
+            tracks = await self.get_playlist_tracks(playlist_id)
+            pos = len(tracks) + 1
+
+            self.client.table("playlist_tracks").insert({
+                "playlist_id": playlist_id,
+                "jamendo_track_id": track_id,
+                "position": pos,
+                "added_by": added_by
+            }).execute()
+            return True
+        except Exception as e:
+            logger.error(f"Error adding track to playlist in Supabase: {e}")
+            return False
+
+    async def remove_track_from_playlist(self, playlist_id: int, position: int) -> bool:
+        """Remove a track from a playlist by position."""
+        try:
+            self.client.table("playlist_tracks").delete().match({"playlist_id": playlist_id, "position": position}).execute()
+            return True
+        except Exception as e:
+            logger.error(f"Error removing track from playlist in Supabase: {e}")
+            return False
+
+    async def toggle_playlist_collab(self, playlist_id: int, is_collab: bool) -> bool:
+        """Toggle collaborative mode for a playlist."""
+        try:
+            self.client.table("playlists").update({"is_collaborative": is_collab}).eq("id", playlist_id).execute()
+            return True
+        except Exception as e:
+            logger.error(f"Error toggling playlist collab in Supabase: {e}")
+            return False
+
+    async def save_jamendo_token(self, user_id: int, token: Dict[str, Any]) -> bool:
+        """Save Jamendo token for user in playlists table."""
+        try:
+            self.client.table("playlists").update({"jamendo_token": token}).eq("creator_user_id", user_id).execute()
+            return True
+        except Exception as e:
+            logger.error(f"Error saving jamendo token in Supabase: {e}")
+            return False
+
+    async def get_jamendo_token(self, user_id: int) -> Optional[Dict[str, Any]]:
+        """Get Jamendo token for a user."""
+        try:
+            result = self.client.table("playlists").select("jamendo_token").eq("creator_user_id", user_id).neq("jamendo_token", "null").limit(1).execute()
+            if result.data and result.data[0].get('jamendo_token'):
+                return result.data[0]['jamendo_token']
+            return None
+        except Exception as e:
+            logger.error(f"Error getting jamendo token from Supabase: {e}")
+            return None
+
 
 # Global instance
 supabase_db: Optional[SupabaseDatabase] = None
+
+
 
 
 def init_supabase(url: str, key: str):
