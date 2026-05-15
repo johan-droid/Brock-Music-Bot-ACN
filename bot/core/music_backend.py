@@ -12,29 +12,9 @@ from bot.utils.cache import cache
 from bot.utils.multi_tier_cache import multi_cache
 logger = logging.getLogger(__name__)
 
-try:
-    from bot.platforms.youtube import youtube_extractor
-except Exception as e:
-    logger.error(f"Failed to load YouTube extractor: {e}")
-    youtube_extractor = None
 
-try:
-    from bot.platforms.youtube_wrapper import youtube_wrapper_extractor
-except Exception as e:
-    logger.error(f"Failed to load YouTube wrapper extractor: {e}")
-    youtube_wrapper_extractor = None
 
-try:
-    from bot.platforms.jiosaavn import jiosaavn_extractor
-except Exception as e:
-    logger.error(f"Failed to load JioSaavn extractor: {e}")
-    jiosaavn_extractor = None
 
-try:
-    from bot.platforms.jiosaavn_wrapper import jiosaavn_wrapper_extractor
-except Exception as e:
-    logger.error(f"Failed to load JioSaavn wrapper extractor: {e}")
-    jiosaavn_wrapper_extractor = None
 
 # Limit the number of concurrent Supabase save requests
 _save_semaphore = asyncio.Semaphore(5)
@@ -60,8 +40,6 @@ def _background_task_done(task: asyncio.Task) -> None:
 
 _URL_SCHEME_RX = re.compile(r"^[a-zA-Z][a-zA-Z0-9+.-]*://")
 _UNSUPPORTED_PAGE_DOMAINS = (
-    "youtube.com",
-    "youtube-nocookie.com",
     "youtu.be",
     "spotify.com",
     "soundcloud.com",
@@ -86,9 +64,6 @@ def _normalize_url_text(value: str) -> str:
         return text
     if _URL_SCHEME_RX.match(text):
         return text
-    if text.startswith(("www.", "youtube.com", "youtu.be", "music.youtube.com")):
-        return f"https://{text}"
-    return text
 
 
 def _normalize_source(value: Optional[str]) -> str:
@@ -114,9 +89,7 @@ def _looks_like_url(value: str) -> bool:
         return True
     return text.startswith((
         "www.",
-        "youtube.com",
         "youtu.be",
-        "music.youtube.com"
     ))
 
 
@@ -131,7 +104,7 @@ class Track:
     duration: int
     stream_url: str
     thumbnail: Optional[str] = None
-    source: str = "youtube"
+    source: str = "direct"
     track_id: Optional[str] = None
 
     def get(self, key: str, default: Any = None) -> Any:
@@ -160,8 +133,6 @@ class SourceRanker:
     """Compatibility ranking helper used by the selection logic in play.py."""
 
     _BASE_WEIGHTS = {
-        "youtube": 1.0,
-        "jiosaavn": 1.2,
         "global_index": 1.5,
         "telegram": 2.5,
         "direct": 2.5,
@@ -230,23 +201,13 @@ class MusicBackend:
 
     @property
     def extractors_map(self):
-        return {
-            "youtube_wrapper": youtube_wrapper_extractor,
-            "youtube": youtube_extractor,
-            "jiosaavn_wrapper": jiosaavn_wrapper_extractor,
-            "jiosaavn": jiosaavn_extractor
-        }
+        return {}
 
     async def init(self):
         self._index_misses = 0
         self._index_skip_until = 0.0
         
-        sources = [
-            ("youtube_wrapper", 1.0),
-            ("youtube", 0.8),
-            ("jiosaavn_wrapper", 1.1),
-            ("jiosaavn", 0.9)
-        ]
+        sources = []
         for name, score in sources:
             await source_health_tracker.register_source(name, base_score=score)
             
@@ -350,17 +311,12 @@ class MusicBackend:
             item.get("source") or default_source or "unknown")
         track_id = item.get("id") or item.get("track_id")
         
-        if source in {"jiosaavn", "youtube"}:
-            stream_url = _normalize_url_text(item.get("stream_url") or "")
-        else:
-            stream_url = _normalize_url_text(
-                item.get("stream_url") or item.get("url") or item.get("play_url") or "")
+        stream_url = _normalize_url_text(item.get("stream_url") or item.get("url") or item.get("play_url") or "")
 
         if not stream_url:
             if not stream_url:
                 stream_url = _normalize_url_text(item.get("url") or item.get("play_url") or "")
 
-        if not stream_url and source in {"youtube", "youtube_wrapper"}:
             if track_id:
                 pass
             else:
@@ -369,7 +325,7 @@ class MusicBackend:
         if source == "unsupported":
             return None
 
-        if source not in {"youtube", "jiosaavn", "telegram", "direct", "youtube_wrapper", "jiosaavn_wrapper", "unknown"}:
+        if source not in {"telegram", "direct", "unknown"}:
             source = _infer_source_from_url(stream_url)
 
         if source == "unsupported":
