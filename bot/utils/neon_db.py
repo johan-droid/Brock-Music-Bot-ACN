@@ -104,6 +104,37 @@ class NeonDatabase:
 
                 # Sudo users table
                 cur.execute("""
+                    CREATE TABLE IF NOT EXISTS radio_shows (
+                        id SERIAL PRIMARY KEY,
+                        chat_id BIGINT,
+                        host_user_id BIGINT,
+                        show_name TEXT,
+                        description TEXT,
+                        schedule_day_of_week INTEGER,
+                        schedule_time TEXT,
+                        genre_tags TEXT,
+                        duration_minutes INTEGER,
+                        is_active BOOLEAN DEFAULT TRUE,
+                        created_at TIMESTAMP DEFAULT NOW()
+                    )
+                """)
+
+                cur.execute("""
+                    CREATE TABLE IF NOT EXISTS show_tracks (
+                        id SERIAL PRIMARY KEY,
+                        show_id INTEGER REFERENCES radio_shows(id) ON DELETE CASCADE,
+                        jamendo_track_id INTEGER,
+                        position INTEGER,
+                        added_by BIGINT,
+                        added_at TIMESTAMP DEFAULT NOW()
+                    )
+                """)
+
+                cur.execute("CREATE INDEX IF NOT EXISTS idx_radio_shows_chat ON radio_shows(chat_id)")
+                cur.execute("CREATE INDEX IF NOT EXISTS idx_radio_shows_time ON radio_shows(schedule_day_of_week, schedule_time)")
+                cur.execute("CREATE INDEX IF NOT EXISTS idx_show_tracks_show ON show_tracks(show_id)")
+
+                cur.execute("""
                     CREATE TABLE IF NOT EXISTS sudo_users (
                         id BIGINT PRIMARY KEY,
                         name TEXT,
@@ -512,3 +543,109 @@ def init_neon(database_url: str):
     global neon_db
     neon_db = NeonDatabase(database_url)
     logger.info("Neon Database initialized.")
+
+    # Radio Shows Implementation for Neon
+    async def create_radio_show(self, chat_id: int, host_user_id: int, show_name: str, description: str, day: int, time: str, genre: str, duration: int) -> int:
+        """Create a new radio show."""
+        try:
+            with self.conn.cursor() as cur:
+                cur.execute("""
+                    INSERT INTO radio_shows (chat_id, host_user_id, show_name, description, schedule_day_of_week, schedule_time, genre_tags, duration_minutes)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                    RETURNING id
+                """, (chat_id, host_user_id, show_name, description, day, time, genre, duration))
+                show_id = cur.fetchone()[0]
+                self.conn.commit()
+                return show_id
+        except Exception as e:
+            self.conn.rollback()
+            logger.error(f"Error creating radio show in Neon: {e}")
+            return -1
+
+    async def add_track_to_show(self, show_id: int, track_id: int, added_by: int) -> bool:
+        """Add a track to a radio show."""
+        try:
+            with self.conn.cursor() as cur:
+                cur.execute("SELECT MAX(position) FROM show_tracks WHERE show_id = %s", (show_id,))
+                row = cur.fetchone()
+                pos = row[0] if row[0] is not None else 0
+
+                cur.execute("""
+                    INSERT INTO show_tracks (show_id, jamendo_track_id, position, added_by)
+                    VALUES (%s, %s, %s, %s)
+                """, (show_id, track_id, pos + 1, added_by))
+                self.conn.commit()
+                return True
+        except Exception as e:
+            self.conn.rollback()
+            logger.error(f"Error adding track to show in Neon: {e}")
+            return False
+
+    async def get_upcoming_shows(self, chat_id: int) -> List[Dict[str, Any]]:
+        """Get all upcoming shows for a chat."""
+        try:
+            with self.conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+                cur.execute("SELECT * FROM radio_shows WHERE chat_id = %s AND is_active = TRUE ORDER BY schedule_day_of_week, schedule_time", (chat_id,))
+                results = cur.fetchall()
+                return [dict(row) for row in results]
+        except Exception as e:
+            logger.error(f"Error getting upcoming shows from Neon: {e}")
+            return []
+
+    async def get_show_tracks(self, show_id: int) -> List[Dict[str, Any]]:
+        """Get all tracks for a radio show."""
+        try:
+            with self.conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+                cur.execute("SELECT * FROM show_tracks WHERE show_id = %s ORDER BY position", (show_id,))
+                results = cur.fetchall()
+                return [dict(row) for row in results]
+        except Exception as e:
+            logger.error(f"Error getting show tracks from Neon: {e}")
+            return []
+
+    async def get_shows_by_time(self, day: int, time: str) -> List[Dict[str, Any]]:
+        """Get all shows scheduled for a specific time."""
+        try:
+            with self.conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+                cur.execute("SELECT * FROM radio_shows WHERE schedule_day_of_week = %s AND schedule_time = %s AND is_active = TRUE", (day, time))
+                results = cur.fetchall()
+                return [dict(row) for row in results]
+        except Exception as e:
+            logger.error(f"Error getting shows by time from Neon: {e}")
+            return []
+
+    async def delete_show(self, show_id: int) -> bool:
+        """Delete a radio show (and its tracks via cascade)."""
+        try:
+            with self.conn.cursor() as cur:
+                # show_tracks will be deleted due to CASCADE
+                cur.execute("DELETE FROM radio_shows WHERE id = %s", (show_id,))
+                self.conn.commit()
+                return True
+        except Exception as e:
+            self.conn.rollback()
+            logger.error(f"Error deleting radio show in Neon: {e}")
+            return False
+
+    async def get_past_shows(self, chat_id: int) -> List[Dict[str, Any]]:
+        """Get past shows for a chat."""
+        try:
+            with self.conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+                cur.execute("SELECT * FROM radio_shows WHERE chat_id = %s AND is_active = FALSE ORDER BY created_at DESC", (chat_id,))
+                results = cur.fetchall()
+                return [dict(row) for row in results]
+        except Exception as e:
+            logger.error(f"Error getting past shows from Neon: {e}")
+            return []
+
+    async def set_show_inactive(self, show_id: int) -> bool:
+        """Mark a show as inactive (past)."""
+        try:
+            with self.conn.cursor() as cur:
+                cur.execute("UPDATE radio_shows SET is_active = FALSE WHERE id = %s", (show_id,))
+                self.conn.commit()
+                return True
+        except Exception as e:
+            self.conn.rollback()
+            logger.error(f"Error setting show inactive in Neon: {e}")
+            return False

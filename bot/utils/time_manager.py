@@ -39,6 +39,14 @@ class TimeManager:
     def start(self):
         """Initialize and start the scheduler."""
         if not self.scheduler.running:
+            # Schedule radio show monitor
+            self.scheduler.add_job(
+                self.monitor_radio_shows,
+                trigger=IntervalTrigger(minutes=1),
+                id="radio_show_monitor",
+                replace_existing=True
+            )
+
             # Schedule inactivity monitor
             self.scheduler.add_job(
                 self.monitor_inactivity,
@@ -188,6 +196,72 @@ class TimeManager:
         # We could clear all 'idle' chats' queues
         pass
 
+
+    async def monitor_radio_shows(self):
+        """Check for scheduled radio shows."""
+        from bot.utils.database import db
+        from bot.core.music_backend import music_backend
+        from bot.core import bot as bot_module
+
+        now = datetime.now()
+        day = now.weekday()
+        time_str = now.strftime("%H:%M")
+
+        try:
+            shows = await db.get_shows_by_time(day, time_str)
+            for show in shows:
+                chat_id = show.get("chat_id")
+                show_id = show.get("id", show.get("show_id"))
+
+                # Deactivate the show since it's starting
+                await db.set_show_inactive(show_id)
+
+                # Get tracks
+                tracks = await db.get_show_tracks(show_id)
+                if not tracks:
+                    continue
+
+                # Announce
+                if bot_module.bot_client:
+                    await bot_module.bot_client.send_message(
+                        chat_id,
+                        f"📢 @everyone 📻 **{show.get('show_name')}** is starting now!\n"
+                        f"Hosted by: [Host](tg://user?id={show.get('host_user_id')})\n"
+                        f"Lineup: {len(tracks)} tracks. Tuning in..."
+                    )
+
+                from bot.core.queue import queue_manager
+                from bot.core import call
+
+                added_count = 0
+                for t in tracks:
+                    jamendo_id = t.get("jamendo_track_id")
+                    results = await music_backend.search(str(jamendo_id), limit=1)
+                    if results:
+                        track = results[0]
+                        track_dict = track.to_dict()
+                        track_dict["requested_by"] = show.get("host_user_id")
+                        await queue_manager.add_to_queue(chat_id, track_dict)
+                        added_count += 1
+
+                if added_count > 0 and call.call_manager:
+                    status = await queue_manager.get_status(chat_id)
+                    if status != "playing":
+                        next_track = await queue_manager.get_next(chat_id)
+                        if next_track:
+                            await queue_manager.set_status(chat_id, "playing")
+                            try:
+                                await call.call_manager.play(
+                                    chat_id=chat_id,
+                                    stream_url=next_track["stream_url"],
+                                    video=next_track.get("video", False)
+                                )
+                            except Exception as e:
+                                await queue_manager.set_status(chat_id, "idle")
+                                logger.error(f"Failed to play radio show: {e}")
+
+        except Exception as e:
+            logger.error(f"Error in monitor_radio_shows: {e}")
 
 # Global instance
 time_manager = TimeManager()
