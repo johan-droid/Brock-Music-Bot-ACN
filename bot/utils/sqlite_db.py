@@ -108,6 +108,33 @@ class SQLiteDatabase:
         """)
         conn.execute("CREATE INDEX IF NOT EXISTS idx_mini_app_sessions_updated_at ON mini_app_sessions(updated_at)")
 
+
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS radio_shows (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                chat_id INTEGER,
+                host_user_id INTEGER,
+                show_name TEXT,
+                description TEXT,
+                schedule_day_of_week INTEGER,
+                schedule_time TEXT,
+                genre_tags TEXT,
+                duration_minutes INTEGER,
+                is_active INTEGER DEFAULT 1,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS show_tracks (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                show_id INTEGER,
+                jamendo_track_id INTEGER,
+                position INTEGER,
+                added_by INTEGER,
+                added_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY(show_id) REFERENCES radio_shows(id) ON DELETE CASCADE
+            )
+        """)
         # Lobby snapshots for cold-start recovery
         conn.execute("""
             CREATE TABLE IF NOT EXISTS lobby_snapshots (
@@ -123,7 +150,41 @@ class SQLiteDatabase:
             )
         """)
         conn.execute("CREATE INDEX IF NOT EXISTS idx_lobby_snapshots_updated_at ON lobby_snapshots(updated_at)")
+
+        # Playlists table
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS playlists (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL,
+                creator_user_id INTEGER NOT NULL,
+                jamendo_playlist_id TEXT,
+                is_collaborative INTEGER DEFAULT 0,
+                is_public INTEGER DEFAULT 0,
+                jamendo_token TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+
+        # Playlist tracks table
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS playlist_tracks (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                playlist_id INTEGER,
+                jamendo_track_id TEXT NOT NULL,
+                position INTEGER,
+                added_by INTEGER,
+                added_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY(playlist_id) REFERENCES playlists(id) ON DELETE CASCADE
+            )
+        """)
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_playlists_creator ON playlists(creator_user_id)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_playlist_tracks_playlist ON playlist_tracks(playlist_id)")
+
         
+
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_radio_shows_chat ON radio_shows(chat_id)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_radio_shows_time ON radio_shows(schedule_day_of_week, schedule_time)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_show_tracks_show ON show_tracks(show_id)")
         conn.commit()
         logger.info(f"SQLite database initialized at {self.db_path} (with local index support)")
     
@@ -568,3 +629,67 @@ def init_sqlite_db(db_path: str = "./data/bot.db"):
     """Initialize SQLite database."""
     global sqlite_db
     sqlite_db = SQLiteDatabase(db_path)
+
+    # Radio Shows Implementation for SQLite
+    async def create_radio_show(self, chat_id: int, host_user_id: int, show_name: str, description: str, day: int, time: str, genre: str, duration: int) -> int:
+        """Create a new radio show."""
+        conn = self._get_conn()
+        cursor = conn.execute("""
+            INSERT INTO radio_shows (chat_id, host_user_id, show_name, description, schedule_day_of_week, schedule_time, genre_tags, duration_minutes)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        """, (chat_id, host_user_id, show_name, description, day, time, genre, duration))
+        conn.commit()
+        return cursor.lastrowid
+
+    async def add_track_to_show(self, show_id: int, track_id: int, added_by: int) -> bool:
+        """Add a track to a radio show."""
+        conn = self._get_conn()
+
+        row = conn.execute("SELECT MAX(position) FROM show_tracks WHERE show_id = ?", (show_id,)).fetchone()
+        pos = row[0] if row[0] is not None else 0
+
+        conn.execute("""
+            INSERT INTO show_tracks (show_id, jamendo_track_id, position, added_by)
+            VALUES (?, ?, ?, ?)
+        """, (show_id, track_id, pos + 1, added_by))
+        conn.commit()
+        return True
+
+    async def get_upcoming_shows(self, chat_id: int) -> List[Dict[str, Any]]:
+        """Get all upcoming shows for a chat."""
+        conn = self._get_conn()
+        rows = conn.execute("SELECT * FROM radio_shows WHERE chat_id = ? AND is_active = 1 ORDER BY schedule_day_of_week, schedule_time", (chat_id,)).fetchall()
+        return [dict(row) for row in rows]
+
+    async def get_show_tracks(self, show_id: int) -> List[Dict[str, Any]]:
+        """Get all tracks for a radio show."""
+        conn = self._get_conn()
+        rows = conn.execute("SELECT * FROM show_tracks WHERE show_id = ? ORDER BY position", (show_id,)).fetchall()
+        return [dict(row) for row in rows]
+
+    async def get_shows_by_time(self, day: int, time: str) -> List[Dict[str, Any]]:
+        """Get all shows scheduled for a specific time."""
+        conn = self._get_conn()
+        rows = conn.execute("SELECT * FROM radio_shows WHERE schedule_day_of_week = ? AND schedule_time = ? AND is_active = 1", (day, time)).fetchall()
+        return [dict(row) for row in rows]
+
+    async def delete_show(self, show_id: int) -> bool:
+        """Delete a radio show (and its tracks via cascade if supported)."""
+        conn = self._get_conn()
+        conn.execute("DELETE FROM show_tracks WHERE show_id = ?", (show_id,))
+        conn.execute("DELETE FROM radio_shows WHERE id = ?", (show_id,))
+        conn.commit()
+        return True
+
+    async def get_past_shows(self, chat_id: int) -> List[Dict[str, Any]]:
+        """Get past shows for a chat (currently we don't have a specific way to mark past shows other than active/inactive, but keeping for compatibility)."""
+        conn = self._get_conn()
+        rows = conn.execute("SELECT * FROM radio_shows WHERE chat_id = ? AND is_active = 0 ORDER BY created_at DESC", (chat_id,)).fetchall()
+        return [dict(row) for row in rows]
+
+    async def set_show_inactive(self, show_id: int) -> bool:
+        """Mark a show as inactive (past)."""
+        conn = self._get_conn()
+        conn.execute("UPDATE radio_shows SET is_active = 0 WHERE id = ?", (show_id,))
+        conn.commit()
+        return True

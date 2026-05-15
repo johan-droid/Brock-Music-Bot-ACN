@@ -55,10 +55,23 @@ CREATE TABLE IF NOT EXISTS group_bans (
 -- playlists table: User saved playlists (optional)
 CREATE TABLE IF NOT EXISTS playlists (
     id SERIAL PRIMARY KEY,
-    user_id BIGINT,
+    creator_user_id BIGINT,
     name TEXT,
-    tracks JSONB DEFAULT '[]'::jsonb,
+    jamendo_playlist_id TEXT,
+    is_collaborative BOOLEAN DEFAULT FALSE,
+    is_public BOOLEAN DEFAULT FALSE,
+    jamendo_token JSONB,
     created_at TIMESTAMP DEFAULT NOW()
+);
+
+-- playlist_tracks table
+CREATE TABLE IF NOT EXISTS playlist_tracks (
+    id SERIAL PRIMARY KEY,
+    playlist_id INTEGER REFERENCES playlists(id) ON DELETE CASCADE,
+    jamendo_track_id TEXT NOT NULL,
+    position INTEGER,
+    added_by BIGINT,
+    added_at TIMESTAMP DEFAULT NOW()
 );
 
 -- Create indexes for better performance
@@ -180,3 +193,33 @@ CREATE POLICY "Service role full access" ON global_music_index FOR ALL TO servic
 
 -- Refresh PostgREST schema cache so new columns become visible without waiting for a restart.
 NOTIFY pgrst, 'reload schema';
+
+-- radio_shows table: Stores scheduled radio shows
+CREATE TABLE IF NOT EXISTS radio_shows (
+    id SERIAL PRIMARY KEY,
+    chat_id BIGINT,
+    host_user_id BIGINT,
+    show_name TEXT,
+    description TEXT,
+    schedule_day_of_week INTEGER,
+    schedule_time TEXT,
+    genre_tags TEXT,
+    duration_minutes INTEGER,
+    is_active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMP DEFAULT NOW()
+);
+
+-- show_tracks table: Stores tracks for a scheduled radio show
+CREATE TABLE IF NOT EXISTS show_tracks (
+    id SERIAL PRIMARY KEY,
+    show_id INTEGER REFERENCES radio_shows(id) ON DELETE CASCADE,
+    jamendo_track_id INTEGER,
+    position INTEGER,
+    added_by BIGINT,
+    added_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Indexes for performance
+CREATE INDEX IF NOT EXISTS idx_radio_shows_chat ON radio_shows(chat_id);
+CREATE INDEX IF NOT EXISTS idx_radio_shows_time ON radio_shows(schedule_day_of_week, schedule_time);
+CREATE INDEX IF NOT EXISTS idx_show_tracks_show ON show_tracks(show_id);
