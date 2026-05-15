@@ -5,6 +5,10 @@ import asyncio
 from typing import Optional
 import os
 from aiohttp import web
+from fastapi import FastAPI, Request, Response
+from fastapi.responses import PlainTextResponse, JSONResponse
+import uvicorn
+from admin_panel import admin_app
 from pyrogram.client import Client
 from pyrogram.sync import idle
 from pyrogram.types import BotCommand
@@ -19,22 +23,21 @@ bot_client: Optional[Client] = None
 _health_runner = None
 
 # Health check server for cloud platforms
-async def health_check(request):
-    """Simple health check endpoint for production platforms."""
-    return web.Response(text="OK", status=200)
+async def health_check():
+    return PlainTextResponse("OK")
 
 
-async def telegram_webhook(request):
+async def telegram_webhook(request: Request):
     """Handle incoming updates from Telegram via Webhook."""
     if not bot_client:
-        return web.Response(status=503)
+        return Response(status_code=503)
 
     # Security: Verify secret if configured
     if config.WEBHOOK_SECRET:
         secret = request.headers.get("X-Telegram-Bot-Api-Secret-Token")
         if secret != config.WEBHOOK_SECRET:
             logger.warning("Unauthorized webhook request (invalid secret)")
-            return web.Response(status=401)
+            return Response(status_code=401)
 
     try:
         data = await request.json()
@@ -48,10 +51,10 @@ async def telegram_webhook(request):
         
         # If we are in Webhook mode, we should ideally parse this.
         # However, many users just want the bot to NOT crash when Telegram hits it.
-        return web.Response(text="OK", status=200)
+        return Response(content="OK", status_code=200)
     except Exception as e:
         logger.error(f"Error processing webhook: {e}")
-        return web.Response(status=500)
+        return Response(status_code=500)
 
 
 def _build_bot_commands() -> list[BotCommand]:
@@ -109,67 +112,65 @@ async def _register_bot_commands(client: Client) -> None:
         logger.warning(f"Failed to register Telegram bot commands: {exc}")
 
 async def start_health_server():
-    """Start health check server on port 8080."""
+    """Start health check server using FastAPI."""
     global _health_runner
 
     if _health_runner is not None:
         return _health_runner
 
-    app = web.Application()
-    app.router.add_get("/", health_check)
-    app.router.add_get("/health", health_check)
+    port_str = os.getenv("PORT")
+    if not port_str:
+        logger.info("PORT environment variable not found. Skipping health check server (Worker mode).")
+        return None
 
-    # Webhook endpoint
+    app = FastAPI(title="Health Server")
+
+    app.mount("/admin", admin_app)
+
+    @app.get("/")
+    @app.get("/health")
+    async def _health():
+        return await health_check()
+
     if config.WEBHOOK_URL:
         webhook_path = config.WEBHOOK_PATH or "/webhook"
-        app.router.add_post(webhook_path, telegram_webhook)
+        app.post(webhook_path)(telegram_webhook)
         logger.info(f"Webhook endpoint registered at {webhook_path}")
 
-    # Optional metrics endpoints (guarded by config flags)
     try:
         if getattr(config, "METRICS_HTTP_ENABLED", False):
-            async def _metrics_json(request):
-                # Token can be supplied via `Authorization: Bearer <token>` or ?token=<token>
-                import hmac
+            @app.get("/metrics")
+            async def _metrics_json(request: Request):
                 import secrets
-                
                 token = None
                 auth = request.headers.get("Authorization")
                 if auth:
-                    # Extract Bearer token or use full header
                     auth_stripped = auth.strip()
                     if auth_stripped.lower().startswith("bearer "):
-                        token = auth_stripped[7:].strip()  # Remove "bearer " prefix
+                        token = auth_stripped[7:].strip()
                     else:
-                        # Reject non-Bearer auth schemes for security
-                        return web.Response(status=401, text="Unauthorized: Use Bearer token")
+                        return Response(content="Unauthorized: Use Bearer token", status_code=401)
                 
                 if token is None:
-                    # Check query parameter as fallback
-                    token = request.rel_url.query.get("token", "").strip()
+                    token = request.query_params.get("token", "").strip()
 
-                # Validate token using constant-time comparison to prevent timing attacks
                 expected_token = getattr(config, "METRICS_HTTP_TOKEN", None)
                 if expected_token:
                     if not token:
-                        return web.Response(status=401, text="Unauthorized: Token required")
-                    
-                    # Use secrets.compare_digest for timing-safe comparison
+                        return Response(content="Unauthorized: Token required", status_code=401)
                     try:
                         if not secrets.compare_digest(token, expected_token):
-                            return web.Response(status=401, text="Unauthorized: Invalid token")
+                            return Response(content="Unauthorized: Invalid token", status_code=401)
                     except Exception:
-                        # secrets.compare_digest requires same-length strings
-                        return web.Response(status=401, text="Unauthorized: Invalid token")
+                        return Response(content="Unauthorized: Invalid token", status_code=401)
 
                 payload = metrics_collector.export_json()
-                return web.Response(text=payload, content_type="application/json")
-
-            app.router.add_get("/metrics", _metrics_json)
+                return JSONResponse(content=payload)
             logger.info("Metrics HTTP endpoint enabled at /metrics")
 
         if getattr(config, "METRICS_PROMETHEUS_ENABLED", False):
-            async def _metrics_prom(request):
+            @app.get("/metrics/prometheus")
+            async def _metrics_prom():
                 stats = metrics_collector.get_stats_by_action()
                 lines = []
                 lines.append('# HELP musicbot_callback_total Total callbacks received per action')
@@ -179,26 +180,20 @@ async def start_health_server():
                     avg = s.get("avg_time_ms", 0)
                     lines.append(f'musicbot_callback_total{{action="{action}"}} {count}')
                     lines.append(f'musicbot_callback_avg_ms{{action="{action}"}} {avg}')
-                # Overall samples
                 lines.append(f'musicbot_total_samples {len(metrics_collector.metrics)}')
                 text = "\n".join(lines)
-                return web.Response(text=text, content_type="text/plain; version=0.0.4")
-
-            app.router.add_get("/metrics/prometheus", _metrics_prom)
+                return PlainTextResponse(content=text)
             logger.info("Prometheus metrics endpoint enabled at /metrics/prometheus")
     except Exception:
         logger.exception("Failed to register metrics endpoints")
 
-    port_str = os.getenv("PORT")
-    if not port_str:
-        logger.info("PORT environment variable not found. Skipping health check server (Worker mode).")
-        return None
-
-    runner = web.AppRunner(app)
-    await runner.setup()
     port = int(port_str)
-    site = web.TCPSite(runner, "0.0.0.0", port)
-    await site.start()
+
+    # Configure and run uvicorn server in background
+    u_config = uvicorn.Config(app, host="0.0.0.0", port=port, loop="asyncio", log_level="warning")
+    runner = uvicorn.Server(u_config)
+    asyncio.create_task(runner.serve())
+
     logger.info("Health check server started on port %s", port)
     _health_runner = runner
     return runner
