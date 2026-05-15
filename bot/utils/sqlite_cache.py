@@ -302,6 +302,15 @@ class SQLiteCache:
         rows = conn.execute("SELECT member FROM sets WHERE key = ?", (key,)).fetchall()
         return {r['member'] for r in rows}
     
+    async def incr(self, key: str) -> int:
+        val = await self.get(key)
+        try:
+            new_val = int(val) + 1 if val else 1
+        except ValueError:
+            new_val = 1
+        await self.set(key, str(new_val))
+        return new_val
+
     async def expire(self, key: str, seconds: int):
         """Set TTL on key."""
         conn = self._get_conn()
