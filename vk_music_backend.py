@@ -1,7 +1,7 @@
 """VK-first music backend with FastAPI and shared aggregation logic."""
 
-from __future__ import annotations
 
+from __future__ import annotations
 import asyncio
 import hashlib
 import json
@@ -34,7 +34,7 @@ class BackendSettings(BaseSettings):
     )
 
     SOURCE_ORDER: str = "vk,deezer"
-    HTTP_TIMEOUT: int = 15
+    HTTP_TIMEOUT: int = 10
     SEARCH_CACHE_TTL: int = 900
     RESOLVE_CACHE_TTL: int = 19800
     RATE_LIMIT_PER_MINUTE: int = 120
@@ -75,6 +75,7 @@ _DEEZER_PAGE_URL_RX = re.compile(
 )
 _UNSUPPORTED_PAGE_DOMAINS = (
     "youtube.com",
+    "jiosaavn.com",
     "youtube-nocookie.com",
     "youtu.be",
     "spotify.com",

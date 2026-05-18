@@ -33,7 +33,7 @@ The project follows strict IEEE documentation standards. Please refer to the fol
 
 ## 🛠️ Key Features
 
-- **Multi-Source**: Parallel search across YouTube, JioSaavn, VK, and Deezer.
+- **Multi-Source**: Parallel search across VK, and Deezer.
 - **Intelligent Fallback**: Automatic source switching to ensure 99.9% playback success.
 - **High Fidelity**: Up to 320kbps audio with EBU R128 normalization.
 - **Distributed**: Specialized wrappers to bypass regional blocks and rate limits.
