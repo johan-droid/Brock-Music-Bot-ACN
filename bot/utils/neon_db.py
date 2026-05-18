@@ -41,14 +41,14 @@ class NeonDatabase:
                 cur.execute("""
                     CREATE TABLE IF NOT EXISTS music_index (
                         id SERIAL PRIMARY KEY,
-                        track_id VARCHAR(255) UNIQUE NOT NULL,
-                        platform VARCHAR(50) NOT NULL,
+                        jamendo_track_id INTEGER UNIQUE NOT NULL,
+
                         title TEXT NOT NULL,
                         artist TEXT NOT NULL,
                         duration INTEGER,
-                        thumbnail TEXT,
-                        stream_url TEXT,
-                        file_id TEXT,
+                        thumbnail_url TEXT,
+                        audio_url TEXT,
+
                         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                     )
@@ -85,7 +85,7 @@ class NeonDatabase:
                     CREATE TABLE IF NOT EXISTS play_history (
                         id SERIAL PRIMARY KEY,
                         chat_id BIGINT NOT NULL,
-                        track_id VARCHAR(255) NOT NULL,
+                        jamendo_track_id INTEGER NOT NULL,
                         title TEXT,
                         artist TEXT,
                         played_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -104,6 +104,37 @@ class NeonDatabase:
 
                 # Sudo users table
                 cur.execute("""
+                    CREATE TABLE IF NOT EXISTS radio_shows (
+                        id SERIAL PRIMARY KEY,
+                        chat_id BIGINT,
+                        host_user_id BIGINT,
+                        show_name TEXT,
+                        description TEXT,
+                        schedule_day_of_week INTEGER,
+                        schedule_time TEXT,
+                        genre_tags TEXT,
+                        duration_minutes INTEGER,
+                        is_active BOOLEAN DEFAULT TRUE,
+                        created_at TIMESTAMP DEFAULT NOW()
+                    )
+                """)
+
+                cur.execute("""
+                    CREATE TABLE IF NOT EXISTS show_tracks (
+                        id SERIAL PRIMARY KEY,
+                        show_id INTEGER REFERENCES radio_shows(id) ON DELETE CASCADE,
+                        jamendo_track_id INTEGER,
+                        position INTEGER,
+                        added_by BIGINT,
+                        added_at TIMESTAMP DEFAULT NOW()
+                    )
+                """)
+
+                cur.execute("CREATE INDEX IF NOT EXISTS idx_radio_shows_chat ON radio_shows(chat_id)")
+                cur.execute("CREATE INDEX IF NOT EXISTS idx_radio_shows_time ON radio_shows(schedule_day_of_week, schedule_time)")
+                cur.execute("CREATE INDEX IF NOT EXISTS idx_show_tracks_show ON show_tracks(show_id)")
+
+                cur.execute("""
                     CREATE TABLE IF NOT EXISTS sudo_users (
                         id BIGINT PRIMARY KEY,
                         name TEXT,
@@ -115,11 +146,11 @@ class NeonDatabase:
                 # Create indexes
                 cur.execute("""
                     CREATE INDEX IF NOT EXISTS idx_music_index_track_id 
-                    ON music_index(track_id)
+                    ON music_index(jamendo_track_id)
                 """)
                 cur.execute("""
                     CREATE INDEX IF NOT EXISTS idx_music_index_platform 
-                    ON music_index(platform)
+                    ON music_index(artist)
                 """)
                 cur.execute("""
                     CREATE INDEX IF NOT EXISTS idx_queues_chat_id 
@@ -134,6 +165,40 @@ class NeonDatabase:
                     ON play_history(chat_id)
                 """)
                 
+
+                # Playlists table
+                cur.execute("""
+                    CREATE TABLE IF NOT EXISTS playlists (
+                        id SERIAL PRIMARY KEY,
+                        name TEXT NOT NULL,
+                        creator_user_id BIGINT NOT NULL,
+                        jamendo_playlist_id TEXT,
+                        is_collaborative BOOLEAN DEFAULT FALSE,
+                        is_public BOOLEAN DEFAULT FALSE,
+                        jamendo_token JSONB,
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    )
+                """)
+
+                # Playlist tracks table
+                cur.execute("""
+                    CREATE TABLE IF NOT EXISTS playlist_tracks (
+                        id SERIAL PRIMARY KEY,
+                        playlist_id INTEGER REFERENCES playlists(id) ON DELETE CASCADE,
+                        jamendo_track_id TEXT NOT NULL,
+                        position INTEGER,
+                        added_by BIGINT,
+                        added_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    )
+                """)
+
+                cur.execute("""
+                    CREATE INDEX IF NOT EXISTS idx_playlists_creator ON playlists(creator_user_id)
+                """)
+                cur.execute("""
+                    CREATE INDEX IF NOT EXISTS idx_playlist_tracks_playlist ON playlist_tracks(playlist_id)
+                """)
+
                 self.conn.commit()
                 logger.info("Neon Database tables initialized.")
         except Exception as e:
@@ -141,12 +206,12 @@ class NeonDatabase:
             logger.error(f"Error initializing Neon tables: {e}")
             raise
     
-    async def get_track(self, track_id: str) -> Optional[Dict[str, Any]]:
+    async def get_track(self, track_id: int) -> Optional[Dict[str, Any]]:
         """Get a track by ID from the music index."""
         try:
             with self.conn.cursor(cursor_factory=RealDictCursor) as cur:
                 cur.execute(
-                    "SELECT * FROM music_index WHERE track_id = %s",
+                    "SELECT * FROM music_index WHERE jamendo_track_id = %s",
                     (track_id,)
                 )
                 result = cur.fetchone()
@@ -163,8 +228,8 @@ class NeonDatabase:
             with self.conn.cursor() as cur:
                 # Check if track exists
                 cur.execute(
-                    "SELECT id FROM music_index WHERE track_id = %s",
-                    (track_data.get('track_id'),)
+                    "SELECT id FROM music_index WHERE jamendo_track_id = %s",
+                    (track_data.get('jamendo_track_id'),)
                 )
                 existing = cur.fetchone()
                 
@@ -173,33 +238,30 @@ class NeonDatabase:
                     cur.execute("""
                         UPDATE music_index 
                         SET title = %s, artist = %s, duration = %s, 
-                            thumbnail = %s, stream_url = %s, file_id = %s,
+                            thumbnail_url = %s, audio_url = %s,
                             updated_at = CURRENT_TIMESTAMP
-                        WHERE track_id = %s
+                        WHERE jamendo_track_id = %s
                     """, (
                         track_data.get('title'),
                         track_data.get('artist'),
                         track_data.get('duration'),
-                        track_data.get('thumbnail'),
-                        track_data.get('stream_url'),
-                        track_data.get('file_id'),
-                        track_data.get('track_id')
+                        track_data.get('thumbnail_url'),
+                        track_data.get('audio_url'),
+                        track_data.get('jamendo_track_id')
                     ))
                 else:
                     # Insert new
                     cur.execute("""
-                        INSERT INTO music_index 
-                        (track_id, platform, title, artist, duration, thumbnail, stream_url, file_id)
-                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                        INSERT INTO music_index
+                        (jamendo_track_id, title, artist, duration, thumbnail_url, audio_url)
+                        VALUES (%s, %s, %s, %s, %s, %s)
                     """, (
-                        track_data.get('track_id'),
-                        track_data.get('platform', 'unknown'),
+                        track_data.get('jamendo_track_id'),
                         track_data.get('title'),
                         track_data.get('artist'),
                         track_data.get('duration'),
-                        track_data.get('thumbnail'),
-                        track_data.get('stream_url'),
-                        track_data.get('file_id')
+                        track_data.get('thumbnail_url'),
+                        track_data.get('audio_url')
                     ))
                 
                 self.conn.commit()
@@ -315,7 +377,7 @@ class NeonDatabase:
         try:
             with self.conn.cursor() as cur:
                 cur.execute("""
-                    INSERT INTO play_history (chat_id, track_id, title, artist)
+                    INSERT INTO play_history (chat_id, jamendo_track_id, title, artist)
                     VALUES (%s, %s, %s, %s)
                 """, (chat_id, track_id, title, artist))
                 
@@ -357,8 +419,230 @@ class NeonDatabase:
             return False
 
 
+
+    async def create_playlist(self, name: str, user_id: int) -> int:
+        """Create a new playlist."""
+        try:
+            with self.conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute(
+                    "INSERT INTO playlists (name, creator_user_id) VALUES (%s, %s) RETURNING id",
+                    (name, user_id)
+                )
+                result = cur.fetchone()
+                self.conn.commit()
+                return result['id'] if result else -1
+        except Exception as e:
+            self.conn.rollback()
+            logger.error(f"Error creating playlist in Neon: {e}")
+            return -1
+
+    async def get_user_playlists(self, user_id: int) -> List[Dict[str, Any]]:
+        """Get playlists for a user."""
+        try:
+            with self.conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute("SELECT * FROM playlists WHERE creator_user_id = %s", (user_id,))
+                return [dict(row) for row in cur.fetchall()]
+        except Exception as e:
+            logger.error(f"Error getting user playlists from Neon: {e}")
+            return []
+
+    async def get_playlist_by_name(self, name: str) -> Optional[Dict[str, Any]]:
+        """Get playlist by name."""
+        try:
+            with self.conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute("SELECT * FROM playlists WHERE name = %s", (name,))
+                result = cur.fetchone()
+                return dict(result) if result else None
+        except Exception as e:
+            logger.error(f"Error getting playlist by name from Neon: {e}")
+            return None
+
+    async def get_playlist_tracks(self, playlist_id: int) -> List[Dict[str, Any]]:
+        """Get tracks in a playlist."""
+        try:
+            with self.conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute("SELECT * FROM playlist_tracks WHERE playlist_id = %s ORDER BY position, id", (playlist_id,))
+                return [dict(row) for row in cur.fetchall()]
+        except Exception as e:
+            logger.error(f"Error getting playlist tracks from Neon: {e}")
+            return []
+
+    async def add_track_to_playlist(self, playlist_id: int, track_id: str, added_by: int) -> bool:
+        """Add a track to a playlist."""
+        try:
+            with self.conn.cursor() as cur:
+                cur.execute("SELECT MAX(position) FROM playlist_tracks WHERE playlist_id = %s", (playlist_id,))
+                max_pos = cur.fetchone()[0]
+                pos = (max_pos + 1) if max_pos is not None else 1
+
+                cur.execute(
+                    "INSERT INTO playlist_tracks (playlist_id, jamendo_track_id, position, added_by) VALUES (%s, %s, %s, %s)",
+                    (playlist_id, track_id, pos, added_by)
+                )
+                self.conn.commit()
+                return True
+        except Exception as e:
+            self.conn.rollback()
+            logger.error(f"Error adding track to playlist in Neon: {e}")
+            return False
+
+    async def remove_track_from_playlist(self, playlist_id: int, position: int) -> bool:
+        """Remove a track from a playlist by position."""
+        try:
+            with self.conn.cursor() as cur:
+                cur.execute("DELETE FROM playlist_tracks WHERE playlist_id = %s AND position = %s", (playlist_id, position))
+                self.conn.commit()
+                return True
+        except Exception as e:
+            self.conn.rollback()
+            logger.error(f"Error removing track from playlist in Neon: {e}")
+            return False
+
+    async def toggle_playlist_collab(self, playlist_id: int, is_collab: bool) -> bool:
+        """Toggle collaborative mode for a playlist."""
+        try:
+            with self.conn.cursor() as cur:
+                cur.execute("UPDATE playlists SET is_collaborative = %s WHERE id = %s", (is_collab, playlist_id))
+                self.conn.commit()
+                return True
+        except Exception as e:
+            self.conn.rollback()
+            logger.error(f"Error toggling playlist collab in Neon: {e}")
+            return False
+
+    async def save_jamendo_token(self, user_id: int, token: Dict[str, Any]) -> bool:
+        """Save Jamendo token for user in playlists table."""
+        try:
+            import json
+            with self.conn.cursor() as cur:
+                cur.execute("UPDATE playlists SET jamendo_token = %s WHERE creator_user_id = %s", (json.dumps(token), user_id))
+                self.conn.commit()
+                return True
+        except Exception as e:
+            self.conn.rollback()
+            logger.error(f"Error saving jamendo token in Neon: {e}")
+            return False
+
+    async def get_jamendo_token(self, user_id: int) -> Optional[Dict[str, Any]]:
+        """Get Jamendo token for a user."""
+        try:
+            with self.conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute("SELECT jamendo_token FROM playlists WHERE creator_user_id = %s AND jamendo_token IS NOT NULL LIMIT 1", (user_id,))
+                result = cur.fetchone()
+                return dict(result['jamendo_token']) if result and result.get('jamendo_token') else None
+        except Exception as e:
+            logger.error(f"Error getting jamendo token from Neon: {e}")
+            return None
+
+
 def init_neon(database_url: str):
     """Initialize Neon database singleton."""
     global neon_db
     neon_db = NeonDatabase(database_url)
     logger.info("Neon Database initialized.")
+
+    # Radio Shows Implementation for Neon
+    async def create_radio_show(self, chat_id: int, host_user_id: int, show_name: str, description: str, day: int, time: str, genre: str, duration: int) -> int:
+        """Create a new radio show."""
+        try:
+            with self.conn.cursor() as cur:
+                cur.execute("""
+                    INSERT INTO radio_shows (chat_id, host_user_id, show_name, description, schedule_day_of_week, schedule_time, genre_tags, duration_minutes)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                    RETURNING id
+                """, (chat_id, host_user_id, show_name, description, day, time, genre, duration))
+                show_id = cur.fetchone()[0]
+                self.conn.commit()
+                return show_id
+        except Exception as e:
+            self.conn.rollback()
+            logger.error(f"Error creating radio show in Neon: {e}")
+            return -1
+
+    async def add_track_to_show(self, show_id: int, track_id: int, added_by: int) -> bool:
+        """Add a track to a radio show."""
+        try:
+            with self.conn.cursor() as cur:
+                cur.execute("SELECT MAX(position) FROM show_tracks WHERE show_id = %s", (show_id,))
+                row = cur.fetchone()
+                pos = row[0] if row[0] is not None else 0
+
+                cur.execute("""
+                    INSERT INTO show_tracks (show_id, jamendo_track_id, position, added_by)
+                    VALUES (%s, %s, %s, %s)
+                """, (show_id, track_id, pos + 1, added_by))
+                self.conn.commit()
+                return True
+        except Exception as e:
+            self.conn.rollback()
+            logger.error(f"Error adding track to show in Neon: {e}")
+            return False
+
+    async def get_upcoming_shows(self, chat_id: int) -> List[Dict[str, Any]]:
+        """Get all upcoming shows for a chat."""
+        try:
+            with self.conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+                cur.execute("SELECT * FROM radio_shows WHERE chat_id = %s AND is_active = TRUE ORDER BY schedule_day_of_week, schedule_time", (chat_id,))
+                results = cur.fetchall()
+                return [dict(row) for row in results]
+        except Exception as e:
+            logger.error(f"Error getting upcoming shows from Neon: {e}")
+            return []
+
+    async def get_show_tracks(self, show_id: int) -> List[Dict[str, Any]]:
+        """Get all tracks for a radio show."""
+        try:
+            with self.conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+                cur.execute("SELECT * FROM show_tracks WHERE show_id = %s ORDER BY position", (show_id,))
+                results = cur.fetchall()
+                return [dict(row) for row in results]
+        except Exception as e:
+            logger.error(f"Error getting show tracks from Neon: {e}")
+            return []
+
+    async def get_shows_by_time(self, day: int, time: str) -> List[Dict[str, Any]]:
+        """Get all shows scheduled for a specific time."""
+        try:
+            with self.conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+                cur.execute("SELECT * FROM radio_shows WHERE schedule_day_of_week = %s AND schedule_time = %s AND is_active = TRUE", (day, time))
+                results = cur.fetchall()
+                return [dict(row) for row in results]
+        except Exception as e:
+            logger.error(f"Error getting shows by time from Neon: {e}")
+            return []
+
+    async def delete_show(self, show_id: int) -> bool:
+        """Delete a radio show (and its tracks via cascade)."""
+        try:
+            with self.conn.cursor() as cur:
+                # show_tracks will be deleted due to CASCADE
+                cur.execute("DELETE FROM radio_shows WHERE id = %s", (show_id,))
+                self.conn.commit()
+                return True
+        except Exception as e:
+            self.conn.rollback()
+            logger.error(f"Error deleting radio show in Neon: {e}")
+            return False
+
+    async def get_past_shows(self, chat_id: int) -> List[Dict[str, Any]]:
+        """Get past shows for a chat."""
+        try:
+            with self.conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+                cur.execute("SELECT * FROM radio_shows WHERE chat_id = %s AND is_active = FALSE ORDER BY created_at DESC", (chat_id,))
+                results = cur.fetchall()
+                return [dict(row) for row in results]
+        except Exception as e:
+            logger.error(f"Error getting past shows from Neon: {e}")
+            return []
+
+    async def set_show_inactive(self, show_id: int) -> bool:
+        """Mark a show as inactive (past)."""
+        try:
+            with self.conn.cursor() as cur:
+                cur.execute("UPDATE radio_shows SET is_active = FALSE WHERE id = %s", (show_id,))
+                self.conn.commit()
+                return True
+        except Exception as e:
+            self.conn.rollback()
+            logger.error(f"Error setting show inactive in Neon: {e}")
+            return False

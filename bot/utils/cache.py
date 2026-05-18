@@ -21,6 +21,9 @@ CACHE_MODE = "sqlite"
 async def init_redis():
     """Initialize Redis connection if configured, otherwise use SQLite."""
     global redis_client, sqlite_cache, CACHE_MODE
+    from bot.utils.sqlite_cache import init_sqlite_cache, sqlite_cache as _sqlite
+    init_sqlite_cache()
+    sqlite_cache = _sqlite
     
     # Try Upstash Redis first
     if config.UPSTASH_REDIS_REST_URL and config.UPSTASH_REDIS_REST_TOKEN:
@@ -125,7 +128,7 @@ class Cache:
         if CACHE_MODE == "redis" and redis_client:
             await redis_client.delete(key)
         else:
-            await sqlite_cache.delete(key)
+            if sqlite_cache: await sqlite_cache.delete(key)
     
     # Bot admin status
     async def set_bot_admin(self, chat_id: int, is_admin: bool, ttl: int = 120):
@@ -145,7 +148,7 @@ class Cache:
             val = await redis_client.get(key)
             return val == "1"
         else:
-            val = await sqlite_cache.get(key)
+            val = await sqlite_cache.get(key) if sqlite_cache else None
             return val == "1"
     
     # Cooldown
@@ -160,7 +163,7 @@ class Cache:
             await redis_client.set(key, "1", ex=cooldown)
             return True
         else:
-            val = await sqlite_cache.get(key)
+            val = await sqlite_cache.get(key) if sqlite_cache else None
             if val:
                 return False
             await sqlite_cache.set(key, "1", ex=cooldown)
@@ -175,7 +178,7 @@ class Cache:
             val = await redis_client.get(key)
             return val == "1"
         else:
-            val = await sqlite_cache.get(key)
+            val = await sqlite_cache.get(key) if sqlite_cache else None
             return val == "1"
     
     async def set_maintenance(self, enabled: bool):
@@ -191,7 +194,7 @@ class Cache:
             if enabled:
                 await sqlite_cache.set(key, "1")  # No TTL = Persistent
             else:
-                await sqlite_cache.delete(key)
+                if sqlite_cache: await sqlite_cache.delete(key)
     
     # Gban cache
     async def cache_gban(self, user_id: int, is_banned: bool, ttl: int = 300):
@@ -211,7 +214,7 @@ class Cache:
             val = await redis_client.get(key)
             return val == "1"
         else:
-            val = await sqlite_cache.get(key)
+            val = await sqlite_cache.get(key) if sqlite_cache else None
             return val == "1"
     
     # Queue operations (delegate to appropriate backend)
@@ -269,7 +272,7 @@ class Cache:
         if CACHE_MODE == "redis" and redis_client:
             await redis_client.delete(key)
         else:
-            await sqlite_cache.delete(key)
+            if sqlite_cache: await sqlite_cache.delete(key)
 
     async def get(self, key: str) -> Optional[str]:
         """Generic get."""
@@ -303,14 +306,14 @@ class Cache:
                 return int(await redis_client.incr(key))
         else:
             # Best-effort (non-atomic) fallback for SQLite cache
-            val = await sqlite_cache.get(key)
+            val = await sqlite_cache.get(key) if sqlite_cache else None
             try:
                 current = int(val) if val is not None else 0
             except Exception:
                 current = 0
             current += amount
             # Persist new value (no TTL set here; caller should set TTL on first increment)
-            await sqlite_cache.set(key, str(current))
+            if sqlite_cache: await sqlite_cache.set(key, str(current))
             return current
 
     async def expire(self, key: str, seconds: int) -> bool:
@@ -325,7 +328,7 @@ class Cache:
                 return False
         else:
             try:
-                await sqlite_cache.expire(key, seconds)
+                if sqlite_cache: await sqlite_cache.expire(key, seconds)
                 return True
             except Exception:
                 return False

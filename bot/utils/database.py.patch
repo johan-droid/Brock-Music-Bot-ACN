@@ -1,0 +1,21 @@
+--- bot/utils/database.py
++++ bot/utils/database.py
+@@ -10,6 +10,18 @@
+ class Database:
+     """Abstract marker class for type hinting."""
+     pass
++
++    async def get_quiz_score(self, user_id: int) -> dict:
++        """Get user quiz score."""
++        pass
++
++    async def save_quiz_score(self, user_id: int, score_added: int) -> dict:
++        """Save user quiz score."""
++        pass
++
++    async def get_top_quiz_scores(self, limit: int = 10, user_ids: list = None) -> list:
++        """Get top quiz scores."""
++        pass
+
+
+ async def init_database():

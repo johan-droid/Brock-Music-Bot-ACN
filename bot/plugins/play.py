@@ -21,6 +21,7 @@ from pyrogram.errors import MessageNotModified, MessageDeleteForbidden
 from bot.utils.permissions import rate_limit, require_member, require_admin, get_permission_level
 from bot.utils.formatters import format_duration, truncate_text
 from bot.utils.thumbnails import generate_np_thumbnail
+from bot.utils.effects_engine import get_active_effect, process_track
 from bot.utils.title_detector import conflict_resolver, normalize_text, calculate_similarity
 from bot.utils.progress_tracker import progress_tracker
 from bot.utils.cache import cache
@@ -34,6 +35,7 @@ from bot.core import bot as bot_module
 from bot.core.music_backend import music_backend, Track
 from bot.utils.errors import summarize_exception
 from config import config
+from bot.utils.resilience import global_watchdog, log_error
 
 logger = logging.getLogger(__name__)
 
@@ -190,8 +192,6 @@ def _rank_candidates_for_selection(query: str, candidates: list) -> list:
         
         # Combined score: (98% source priority, 1.5% similarity, 0.5% quality)
         # Lower score = better ranking
-        # SOURCE IS KING - YouTube (score ~100) beats JioSaavn (score ~120)
-        # YouTube prioritized with cookies working - no bot detection issues
         combined_score = (
             source_priority * 0.98 +  # Source (DOMINANT - 98% weight)
             (1.0 - sim) * 1.5 +       # Similarity (minimal - max 1.5 pts)
@@ -222,6 +222,7 @@ def _rank_candidates_for_selection(query: str, candidates: list) -> list:
 @require_member
 @rate_limit
 async def play_cmd(client: Client, message: Message):
+    global_watchdog.ping()
     """Handle /play — open to all group members."""
     chat_id = message.chat.id
     user_id = message.from_user.id if message.from_user else None
@@ -296,8 +297,8 @@ async def play_cmd(client: Client, message: Message):
     except asyncio.TimeoutError:
         await search_msg.edit("⏱ <b>Search timed out!</b>\n<i>\"The seas were too vast this time! Try again, Yohoho!\"</i>", parse_mode=ParseMode.HTML)
     except Exception as exc:
-        logger.error(f"play_cmd failed: {summarize_exception(exc)}")
-        await search_msg.edit("Music service temporarily unavailable, try again later.", parse_mode=ParseMode.HTML)
+        log_error(f"play_cmd failed", exc)
+        await search_msg.edit(f"❌ <b>Error:</b> <code>{summarize_exception(exc)}</code>", parse_mode=ParseMode.HTML)
 
 
 # ── /vplay ────────────────────────────────────────────────────────────────────
@@ -358,6 +359,17 @@ async def add_track_and_play(
             await search_msg.delete()
         except Exception:
             pass
+
+    # --- Intercept for voting mode ---
+    from bot.utils.database import db
+    group_data = await db.get_group(chat_id)
+    settings = group_data.get("settings", {})
+    if settings.get("voting_mode", False):
+        from bot.plugins.anon_requests import start_vote_session
+        from bot.core.bot import app
+        await start_vote_session(search_msg._client if search_msg else app, chat_id, track, requester_id=user_id, is_anonymous=False)
+        return
+    # ---------------------------------
 
     status = await queue_manager.get_status(chat_id)
     is_playing = status in ("playing", "paused")
@@ -530,6 +542,26 @@ async def start_playback(chat_id: int, prefetched_track: Optional[Dict[str, Any]
         headers = (stream_payload or {}).get("headers") if stream_payload else None
         if headers is None:
             headers = music_backend.get_source_headers(effective_source)
+
+        # --- Audio Effects Engine ---
+        active_effect = get_active_effect(chat_id)
+        if active_effect:
+            logger.info(f"Processing audio effect '{active_effect}' for {track_id} in {chat_id}")
+            try:
+                processed_url = await process_track(track_id, url, active_effect)
+                if processed_url != url:
+                    url = processed_url
+                    logger.info(f"Using processed audio file: {url}")
+            except Exception as e:
+                logger.error(f"Effects processing failed: {e}")
+                # Send error message but continue playing original stream
+                try:
+                    from bot.core.bot import bot_client
+                    if bot_client:
+                        await bot_client.send_message(chat_id, f"⚠️ Failed to apply effect **{active_effect}**. Playing original track.")
+                except Exception:
+                    pass
+        # ----------------------------
 
         # Never pass page URLs to py-tgcalls, otherwise it may trigger a probing fallback.
         if _looks_like_supported_page_url(url):
