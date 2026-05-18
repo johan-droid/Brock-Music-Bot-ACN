@@ -106,10 +106,10 @@ class SupabaseDatabase:
         )
 
     @staticmethod
-    def _global_music_index_select_fields(include_stream_url: bool) -> str:
-        base_fields = "query_key,track_id,title,artist,duration,thumbnail,source,metadata,sources,last_played"
-        if include_stream_url:
-            return base_fields.replace("source,", "source,stream_url,")
+    def _global_music_index_select_fields(include_audio_url: bool) -> str:
+        base_fields = "query_key,jamendo_track_id,title,artist,duration,thumbnail_url,metadata,sources,last_played"
+        if include_audio_url:
+            return base_fields + ",audio_url"
         return base_fields
 
     @staticmethod
@@ -406,12 +406,12 @@ class SupabaseDatabase:
 
         # Fallback path if RPC isn't deployed yet.
         if not rows:
-            include_stream_url = self._supports_stream_url_column is not False
+            include_audio_url = self._supports_stream_url_column is not False
             try:
                 like_query = f"%{q}%"
                 result = (
                     self.client.table("global_music_index")
-                    .select(self._global_music_index_select_fields(include_stream_url))
+                    .select(self._global_music_index_select_fields(include_audio_url))
                     .or_(f"title.ilike.{like_query},artist.ilike.{like_query}")
                     .order("last_played", desc=True)
                     .limit(max(1, limit))
@@ -419,7 +419,7 @@ class SupabaseDatabase:
                 )
                 rows = [r for r in (getattr(result, "data", None) or []) if isinstance(r, dict)]
             except Exception as e:
-                if include_stream_url and self._is_missing_stream_url_column_error(e):
+                if include_audio_url and self._is_missing_stream_url_column_error(e):
                     self._disable_stream_url_column(
                         "Supabase global_music_index.stream_url is unavailable in the live schema; falling back to legacy index fields until migration is applied."
                     )
@@ -462,7 +462,7 @@ class SupabaseDatabase:
             except Exception:
                 duration = 0
 
-            track_id = row.get("track_id") or metadata.get("id") or metadata.get("track_id")
+            jamendo_track_id = row.get("jamendo_track_id") or metadata.get("id") or metadata.get("jamendo_track_id")
             thumb = row.get("thumbnail") or metadata.get("thumbnail") or metadata.get("thumb")
 
             stream_url = row.get("stream_url") or metadata.get("stream_url") or metadata.get("url") or ""
@@ -483,8 +483,8 @@ class SupabaseDatabase:
                 "thumbnail": thumb,
                 "source": "global_index",
                 "origin_source": row.get("source") or metadata.get("source") or "unknown",
-                "id": track_id,
-                "track_id": track_id,
+                "id": jamendo_track_id,
+                "jamendo_track_id": jamendo_track_id,
                 "metadata": metadata,
                 "sources": sources,
                 "query_key": row.get("query_key"),
@@ -496,12 +496,12 @@ class SupabaseDatabase:
         """🟢 Saves a track to Supabase, but automatically deletes old ones to protect the Free Tier."""
         try:
             query_key = query.strip().lower()
-            track_id = track.get("id") or track.get("track_id")
+            jamendo_track_id = track.get("id") or track.get("jamendo_track_id")
             source_name = track.get("source", "unknown")
             stream_url = track.get("url") or track.get("stream_url") or ""
             saved_at = datetime.utcnow().isoformat()
 
-            include_stream_url = self._supports_stream_url_column is not False
+            include_audio_url = self._supports_stream_url_column is not False
 
             metadata = {
                 "title": track.get("title", "Unknown"),
@@ -509,7 +509,7 @@ class SupabaseDatabase:
                 "duration": track.get("duration", 0),
                 "thumbnail": track.get("thumbnail") or track.get("thumb") or "",
                 "source": source_name,
-                "id": track_id,
+                "id": jamendo_track_id,
                 "url": stream_url,
                 "stream_url": stream_url,
                 "saved_at": saved_at,
@@ -525,7 +525,7 @@ class SupabaseDatabase:
 
             sources_payload.append({
                 "source": source_name,
-                "track_id": track_id,
+                "jamendo_track_id": jamendo_track_id,
                 "url": stream_url,
                 "stream_url": stream_url,
                 "saved_at": saved_at,
@@ -533,7 +533,7 @@ class SupabaseDatabase:
 
             data = {
                 "query_key": query_key,
-                "track_id": track_id,
+                "jamendo_track_id": jamendo_track_id,
                 "title": metadata.get("title", "Unknown"),
                 "artist": metadata.get("artist", "Unknown Artist"),
                 "duration": track.get("duration", 0),
@@ -544,16 +544,16 @@ class SupabaseDatabase:
                 "last_played": saved_at,
             }
 
-            if include_stream_url:
+            if include_audio_url:
                 data["stream_url"] = stream_url
 
             # 1. Save or update the current track
             try:
                 self.client.table("global_music_index").upsert(data).execute()
-                if include_stream_url:
+                if include_audio_url:
                     self._supports_stream_url_column = True
             except Exception as upsert_exc:
-                if include_stream_url and self._is_missing_stream_url_column_error(upsert_exc):
+                if include_audio_url and self._is_missing_stream_url_column_error(upsert_exc):
                     self._disable_stream_url_column(
                         "Supabase global_music_index.stream_url is unavailable in the live schema; storing the resolved URL only in metadata/sources until migration is applied."
                     )
