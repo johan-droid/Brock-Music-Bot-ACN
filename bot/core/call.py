@@ -762,11 +762,9 @@ class CallManager:
             "media_path": stream_url,
             "audio_parameters": audio_cfg,
             "video_flags": video_flags,
-            "ffmpeg_parameters": ffmpeg_params.strip() if ffmpeg_params else None,
         }
         if video_cfg:
             kwargs["video_parameters"] = video_cfg
-            
         return MediaStream(**kwargs)
 
 
