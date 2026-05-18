@@ -35,6 +35,7 @@ from bot.core import bot as bot_module
 from bot.core.music_backend import music_backend, Track
 from bot.utils.errors import summarize_exception
 from config import config
+from bot.utils.resilience import global_watchdog, log_error
 
 logger = logging.getLogger(__name__)
 
@@ -221,6 +222,7 @@ def _rank_candidates_for_selection(query: str, candidates: list) -> list:
 @require_member
 @rate_limit
 async def play_cmd(client: Client, message: Message):
+    global_watchdog.ping()
     """Handle /play — open to all group members."""
     chat_id = message.chat.id
     user_id = message.from_user.id if message.from_user else None
@@ -311,7 +313,7 @@ async def play_cmd(client: Client, message: Message):
     except asyncio.TimeoutError:
         await search_msg.edit("⏱ <b>Search timed out!</b>\n<i>\"The seas were too vast this time! Try again, Yohoho!\"</i>", parse_mode=ParseMode.HTML)
     except Exception as exc:
-        logger.error(f"play_cmd failed: {summarize_exception(exc)}")
+        log_error(f"play_cmd failed", exc)
         await search_msg.edit(f"❌ <b>Error:</b> <code>{summarize_exception(exc)}</code>", parse_mode=ParseMode.HTML)
 
 

@@ -1,143 +1,163 @@
 import asyncio
+import json
 import logging
-import sys
-import time
 import os
-import traceback
-from typing import List, Dict, Any
-
-from config import config
+import random
+import time
+from functools import wraps
+from typing import Callable, Any, Dict, List
 
 logger = logging.getLogger(__name__)
 
-# In-memory storage for the last 10 errors
-error_history: List[Dict[str, Any]] = []
 
-def add_to_error_history(exc_type, exc_value, exc_traceback):
-    """Add an error to the history, keeping only the last 10."""
-    tb_str = "".join(traceback.format_exception(exc_type, exc_value, exc_traceback))
+class JsonFormatter(logging.Formatter):
+    def format(self, record):
+        log_record = {
+            "timestamp": self.formatTime(record, self.datefmt),
+            "level": record.levelname,
+            "message": record.getMessage(),
+            "module": record.module,
+            "funcName": record.funcName,
+        }
+        if record.exc_info:
+            log_record["exception"] = self.formatException(record.exc_info)
+        return json.dumps(log_record)
 
-    error_record = {
+
+def setup_json_logging():
+    root_logger = logging.getLogger()
+    for handler in root_logger.handlers:
+        handler.setFormatter(JsonFormatter())
+
+
+LAST_ERRORS: List[Dict[str, Any]] = []
+
+
+def log_error(msg: str, exc: Exception = None):
+    error_entry = {
         "time": time.time(),
-        "type": getattr(exc_type, "__name__", str(exc_type)),
-        "message": str(exc_value),
-        "traceback": tb_str
+        "message": msg,
+        "exception": str(exc) if exc else None,
     }
+    LAST_ERRORS.append(error_entry)
+    if len(LAST_ERRORS) > 10:
+        LAST_ERRORS.pop(0)
+    logger.error(msg, exc_info=exc)
 
-    error_history.append(error_record)
-    if len(error_history) > 10:
-        error_history.pop(0)
 
-async def notify_owner(message: str):
-    """Notify the bot owner via Telegram."""
-    if not config.OWNER_ID:
-        return
+class CircuitBreaker:
+    def __init__(self, name: str, threshold: int = 5, recovery_time: int = 30):
+        self.name = name
+        self.threshold = threshold
+        self.recovery_time = recovery_time
+        self.failures = 0
+        self.last_failure = 0
+        self.state = "CLOSED"
 
-    try:
-        from bot.core import bot as bot_module
-        if bot_module.bot_client and bot_module.bot_client.is_connected:
-            await bot_module.bot_client.send_message(config.OWNER_ID, message)
-    except Exception as e:
-        logger.error(f"Failed to notify owner: {e}")
+    def record_failure(self):
+        self.failures += 1
+        self.last_failure = time.time()
+        if self.failures >= self.threshold:
+            self.state = "OPEN"
+            logger.warning(f"Circuit {self.name} OPENED")
 
-class GlobalExceptionHandler:
-    """Catches all unhandled exceptions."""
+    def record_success(self):
+        self.failures = 0
+        if self.state != "CLOSED":
+            self.state = "CLOSED"
+            logger.info(f"Circuit {self.name} CLOSED (Recovered)")
 
+    def can_proceed(self) -> bool:
+        if self.state == "CLOSED":
+            return True
+        if time.time() - self.last_failure >= self.recovery_time:
+            self.state = "HALF_OPEN"
+            return True
+        return False
+
+
+jamendo_cb = CircuitBreaker("Jamendo")
+
+
+class RateLimitAware:
     @staticmethod
-    def handle_sys_exception(exc_type, exc_value, exc_traceback):
-        """Handle synchronous unhandled exceptions."""
-        if issubclass(exc_type, KeyboardInterrupt):
-            sys.__excepthook__(exc_type, exc_value, exc_traceback)
-            return
+    async def call_telegram(func, *args, **kwargs):
+        from pyrogram.errors import FloodWait
 
-        logger.critical(f"Uncaught synchronous exception: {exc_value}", exc_info=(exc_type, exc_value, exc_traceback))
-        add_to_error_history(exc_type, exc_value, exc_traceback)
-
-        # Schedule notification if loop is running
         try:
-            loop = asyncio.get_running_loop()
-            if not loop.is_closed():
-                loop.create_task(notify_owner(f"🚨 **CRITICAL ERROR**\n\n`{exc_type.__name__}: {exc_value}`\n\nCheck logs for details. Bot may restart soon."))
-        except RuntimeError:
-            pass # No running loop
+            return await func(*args, **kwargs)
+        except FloodWait as e:
+            logger.warning(f"Telegram FloodWait: waiting {e.value} seconds")
+            await asyncio.sleep(e.value)
+            return await func(*args, **kwargs)
 
-    @staticmethod
-    def handle_asyncio_exception(loop, context):
-        """Handle asyncio unhandled exceptions."""
-        msg = context.get("exception", context["message"])
-        logger.critical(f"Uncaught asyncio exception: {msg}")
 
-        exc = context.get("exception")
-        if exc:
-            exc_type = type(exc)
-            exc_traceback = exc.__traceback__
-            add_to_error_history(exc_type, exc, exc_traceback)
+def with_retries_and_cb(circuit_breaker: CircuitBreaker, max_retries: int = 5, timeout: int = 8):
+    def decorator(func: Callable):
+        @wraps(func)
+        async def wrapper(*args, **kwargs):
+            if not circuit_breaker.can_proceed():
+                logger.warning(f"Circuit {circuit_breaker.name} is OPEN, using degraded mode/cache")
+                raise Exception(f"Circuit {circuit_breaker.name} OPEN")
 
-            if not loop.is_closed():
-                loop.create_task(notify_owner(f"🚨 **ASYNCIO ERROR**\n\n`{exc_type.__name__}: {str(exc)}`\n\nCheck logs for details."))
-        else:
-            # Just add string message if no actual exception object
-            error_record = {
-                "time": time.time(),
-                "type": "Asyncio Context Error",
-                "message": str(msg),
-                "traceback": "N/A"
-            }
-            error_history.append(error_record)
-            if len(error_history) > 10:
-                error_history.pop(0)
+            for attempt in range(max_retries):
+                try:
+                    result = await asyncio.wait_for(func(*args, **kwargs), timeout=timeout)
+                    circuit_breaker.record_success()
+                    return result
+                except asyncio.TimeoutError:
+                    log_error(f"Timeout calling {func.__name__} (attempt {attempt + 1})")
+                    circuit_breaker.record_failure()
+                except Exception as e:
+                    if hasattr(e, "status") and e.status == 429:
+                        retry_after = int(e.headers.get("Retry-After", 5))
+                        logger.warning(f"Rate limited. Waiting {retry_after}s")
+                        await asyncio.sleep(retry_after)
+                        continue
 
-def setup_global_exception_handlers():
-    """Install the global exception handlers."""
-    sys.excepthook = GlobalExceptionHandler.handle_sys_exception
+                    log_error(f"Error calling {func.__name__} (attempt {attempt + 1})", e)
+                    circuit_breaker.record_failure()
 
-    try:
-        loop = asyncio.get_running_loop()
-        loop.set_exception_handler(GlobalExceptionHandler.handle_asyncio_exception)
-    except RuntimeError:
-        pass # Will be set in main() once loop starts
+                if attempt < max_retries - 1:
+                    delay = min(2**attempt + random.uniform(0, 1), 10)
+                    await asyncio.sleep(delay)
+
+            raise Exception(f"Max retries exceeded for {func.__name__}")
+
+        return wrapper
+
+    return decorator
+
 
 class Watchdog:
-    """Monitors bot health and forces restart if stuck."""
-
-    def __init__(self, timeout_seconds: int = 300):
-        self.timeout_seconds = timeout_seconds
+    def __init__(self, timeout: int = 300):
+        self.timeout = timeout
         self.last_ping = time.time()
         self._task = None
 
     def ping(self):
-        """Update the last ping time."""
         self.last_ping = time.time()
 
-    async def start(self):
-        """Start the watchdog task."""
-        if self._task is None:
-            self.ping()
-            self._task = asyncio.create_task(self._monitor())
-            logger.info(f"Watchdog started (timeout: {self.timeout_seconds}s)")
-
-    def stop(self):
-        """Stop the watchdog task."""
-        if self._task:
-            self._task.cancel()
-            self._task = None
-
-    async def _monitor(self):
+    async def _loop(self):
         while True:
-            await asyncio.sleep(30)
-            now = time.time()
-            if now - self.last_ping > self.timeout_seconds:
-                logger.critical(f"WATCHDOG TRIGGERED: No response for {self.timeout_seconds}s. Force restarting.")
-                # We can't await notify_owner reliably here because we might be totally stuck
-                self._force_restart()
+            await asyncio.sleep(60)
+            if time.time() - self.last_ping > self.timeout:
+                logger.error(f"Watchdog triggered! Process hung for {self.timeout}s. Exiting for restart.")
+                os._exit(1)
 
-    def _force_restart(self):
-        """Forcefully restart the bot process."""
+    def start(self):
+        self._task = asyncio.create_task(self._loop())
+
+
+global_watchdog = Watchdog()
+
+
+async def notify_owner(msg: str):
+    from config import config
+    from bot.core.bot import bot_client
+
+    if config.OWNER_ID and bot_client:
         try:
-            logger.critical("Execv self...")
-            os.execv(sys.executable, ['python', '-m', 'bot'])
+            await RateLimitAware.call_telegram(bot_client.send_message, chat_id=config.OWNER_ID, text=msg)
         except Exception as e:
-            logger.error(f"Failed to execv: {e}")
-            os._exit(1)
-
-watchdog = Watchdog()
+            logger.error(f"Failed to notify owner: {e}")
