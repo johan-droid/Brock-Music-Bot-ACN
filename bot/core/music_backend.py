@@ -6,9 +6,8 @@ from dataclasses import asdict, dataclass
 from typing import Any, Dict, List, Optional
 
 import bot.utils.database as database_module
-from bot.utils.circuit_breaker import CircuitBreakerRegistry, CircuitBreakerOpen, source_health_tracker
+from bot.utils.circuit_breaker import source_health_tracker
 from bot.utils.errors import BotDetectionError, PreviewOnlyError, summarize_exception, FallbackExhaustedError
-from bot.utils.cache import cache
 
 from bot.utils.multi_tier_cache import multi_cache
 logger = logging.getLogger(__name__)
@@ -328,7 +327,7 @@ class MusicBackend:
         if source == "unsupported":
             return None
 
-        if source not in {"telegram", "direct", "unknown"}:
+        if source not in {"telegram", "direct", "vk", "deezer", "unknown"}:
             source = _infer_source_from_url(stream_url)
 
         if source == "unsupported":
@@ -437,8 +436,7 @@ class MusicBackend:
 
         sorted_sources = await source_health_tracker.get_sorted_sources()
         if not sorted_sources:
-            sorted_sources = ["youtube_wrapper", "youtube",
-                              "jiosaavn_wrapper", "jiosaavn"]
+            sorted_sources = ["vk", "deezer"]
 
         tracks = []
 
@@ -533,8 +531,7 @@ class MusicBackend:
         if not resolved and track.track_id:
             sorted_sources = await source_health_tracker.get_sorted_sources()
             if not sorted_sources:
-                sorted_sources = ["youtube_wrapper", "youtube",
-                                  "jiosaavn_wrapper", "jiosaavn"]
+                sorted_sources = ["vk", "deezer"]
 
             for src_name in sorted_sources:
                 if src_name in [f"{track.source}_wrapper", track.source]:
