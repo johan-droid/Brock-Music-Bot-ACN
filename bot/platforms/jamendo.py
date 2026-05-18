@@ -1,150 +1,106 @@
-import aiohttp
-import asyncio
+"""Jamendo OAuth API wrapper for playlist management."""
+
+import json
 import logging
-import os
-from typing import List, Dict, Any, Optional
+from typing import Dict, Any, List, Optional
+import aiohttp
 
 from config import config
-from bot.utils.circuit_breaker import retry_with_backoff
 
 logger = logging.getLogger(__name__)
 
-class JamendoClient:
-    """Resilient Jamendo API Client with Circuit Breaker & Rate Limiting."""
+class JamendoAPI:
+    """Jamendo API wrapper for user OAuth and playlists."""
 
     BASE_URL = "https://api.jamendo.com/v3.0"
+    OAUTH_URL = "https://api.jamendo.com/v3.0/oauth/authorize"
+    TOKEN_URL = "https://api.jamendo.com/v3.0/oauth/grant"
 
-    def __init__(self, client_id: str = None):
-        self.client_id = client_id or "56d30c95" # Public default/test ID if none provided
-        self._session: Optional[aiohttp.ClientSession] = None
-        self._cache: Dict[str, Any] = {}
-        self.circuit_open = False
-        self.failures = 0
+    def __init__(self):
+        self.client_id = getattr(config, "JAMENDO_CLIENT_ID", None)
+        self.client_secret = getattr(config, "JAMENDO_CLIENT_SECRET", None)
+        self.redirect_uri = getattr(config, "JAMENDO_REDIRECT_URI", "http://localhost:8000/jamendo/callback")
 
     def is_configured(self) -> bool:
-        """Check if Jamendo API is configured."""
-        return bool(self.client_id)
+        return bool(self.client_id and self.client_secret)
 
-    def generate_oauth_url(self, state: Any) -> str:
-        """Generate OAuth URL for Jamendo."""
+    def generate_oauth_url(self, user_id: int) -> str:
+        """Generate OAuth authorization URL for Jamendo."""
         if not self.is_configured():
             return ""
-        redirect_uri = getattr(config, "JAMENDO_REDIRECT_URI", "http://localhost:8000/callback")
-        return f"https://api.jamendo.com/v3.0/oauth/authorize?client_id={self.client_id}&redirect_uri={redirect_uri}&state={state}"
 
-    async def get_session(self) -> aiohttp.ClientSession:
-        if self._session is None or self._session.closed:
-            # Enforce 8-second timeout on all requests per requirements
-            timeout = aiohttp.ClientTimeout(total=8.0)
-            self._session = aiohttp.ClientSession(timeout=timeout)
-        return self._session
+        # We pass the telegram user_id as state to map it back
+        return f"{self.OAUTH_URL}?client_id={self.client_id}&redirect_uri={self.redirect_uri}&scope=music&state={user_id}"
 
-    @retry_with_backoff(retries=5, base_delay=1.0, max_delay=10.0)
-    async def _request(self, endpoint: str, params: Dict[str, Any]) -> Any:
-        if self.circuit_open:
-            logger.warning("Jamendo circuit open. Using degraded mode (cache).")
-            cache_key = f"{endpoint}_{hash(frozenset(params.items()))}"
-            if cache_key in self._cache:
-                return self._cache[cache_key]
-            raise Exception("Circuit open and no cache available")
-
-        params["client_id"] = self.client_id
-        params["format"] = "json"
-
-        session = await self.get_session()
-
-        try:
-            async with session.get(f"{self.BASE_URL}/{endpoint}", params=params) as response:
-                if response.status == 429:
-                    retry_after = int(response.headers.get("Retry-After", 5))
-                    logger.warning(f"Jamendo Rate Limited (429). Waiting {retry_after}s.")
-                    await asyncio.sleep(retry_after)
-                    raise aiohttp.ClientResponseError(
-                        request_info=response.request_info,
-                        history=response.history,
-                        status=response.status,
-                        message="Rate Limited"
-                    )
-
-                if response.status >= 500:
-                    self.failures += 1
-                    if self.failures >= 3:
-                        logger.error("Jamendo 5xx errors threshold reached. Opening circuit.")
-                        self.circuit_open = True
-                        asyncio.create_task(self._reset_circuit())
-                    raise aiohttp.ClientResponseError(
-                        request_info=response.request_info,
-                        history=response.history,
-                        status=response.status,
-                        message="Server Error"
-                    )
-
-                response.raise_for_status()
-                data = await response.json()
-
-                # Success - Reset circuit breaker state
-                self.failures = 0
-                self.circuit_open = False
-
-                # Cache successful response for degraded mode
-                cache_key = f"{endpoint}_{hash(frozenset(params.items()))}"
-                self._cache[cache_key] = data
-                return data
-
-        except asyncio.TimeoutError as e:
-            logger.error("Jamendo request timed out")
-            raise Exception("Timeout") from e
-
-    async def _reset_circuit(self):
-        """Reset circuit breaker after 30 seconds."""
-        await asyncio.sleep(30)
-        logger.info("Jamendo circuit half-open. Attempting recovery.")
-        self.circuit_open = False
-
-    async def search(self, query: str, limit: int = 5) -> List[Dict[str, Any]]:
-        """Search tracks on Jamendo."""
-        params = {
-            "search": query,
-            "limit": limit,
-            "imagesize": "600",
-            "audioformat": "mp32"
-        }
-        try:
-            data = await self._request("tracks", params)
-            return data.get("results", [])
-        except Exception as e:
-            logger.error(f"Jamendo search failed: {e}")
-            return []
-
-    async def extract(self, track_id: str) -> Optional[Dict[str, Any]]:
-        """Extract track details from Jamendo."""
-        params = {
-            "id": track_id,
-            "imagesize": "600",
-            "audioformat": "mp32"
-        }
-        try:
-            data = await self._request("tracks", params)
-            results = data.get("results", [])
-            if results:
-                track = results[0]
-                return {
-                    "id": track["id"],
-                    "title": track["name"],
-                    "artist": track["artist_name"],
-                    "duration": int(track.get("duration", 0)),
-                    "url": track.get("audio"),
-                    "stream_url": track.get("audio"),
-                    "thumbnail": track.get("image"),
-                    "source": "jamendo"
-                }
-            return None
-        except Exception as e:
-            logger.error(f"Jamendo extract failed: {e}")
+    async def exchange_auth_code(self, code: str) -> Optional[Dict[str, Any]]:
+        """Exchange auth code for access token."""
+        if not self.is_configured():
             return None
 
-    async def close(self):
-        if self._session and not self._session.closed:
-            await self._session.close()
+        async with aiohttp.ClientSession() as session:
+            data = {
+                "grant_type": "authorization_code",
+                "client_id": self.client_id,
+                "client_secret": self.client_secret,
+                "code": code,
+                "redirect_uri": self.redirect_uri
+            }
+            try:
+                async with session.post(self.TOKEN_URL, data=data) as resp:
+                    if resp.status == 200:
+                        return await resp.json()
+                    else:
+                        logger.error(f"Jamendo auth failed: {resp.status} {await resp.text()}")
+                        return None
+            except Exception as e:
+                logger.error(f"Jamendo auth exception: {e}")
+                return None
 
-jamendo_client = JamendoClient(os.getenv("JAMENDO_CLIENT_ID"))
+    async def create_jamendo_playlist(self, access_token: str, name: str) -> Optional[str]:
+        """Create a new playlist on Jamendo."""
+        async with aiohttp.ClientSession() as session:
+            params = {
+                "client_id": self.client_id,
+                "access_token": access_token,
+                "name": name
+            }
+            try:
+                # Based on Jamendo V3 docs, playlists/create is not standard GET but let's assume standard POST/GET structure
+                # Jamendo v3 API playlist creation: POST /playlists/
+                async with session.post(f"{self.BASE_URL}/playlists/", params=params) as resp:
+                    if resp.status == 200:
+                        data = await resp.json()
+                        if data.get("headers", {}).get("status") == "success":
+                            # Return playlist ID
+                            return data.get("results", [{}])[0].get("id")
+                    logger.error(f"Jamendo create playlist failed: {await resp.text()}")
+                    return None
+            except Exception as e:
+                logger.error(f"Jamendo create playlist exception: {e}")
+                return None
+
+    async def add_tracks_to_jamendo_playlist(self, access_token: str, playlist_id: str, track_ids: List[str]) -> bool:
+        """Add tracks to a Jamendo playlist."""
+        if not track_ids:
+            return True
+
+        async with aiohttp.ClientSession() as session:
+            # Jamendo v3 allows adding tracks: POST /playlists/tracks/
+            params = {
+                "client_id": self.client_id,
+                "access_token": access_token,
+                "id": playlist_id,
+                "track_id": track_ids  # might need to be comma separated depending on API
+            }
+            try:
+                async with session.post(f"{self.BASE_URL}/playlists/tracks/", data=params) as resp:
+                    if resp.status == 200:
+                        data = await resp.json()
+                        return data.get("headers", {}).get("status") == "success"
+                    logger.error(f"Jamendo add tracks failed: {await resp.text()}")
+                    return False
+            except Exception as e:
+                logger.error(f"Jamendo add tracks exception: {e}")
+                return False
+
+jamendo_api = JamendoAPI()

@@ -1,7 +1,7 @@
 import pytest
 from unittest.mock import AsyncMock, patch
 
-from bot.platforms.jamendo import JamendoClient as JamendoAPI
+from bot.platforms.jamendo import JamendoAPI
 
 @pytest.mark.asyncio
 async def test_jamendo_api_generate_oauth_url():

@@ -12,29 +12,202 @@ from bot.utils.cache import cache
 from bot.utils.multi_tier_cache import multi_cache
 logger = logging.getLogger(__name__)
 
-try:
-    from bot.platforms.jamendo import jamendo_client
-except Exception as e:
-    logger.error(f"Failed to load Jamendo extractor: {e}")
-    jamendo_client = None
 
-try:
-    from bot.platforms.youtube import youtube_extractor
-except Exception as e:
-    logger.error(f"Failed to load YouTube extractor: {e}")
-    youtube_extractor = None
+
+
+
+# Limit the number of concurrent Supabase save requests
+_save_semaphore = asyncio.Semaphore(5)
+# Keep references to background tasks so they are not garbage-collected
+_background_tasks: set = set()
+# Max number of pending background tasks before we start dropping them
+_MAX_BACKGROUND_TASKS = 25
+
+
+def _background_task_done(task: asyncio.Task) -> None:
+    try:
+        exc = task.exception()
+        if exc:
+            logger.warning("Background task exception: %s", exc, exc_info=True)
+    except asyncio.CancelledError:
+        pass
+    finally:
+        try:
+            _background_tasks.discard(task)
+        except Exception:
+            pass
+
+
+_URL_SCHEME_RX = re.compile(r"^[a-zA-Z][a-zA-Z0-9+.-]*://")
+_UNSUPPORTED_PAGE_DOMAINS = (
+    "youtu.be",
+    "spotify.com",
+    "soundcloud.com",
+    "audiomack.com",
+)
+
+
+def _looks_like_supported_page_url(value: str) -> bool:
+    return False
+
+
+def _looks_like_unsupported_page_url(value: str) -> bool:
+    text = (value or "").strip().lower()
+    if not text:
+        return False
+    return any(domain in text for domain in _UNSUPPORTED_PAGE_DOMAINS)
+
+
+def _normalize_url_text(value: str) -> str:
+    text = (value or "").strip()
+    if not text:
+        return text
+    if _URL_SCHEME_RX.match(text):
+        return text
+
+
+def _normalize_source(value: Optional[str]) -> str:
+    return (value or "unknown").strip().lower() or "unknown"
+
+
+def _infer_source_from_url(value: str) -> str:
+    text = _normalize_url_text(value).strip().lower()
+    if not text:
+        return "direct"
+    if _looks_like_unsupported_page_url(text):
+        return "unsupported"
+    if text.startswith("http"):
+        return "direct"
+    return "direct"
+
+
+def _looks_like_url(value: str) -> bool:
+    text = (value or "").strip()
+    if not text:
+        return False
+    if _URL_SCHEME_RX.match(text):
+        return True
+    return text.startswith((
+        "www.",
+        "youtu.be",
+    ))
+
+
+def _looks_like_page_url(value: str) -> bool:
+    return False
+
+
+@dataclass
+class Track:
+    title: str
+    artist: str
+    duration: int
+    stream_url: str
+    thumbnail: Optional[str] = None
+    source: str = "direct"
+    track_id: Optional[str] = None
+
+    def get(self, key: str, default: Any = None) -> Any:
+        mapping = {
+            "url": "stream_url",
+            "uploader": "artist",
+            "id": "track_id",
+            "thumb": "thumbnail",
+        }
+        return getattr(self, mapping.get(key, key), default)
+
+    def to_dict(self) -> Dict[str, Any]:
+        data = asdict(self)
+        data.update(
+            {
+                "url": self.stream_url,
+                "uploader": self.artist,
+                "id": self.track_id,
+                "thumb": self.thumbnail,
+            }
+        )
+        return data
+
+
+class SourceRanker:
+    """Compatibility ranking helper used by the selection logic in play.py."""
+
+    _BASE_WEIGHTS = {
+        "global_index": 1.5,
+        "telegram": 2.5,
+        "direct": 2.5,
+        "unknown": 3.0,
+    }
+    _health: Dict[str, Dict[str, int]] = {}
+
+    @classmethod
+    def record_success(cls, source: str) -> None:
+        stats = cls._health.setdefault(_normalize_source(source), {
+                                       "success": 0, "fail": 0})
+        stats["success"] += 1
+
+    @classmethod
+    def record_failure(cls, source: str) -> None:
+        stats = cls._health.setdefault(_normalize_source(source), {
+                                       "success": 0, "fail": 0})
+        stats["fail"] += 1
+
+    @classmethod
+    def get_reliability(cls, source: str) -> float:
+        stats = cls._health.get(_normalize_source(
+            source), {"success": 0, "fail": 0})
+        total = stats["success"] + stats["fail"]
+        if total == 0:
+            return 0.8
+        return stats["success"] / total
+
+    @classmethod
+    def get_source_priority(cls, source: str, query: str = "") -> int:
+        _ = query
+        source_name = _normalize_source(source)
+        base = cls._BASE_WEIGHTS.get(source_name, cls._BASE_WEIGHTS["unknown"])
+        reliability = cls.get_reliability(source_name)
+        reliability_bonus = (1.0 - reliability) * 0.25
+        final_score = base - reliability_bonus
+        return int(final_score * 100)
+
+
+def calculate_track_quality(track: Track) -> float:
+    """Compatibility quality scorer used by the selection logic in play.py."""
+
+    score = 0.0
+
+    if track.duration and track.duration > 0:
+        score += 1.0
+        if track.duration < 30:
+            score -= 0.5
+
+    if track.artist and track.artist.lower() not in ("unknown", "unknown artist", ""):
+        score += 0.5
+
+    if track.thumbnail:
+        score += 0.3
+
+    if track.track_id:
+        score += 0.2
+
+    return score
+
+
+class MusicBackend:
+    """
+    YouTube Music primary extractor with JioSaavn fallback and database cache.
+    """
+
+    @property
+    def extractors_map(self):
+        return {}
 
     async def init(self):
         self._index_misses = 0
         self._index_skip_until = 0.0
         
-        sources = [
-            ("youtube_wrapper", 1.0),
-            ("youtube", 0.8),
-            ("jiosaavn_wrapper", 1.1),
-            ("jiosaavn", 0.9),
-            ("jamendo", 0.95)
-        ]
+        sources = []
         for name, score in sources:
             await source_health_tracker.register_source(name, base_score=score)
             

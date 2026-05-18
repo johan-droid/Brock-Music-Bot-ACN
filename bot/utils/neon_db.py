@@ -41,14 +41,14 @@ class NeonDatabase:
                 cur.execute("""
                     CREATE TABLE IF NOT EXISTS music_index (
                         id SERIAL PRIMARY KEY,
-                        track_id VARCHAR(255) UNIQUE NOT NULL,
-                        platform VARCHAR(50) NOT NULL,
+                        jamendo_track_id INTEGER UNIQUE NOT NULL,
+
                         title TEXT NOT NULL,
                         artist TEXT NOT NULL,
                         duration INTEGER,
-                        thumbnail TEXT,
-                        stream_url TEXT,
-                        file_id TEXT,
+                        thumbnail_url TEXT,
+                        audio_url TEXT,
+
                         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                     )
@@ -85,7 +85,7 @@ class NeonDatabase:
                     CREATE TABLE IF NOT EXISTS play_history (
                         id SERIAL PRIMARY KEY,
                         chat_id BIGINT NOT NULL,
-                        track_id VARCHAR(255) NOT NULL,
+                        jamendo_track_id INTEGER NOT NULL,
                         title TEXT,
                         artist TEXT,
                         played_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -146,11 +146,11 @@ class NeonDatabase:
                 # Create indexes
                 cur.execute("""
                     CREATE INDEX IF NOT EXISTS idx_music_index_track_id 
-                    ON music_index(track_id)
+                    ON music_index(jamendo_track_id)
                 """)
                 cur.execute("""
                     CREATE INDEX IF NOT EXISTS idx_music_index_platform 
-                    ON music_index(platform)
+                    ON music_index(artist)
                 """)
                 cur.execute("""
                     CREATE INDEX IF NOT EXISTS idx_queues_chat_id 
@@ -206,12 +206,12 @@ class NeonDatabase:
             logger.error(f"Error initializing Neon tables: {e}")
             raise
     
-    async def get_track(self, track_id: str) -> Optional[Dict[str, Any]]:
+    async def get_track(self, track_id: int) -> Optional[Dict[str, Any]]:
         """Get a track by ID from the music index."""
         try:
             with self.conn.cursor(cursor_factory=RealDictCursor) as cur:
                 cur.execute(
-                    "SELECT * FROM music_index WHERE track_id = %s",
+                    "SELECT * FROM music_index WHERE jamendo_track_id = %s",
                     (track_id,)
                 )
                 result = cur.fetchone()
@@ -228,8 +228,8 @@ class NeonDatabase:
             with self.conn.cursor() as cur:
                 # Check if track exists
                 cur.execute(
-                    "SELECT id FROM music_index WHERE track_id = %s",
-                    (track_data.get('track_id'),)
+                    "SELECT id FROM music_index WHERE jamendo_track_id = %s",
+                    (track_data.get('jamendo_track_id'),)
                 )
                 existing = cur.fetchone()
                 
@@ -238,33 +238,30 @@ class NeonDatabase:
                     cur.execute("""
                         UPDATE music_index 
                         SET title = %s, artist = %s, duration = %s, 
-                            thumbnail = %s, stream_url = %s, file_id = %s,
+                            thumbnail_url = %s, audio_url = %s,
                             updated_at = CURRENT_TIMESTAMP
-                        WHERE track_id = %s
+                        WHERE jamendo_track_id = %s
                     """, (
                         track_data.get('title'),
                         track_data.get('artist'),
                         track_data.get('duration'),
-                        track_data.get('thumbnail'),
-                        track_data.get('stream_url'),
-                        track_data.get('file_id'),
-                        track_data.get('track_id')
+                        track_data.get('thumbnail_url'),
+                        track_data.get('audio_url'),
+                        track_data.get('jamendo_track_id')
                     ))
                 else:
                     # Insert new
                     cur.execute("""
-                        INSERT INTO music_index 
-                        (track_id, platform, title, artist, duration, thumbnail, stream_url, file_id)
-                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                        INSERT INTO music_index
+                        (jamendo_track_id, title, artist, duration, thumbnail_url, audio_url)
+                        VALUES (%s, %s, %s, %s, %s, %s)
                     """, (
-                        track_data.get('track_id'),
-                        track_data.get('platform', 'unknown'),
+                        track_data.get('jamendo_track_id'),
                         track_data.get('title'),
                         track_data.get('artist'),
                         track_data.get('duration'),
-                        track_data.get('thumbnail'),
-                        track_data.get('stream_url'),
-                        track_data.get('file_id')
+                        track_data.get('thumbnail_url'),
+                        track_data.get('audio_url')
                     ))
                 
                 self.conn.commit()
@@ -380,7 +377,7 @@ class NeonDatabase:
         try:
             with self.conn.cursor() as cur:
                 cur.execute("""
-                    INSERT INTO play_history (chat_id, track_id, title, artist)
+                    INSERT INTO play_history (chat_id, jamendo_track_id, title, artist)
                     VALUES (%s, %s, %s, %s)
                 """, (chat_id, track_id, title, artist))
                 
