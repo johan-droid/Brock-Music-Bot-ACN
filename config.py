@@ -8,6 +8,7 @@ logger = logging.getLogger(__name__)
 
 
 class Config(BaseSettings):
+    JAMENDO_CLIENT_ID: Optional[str] = None
     """Bot configuration loaded from environment variables."""
     
     # Telegram API mode (set FALSE to run without Telegram client auth)

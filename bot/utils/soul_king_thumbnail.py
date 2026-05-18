@@ -1,3 +1,4 @@
+import aiohttp
 """
 Soul King Concert Theme - Enhanced Thumbnail Generation.
 Creates beautiful Now Playing cards with:
@@ -13,7 +14,6 @@ import asyncio
 from typing import Optional
 from io import BytesIO
 from PIL import Image, ImageDraw, ImageFont
-import aiohttp
 from bot.utils.http_pool import HTTPConnectionPool
 from bot.utils.formatters import format_duration
 
