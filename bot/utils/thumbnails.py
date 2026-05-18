@@ -1,3 +1,4 @@
+import aiohttp
 """Thumbnail generation for Now Playing cards."""
 
 import logging
@@ -5,7 +6,6 @@ import os
 from typing import Optional
 from io import BytesIO
 from PIL import Image, ImageDraw, ImageFont
-import aiohttp
 from bot.utils.http_pool import HTTPConnectionPool
 from bot.utils.formatters import create_progress_bar, format_duration
 

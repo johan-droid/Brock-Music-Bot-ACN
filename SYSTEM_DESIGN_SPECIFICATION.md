@@ -34,8 +34,6 @@ The system follows a micro-service inspired modular design, orchestrated via **S
 ### 2.2 Process Orchestration
 Processes are managed as a group to ensure atomic state transitions:
 - `musicbot`: The primary controller and userbot manager.
-- `youtube-wrapper`: Dedicated YouTube/YT-Music extraction engine.
-- `jiosaavn-wrapper`: Dedicated JioSaavn/Direct extraction engine.
 
 ---
 
@@ -43,17 +41,13 @@ Processes are managed as a group to ensure atomic state transitions:
 
 ### 3.1 Multi-Source Search Orchestration
 The engine executes parallel asynchronous searches across five primary tiers:
-1. **YouTube Music Wrapper**: High-fidelity metadata and stream resolution.
-2. **JioSaavn Wrapper**: Localized regional music support.
 3. **VK Music / Deezer**: Fallback for restricted or high-quality audio.
 4. **Supabase Index**: Global pre-indexed track repository.
-5. **Direct Extraction**: On-the-fly `yt-dlp` parsing.
 
 ### 3.2 Intelligent Fallback Chain
 To ensure 99.9% playback success, the system implements a recursive fallback algorithm:
 1. **Source Hit**: Attempt extraction from the primary source metadata.
 2. **Alternative Resolution**: If primary fails, resolve the track using secondary extractors via Title/Artist matching.
-3. **Stream Preservation**: Preserve YouTube stream IDs if direct extraction fails to prevent dead links.
 4. **Circuit Breaking**: Automatically disable failing extractors for 60 seconds after 5 consecutive timeouts.
 
 ---
@@ -84,7 +78,6 @@ The `CallManager` handles PyTgCalls sessions across multiple userbots (Assistant
 
 ### 5.2 Search Deduplication
 Tracks are deduplicated using a composite key: `(lowercase(title) + artist)`.
-This ensures search results across YouTube and JioSaavn are merged into a clean, unified list for the user.
 
 ---
 

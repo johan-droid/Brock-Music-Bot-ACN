@@ -55,10 +55,23 @@ CREATE TABLE IF NOT EXISTS group_bans (
 -- playlists table: User saved playlists (optional)
 CREATE TABLE IF NOT EXISTS playlists (
     id SERIAL PRIMARY KEY,
-    user_id BIGINT,
+    creator_user_id BIGINT,
     name TEXT,
-    tracks JSONB DEFAULT '[]'::jsonb,
+    jamendo_playlist_id TEXT,
+    is_collaborative BOOLEAN DEFAULT FALSE,
+    is_public BOOLEAN DEFAULT FALSE,
+    jamendo_token JSONB,
     created_at TIMESTAMP DEFAULT NOW()
+);
+
+-- playlist_tracks table
+CREATE TABLE IF NOT EXISTS playlist_tracks (
+    id SERIAL PRIMARY KEY,
+    playlist_id INTEGER REFERENCES playlists(id) ON DELETE CASCADE,
+    jamendo_track_id TEXT NOT NULL,
+    position INTEGER,
+    added_by BIGINT,
+    added_at TIMESTAMP DEFAULT NOW()
 );
 
 -- Create indexes for better performance
@@ -93,13 +106,13 @@ CREATE POLICY "Service role full access" ON group_bans FOR ALL TO service_role U
 -- global_music_index table: Custom universal catalog cache
 CREATE TABLE IF NOT EXISTS global_music_index (
     query_key TEXT PRIMARY KEY,
-    track_id TEXT,
+    jamendo_track_id INTEGER,
     title TEXT,
     artist TEXT,
     duration INTEGER,
-    thumbnail TEXT,
-    source TEXT,
-    stream_url TEXT,
+    thumbnail_url TEXT,
+
+    audio_url TEXT,
     metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
     sources JSONB NOT NULL DEFAULT '[]'::jsonb,
     last_played TIMESTAMP DEFAULT NOW()
@@ -131,13 +144,13 @@ CREATE EXTENSION IF NOT EXISTS pg_trgm;
 CREATE OR REPLACE FUNCTION public.search_music_index(p_query TEXT, p_limit INTEGER DEFAULT 5)
 RETURNS TABLE (
     query_key TEXT,
-    track_id TEXT,
+    jamendo_track_id INTEGER,
     title TEXT,
     artist TEXT,
     duration INTEGER,
-    thumbnail TEXT,
-    source TEXT,
-    stream_url TEXT,
+    thumbnail_url TEXT,
+
+    audio_url TEXT,
     metadata JSONB,
     sources JSONB,
     last_played TIMESTAMP
@@ -181,22 +194,32 @@ CREATE POLICY "Service role full access" ON global_music_index FOR ALL TO servic
 -- Refresh PostgREST schema cache so new columns become visible without waiting for a restart.
 NOTIFY pgrst, 'reload schema';
 
--- anon_requests table: Stores anonymous song requests
-CREATE TABLE IF NOT EXISTS anon_requests (
-    request_id BIGSERIAL PRIMARY KEY,
-    track_id TEXT,
-    requested_by TEXT,
+-- radio_shows table: Stores scheduled radio shows
+CREATE TABLE IF NOT EXISTS radio_shows (
+    id SERIAL PRIMARY KEY,
     chat_id BIGINT,
-    time TIMESTAMP DEFAULT NOW()
+    host_user_id BIGINT,
+    show_name TEXT,
+    description TEXT,
+    schedule_day_of_week INTEGER,
+    schedule_time TEXT,
+    genre_tags TEXT,
+    duration_minutes INTEGER,
+    is_active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMP DEFAULT NOW()
 );
 
--- vote_sessions table: Tracks active voting sessions
-CREATE TABLE IF NOT EXISTS vote_sessions (
-    message_id BIGINT,
-    chat_id BIGINT,
-    track_id TEXT,
-    PRIMARY KEY (chat_id, message_id),
-    yes_votes INTEGER DEFAULT 0,
-    no_votes INTEGER DEFAULT 0,
-    expired BOOLEAN DEFAULT FALSE
+-- show_tracks table: Stores tracks for a scheduled radio show
+CREATE TABLE IF NOT EXISTS show_tracks (
+    id SERIAL PRIMARY KEY,
+    show_id INTEGER REFERENCES radio_shows(id) ON DELETE CASCADE,
+    jamendo_track_id INTEGER,
+    position INTEGER,
+    added_by BIGINT,
+    added_at TIMESTAMP DEFAULT NOW()
 );
+
+-- Indexes for performance
+CREATE INDEX IF NOT EXISTS idx_radio_shows_chat ON radio_shows(chat_id);
+CREATE INDEX IF NOT EXISTS idx_radio_shows_time ON radio_shows(schedule_day_of_week, schedule_time);
+CREATE INDEX IF NOT EXISTS idx_show_tracks_show ON show_tracks(show_id);
