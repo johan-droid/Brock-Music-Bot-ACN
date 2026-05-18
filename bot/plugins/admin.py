@@ -9,6 +9,7 @@ import logging
 import asyncio
 import platform
 import sys
+import psutil
 
 from pyrogram import Client, filters
 from pyrogram.enums import ParseMode
@@ -440,19 +441,50 @@ async def stats_cmd(client: Client, message: Message):
     except Exception:
         active_vc = 0
 
+    mem_usage = psutil.virtual_memory().percent
+
+    from bot.utils.metrics import metrics_collector
+    uptime = metrics_collector.get_summary().get("uptime_str", "Unknown")
+
+    webhook_status = "Not Configured"
+    if config.WEBHOOK_URL:
+        try:
+            wh_info = await client.get_webhook_info()
+            webhook_status = wh_info.url if wh_info.url else "Not Set"
+        except Exception:
+            webhook_status = "Error Fetching"
+
     text = (
         "📊 **SOUL KING BOT — STATISTICS**\n\n"
+
         "👥 **Groups:**\n"
+
         f"• Total: `{stats.get('total_groups', 'N/A')}`\n"
+
         f"• Active: `{stats.get('active_groups', 'N/A')}`\n"
+
         f"• Live VCs: `{active_vc}`\n\n"
+
         "👑 **Permissions:**\n"
+
         f"• Sudo Users: `{stats.get('sudo_users', 'N/A')}`\n"
+
         f"• Globally Banned: `{stats.get('gbanned_users', 'N/A')}`\n\n"
+
         "⚙️ **System:**\n"
+
         f"• Python: `{platform.python_version()}`\n"
+
         f"• Platform: `{sys.platform}`\n"
+
+        f"• Memory Usage: `{mem_usage}%`\n"
+
+        f"• Uptime: `{uptime}`\n"
+
+        f"• Webhook: `{webhook_status}`\n"
+
         f"• Bot Version: `2.0 — Pro Mode`\n\n"
+
         "<i>\"I may be a skeleton, but these stats are very much alive! YOHOHOHO!\"</i>"
     )
 
