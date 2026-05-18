@@ -1,13 +1,14 @@
 from bot.platforms.jamendo import JamendoClient
 import asyncio
 import logging
-import asyncio
+import re
+from dataclasses import asdict, dataclass
 from typing import List, Dict, Any, Optional
-from config import config
 
 import bot.utils.database as database_module
 from bot.utils.circuit_breaker import source_health_tracker
 from bot.utils.errors import BotDetectionError, PreviewOnlyError, summarize_exception, FallbackExhaustedError
+from bot.utils.multi_tier_cache import multi_cache
 
 logger = logging.getLogger(__name__)
 
@@ -63,6 +64,9 @@ def _normalize_url_text(value: str) -> str:
         return text
     if _URL_SCHEME_RX.match(text):
         return text
+    if text.startswith(("www.", "youtube.com", "youtu.be", "music.youtube.com")):
+        return f"https://{text}"
+    return text
 
 
 def _normalize_source(value: Optional[str]) -> str:
@@ -210,20 +214,18 @@ class MusicBackend:
 
     @property
     def extractors_map(self):
-        return {}
+        return {"jamendo": JamendoClient}
 
     async def init(self):
-        # Default extractors initialization logic
-        self.extractors_map["jamendo"] = JamendoClient()
         self._index_misses = 0
         self._index_skip_until = 0.0
         
-        sources = []
+        sources = [("jamendo", 1.0)]
         for name, score in sources:
             await source_health_tracker.register_source(name, base_score=score)
             
         logger.info(
-            "MusicBackend initialized (YouTube + JioSaavn Wrapper + Fallback Chain)")
+            "MusicBackend initialized (Jamendo + database fallback)")
 
     async def close(self):
         return None
@@ -336,7 +338,7 @@ class MusicBackend:
         if source == "unsupported":
             return None
 
-        if source not in {"telegram", "direct", "vk", "deezer", "unknown"}:
+        if source not in {"telegram", "direct", "jamendo", "unknown"}:
             source = _infer_source_from_url(stream_url)
 
         if source == "unsupported":
@@ -445,11 +447,61 @@ class MusicBackend:
 
         sorted_sources = await source_health_tracker.get_sorted_sources()
         if not sorted_sources:
-            sorted_sources = ["vk", "deezer"]
+            sorted_sources = ["jamendo"]
 
         tracks = []
-        for res in results:
-            tracks.append(Track(**res))
+
+        if config.PARALLEL_SEARCH:
+            tasks = []
+            for src_name in sorted_sources:
+                extractor = self.extractors_map.get(src_name)
+                if extractor and hasattr(extractor, "search"):
+                    tasks.append(asyncio.create_task(self._search_with_extractor(
+                        extractor, query, limit, src_name)))
+
+            if tasks:
+                done, pending = await asyncio.wait(tasks, timeout=30)
+                results = []
+                for task in done:
+                    try:
+                        res = task.result()
+                        if res:
+                            results.append(res)
+                    except Exception as exc:
+                        logger.error("Search task failed: %s", summarize_exception(exc))
+
+                for task in pending:
+                    task.cancel()
+
+                combined = []
+                seen = set()
+                for res in results:
+                    for track in res:
+                        identity = f"{track.source}:{track.track_id or track.stream_url or track.title}"
+                        if identity and identity not in seen:
+                            seen.add(identity)
+                            combined.append(track)
+                tracks = combined[:limit]
+        else:
+            if not config.PRIORITIZE_EXTRACTORS:
+                tracks = await self._search_index(query, limit)
+
+            if not tracks:
+                for src_name in sorted_sources:
+                    extractor = self.extractors_map.get(src_name)
+                    if extractor and hasattr(extractor, "search"):
+                        tracks = await self._search_with_extractor(extractor, query, limit, src_name)
+                        if tracks:
+                            break
+
+            if not tracks and config.PRIORITIZE_EXTRACTORS:
+                tracks = await self._search_index(query, limit)
+
+        if tracks and len(_background_tasks) < _MAX_BACKGROUND_TASKS:
+            task = asyncio.create_task(self._cache_to_index(query, tracks))
+            _background_tasks.add(task)
+            task.add_done_callback(_background_tasks.discard)
+
         return tracks
 
     async def get_stream_payload(self, track: Track) -> Optional[Dict[str, Any]]:
@@ -485,7 +537,7 @@ class MusicBackend:
         if not resolved and track.track_id:
             sorted_sources = await source_health_tracker.get_sorted_sources()
             if not sorted_sources:
-                sorted_sources = ["vk", "deezer"]
+                sorted_sources = ["jamendo"]
 
             for src_name in sorted_sources:
                 if src_name in [f"{track.source}_wrapper", track.source]:
