@@ -16,18 +16,6 @@ class Database:
     """Abstract marker class for type hinting."""
     pass
 
-    async def get_quiz_score(self, user_id: int) -> dict:
-        """Get user quiz score."""
-        pass
-
-    async def save_quiz_score(self, user_id: int, score_added: int) -> dict:
-        """Save user quiz score."""
-        pass
-
-    async def get_top_quiz_scores(self, limit: int = 10, user_ids: list = None) -> list:
-        """Get top quiz scores."""
-        pass
-
 
 async def init_database():
     """Initialize primary database (Neon > Supabase > SQLite fallback)."""
@@ -39,7 +27,7 @@ async def init_database():
         try:
             from bot.utils.neon_db import init_neon
             init_neon(neon_url)
-            
+
             import bot.utils.neon_db as _neon_module
             db = _neon_module.neon_db
             DB_MODE = "neon"
@@ -47,7 +35,7 @@ async def init_database():
             return
         except Exception as e:
             logger.error(f"Neon connection failed: {e}. Trying Supabase...")
-    
+
     # Priority 2: Supabase
     supabase_url = config.SUPABASE_URL
     supabase_key = config.SUPABASE_KEY
@@ -56,7 +44,7 @@ async def init_database():
         try:
             from bot.utils.supabase_db import init_supabase
             init_supabase(supabase_url, supabase_key)
-            
+
             # Import AFTER init so we get the initialized singleton instance.
             import bot.utils.supabase_db as _supabase_module
             db = _supabase_module.supabase_db
@@ -67,7 +55,7 @@ async def init_database():
             logger.error(f"Supabase connection failed: {e}. Falling back to SQLite.")
     else:
         logger.warning("SUPABASE_URL or SUPABASE_KEY missing. Falling back to SQLite.")
-    
+
     # Priority 3: SQLite fallback
     _init_sqlite_fallback()
 
@@ -78,7 +66,7 @@ def _init_sqlite_fallback():
     try:
         from bot.utils.sqlite_db import init_sqlite_db
         init_sqlite_db(config.SQLITE_DB_PATH)
-        
+
         import bot.utils.sqlite_db as _sqlite_module
         db = _sqlite_module.sqlite_db
         DB_MODE = "sqlite"
@@ -86,4 +74,3 @@ def _init_sqlite_fallback():
     except Exception as e:
         logger.critical(f"SQLite fallback also failed: {e}")
         sys.exit(1)
-
