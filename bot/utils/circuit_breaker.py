@@ -290,10 +290,6 @@ class SourceHealthTracker:
 
     def __init__(self):
         self._sources: Dict[str, Dict[str, Any]] = {
-            "youtube_wrapper": {"base_score": 1.0, "health": 1.0, "failures": 0, "successes": 0, "last_failure": 0, "circuit_open": False},
-            "youtube": {"base_score": 0.8, "health": 1.0, "failures": 0, "successes": 0, "last_failure": 0, "circuit_open": False},
-            "jiosaavn_wrapper": {"base_score": 1.1, "health": 1.0, "failures": 0, "successes": 0, "last_failure": 0, "circuit_open": False},
-            "jiosaavn": {"base_score": 0.9, "health": 1.0, "failures": 0, "successes": 0, "last_failure": 0, "circuit_open": False}
         }
         self._lock = asyncio.Lock()
 
@@ -361,26 +357,6 @@ source_health_tracker = SourceHealthTracker()
 
 # Pre-configured circuit breakers for music services
 CIRCUIT_BREAKERS = {
-    "jiosaavn": CircuitBreakerRegistry.register(
-        "jiosaavn",
-        failure_threshold=3,
-        recovery_timeout=60
-    ),
-    "jiosaavn_wrapper": CircuitBreakerRegistry.register(
-        "jiosaavn_wrapper",
-        failure_threshold=3,
-        recovery_timeout=30
-    ),
-    "youtube": CircuitBreakerRegistry.register(
-        "youtube",
-        failure_threshold=5,
-        recovery_timeout=120
-    ),
-    "youtube_wrapper": CircuitBreakerRegistry.register(
-        "youtube_wrapper",
-        failure_threshold=3,
-        recovery_timeout=30
-    ),
     "deezer": CircuitBreakerRegistry.register(
         "deezer",
         failure_threshold=5,
