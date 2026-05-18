@@ -106,13 +106,13 @@ CREATE POLICY "Service role full access" ON group_bans FOR ALL TO service_role U
 -- global_music_index table: Custom universal catalog cache
 CREATE TABLE IF NOT EXISTS global_music_index (
     query_key TEXT PRIMARY KEY,
-    track_id TEXT,
+    jamendo_track_id INTEGER,
     title TEXT,
     artist TEXT,
     duration INTEGER,
-    thumbnail TEXT,
-    source TEXT,
-    stream_url TEXT,
+    thumbnail_url TEXT,
+
+    audio_url TEXT,
     metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
     sources JSONB NOT NULL DEFAULT '[]'::jsonb,
     last_played TIMESTAMP DEFAULT NOW()
@@ -144,13 +144,13 @@ CREATE EXTENSION IF NOT EXISTS pg_trgm;
 CREATE OR REPLACE FUNCTION public.search_music_index(p_query TEXT, p_limit INTEGER DEFAULT 5)
 RETURNS TABLE (
     query_key TEXT,
-    track_id TEXT,
+    jamendo_track_id INTEGER,
     title TEXT,
     artist TEXT,
     duration INTEGER,
-    thumbnail TEXT,
-    source TEXT,
-    stream_url TEXT,
+    thumbnail_url TEXT,
+
+    audio_url TEXT,
     metadata JSONB,
     sources JSONB,
     last_played TIMESTAMP

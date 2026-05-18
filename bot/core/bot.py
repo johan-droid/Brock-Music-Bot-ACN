@@ -246,7 +246,10 @@ async def init_bot():
             url=webhook_addr,
             secret_token=config.WEBHOOK_SECRET,
             max_connections=int(os.getenv("WEBHOOK_MAX_CONNECTIONS", "40")),
+            drop_pending_updates=True
         )
+        webhook_info = await bot_client.get_webhook_info()
+        logger.info(f"Webhook status: {webhook_info}")
         # In webhook mode, we only CONNECT the client, we don't START polling
         await bot_client.connect()
         logger.info("Bot connected in WEBHOOK mode.")
