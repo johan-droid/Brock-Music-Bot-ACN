@@ -3,7 +3,7 @@ py-tgcalls call manager — production-grade Telegram Voice Chat streaming.
 
 CRITICAL ARCHITECTURAL NOTE:
 py-tgcalls v2.x + NTgCalls handles ALL FFmpeg transcoding internally.
-We pass the raw stream URL (from yt-dlp) directly to MediaStream().
+We pass the raw stream URL directly to MediaStream().
 NTgCalls runs its own embedded FFmpeg pipeline to decode → Opus → Telegram VC.
 DO NOT run a separate FFmpeg subprocess — it is redundant and causes instability.
 """
@@ -706,7 +706,58 @@ class CallManager:
             )
             video_flags = MediaStream.Flags.AUTO_DETECT
 
-        # Just return the direct MediaStream natively without transcoding.
+        # FFmpeg Input Options: placed before the input URL
+        from bot.utils.audio_config import get_audio_optimizer
+        af_chain = get_audio_optimizer()._build_audio_filter()
+        # Get adapted parameters via optimizer
+        opt_params = get_audio_optimizer().get_ffmpeg_params(stream_url, seek, source)
+        
+        ffmpeg_params = "-nostdin "
+        if not video:
+            ffmpeg_params += "-vn "
+            ffmpeg_params += f'-af "{af_chain}" '
+        
+        params = opt_params["ffmpeg_parameters"]
+        for k, v in params.items():
+            if k in ['ss', 'acodec', 'ar', 'ac', 'af', 'f', 'thread_queue_size', 'threads', 'vn']:
+                continue
+            if v:
+                ffmpeg_params += f'-{k} {v} '
+            elif v is None and k not in ['vn']:
+                ffmpeg_params += f'-{k} '
+
+        # Robust Header Injection
+        ua = headers.get("User-Agent") or headers.get("user-agent") if headers else None
+        referer = headers.get("Referer") or headers.get("referer") if headers else None
+
+        # Source-specific fallbacks
+        if not ua:
+            ua = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+        if not referer:
+            if source == "deezer":
+                referer = "https://www.deezer.com/"
+
+        if ua:
+            ffmpeg_params += f'-user_agent "{ua}" '
+        if referer:
+            ffmpeg_params += f'-referer "{referer}" '
+
+        extra_headers = []
+        if headers:
+            for key, value in headers.items():
+                if not value:
+                    continue
+                if key.lower() in ("user-agent", "referer"):
+                    continue
+                extra_headers.append(f"{key}: {value}")
+
+        if extra_headers:
+            headers_value = "\r\n".join(extra_headers) + "\r\n"
+            ffmpeg_params += f'-headers "{headers_value}" '
+
+        if seek and seek > 0:
+            ffmpeg_params += f"-ss {seek} "
+
         kwargs = {
             "media_path": stream_url,
             "audio_parameters": audio_cfg,

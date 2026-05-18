@@ -9,6 +9,7 @@ import logging
 import asyncio
 import platform
 import sys
+import psutil
 
 from pyrogram import Client, filters
 from pyrogram.enums import ParseMode
@@ -16,6 +17,9 @@ from pyrogram.types import Message
 from pyrogram.errors import FloodWait, UserNotParticipant, PeerIdInvalid, BadRequest
 
 from config import config
+from bot.utils.resilience import LAST_ERRORS
+from bot.utils.health_monitor import health_checker
+
 from bot.utils.permissions import (
     require_sudo, get_permission_level,
     is_owner, is_sudo, is_gbanned,
@@ -440,19 +444,50 @@ async def stats_cmd(client: Client, message: Message):
     except Exception:
         active_vc = 0
 
+    mem_usage = psutil.virtual_memory().percent
+
+    from bot.utils.metrics import metrics_collector
+    uptime = metrics_collector.get_summary().get("uptime_str", "Unknown")
+
+    webhook_status = "Not Configured"
+    if config.WEBHOOK_URL:
+        try:
+            wh_info = await client.get_webhook_info()
+            webhook_status = wh_info.url if wh_info.url else "Not Set"
+        except Exception:
+            webhook_status = "Error Fetching"
+
     text = (
         "📊 **SOUL KING BOT — STATISTICS**\n\n"
+
         "👥 **Groups:**\n"
+
         f"• Total: `{stats.get('total_groups', 'N/A')}`\n"
+
         f"• Active: `{stats.get('active_groups', 'N/A')}`\n"
+
         f"• Live VCs: `{active_vc}`\n\n"
+
         "👑 **Permissions:**\n"
+
         f"• Sudo Users: `{stats.get('sudo_users', 'N/A')}`\n"
+
         f"• Globally Banned: `{stats.get('gbanned_users', 'N/A')}`\n\n"
+
         "⚙️ **System:**\n"
+
         f"• Python: `{platform.python_version()}`\n"
+
         f"• Platform: `{sys.platform}`\n"
+
+        f"• Memory Usage: `{mem_usage}%`\n"
+
+        f"• Uptime: `{uptime}`\n"
+
+        f"• Webhook: `{webhook_status}`\n"
+
         f"• Bot Version: `2.0 — Pro Mode`\n\n"
+
         "<i>\"I may be a skeleton, but these stats are very much alive! YOHOHOHO!\"</i>"
     )
 
@@ -602,3 +637,33 @@ async def maintenance_cmd(client: Client, message: Message):
     else:
         await message.reply("❌ Invalid argument. Use `on` or `off`.")
 
+
+@Client.on_message(filters.command("health") & filters.user(config.OWNER_ID))
+async def admin_health_cmd(client: Client, message: Message):
+    status = health_checker.get_overall_status()
+    results = health_checker._last_results
+
+    text = f"<b>🏥 Health Status:</b> {status['status']}\n"
+    text += f"<b>Total Checks:</b> {status['total_count']} (Healthy: {status.get('healthy_count', 0)}, Degraded: {status.get('degraded_count', 0)}, Unhealthy: {status.get('unhealthy_count', 0)})\n\n"
+
+    for name, res in results.items():
+        icon = "✅" if res.status.value == "healthy" else "⚠️" if res.status.value == "degraded" else "❌"
+        text += f"{icon} <b>{name}</b>: {res.status.value} ({int(res.response_time_ms)}ms) - <code>{res.message}</code>\n"
+
+    await message.reply_text(text, parse_mode=ParseMode.HTML)
+
+@Client.on_message(filters.command("lasterrors") & filters.user(config.OWNER_ID))
+async def admin_lasterrors_cmd(client: Client, message: Message):
+    if not LAST_ERRORS:
+        await message.reply_text("No recent errors.")
+        return
+
+    text = "<b>🚨 Last 10 Errors:</b>\n\n"
+    for idx, err in enumerate(reversed(LAST_ERRORS)):
+        from datetime import datetime
+        dt = datetime.fromtimestamp(err['time']).strftime('%Y-%m-%d %H:%M:%S')
+        text += f"{idx+1}. [{dt}] <b>{err['message']}</b>\n"
+        if err['exception']:
+            text += f"<code>{err['exception']}</code>\n\n"
+
+    await message.reply_text(text[:4000], parse_mode=ParseMode.HTML)
