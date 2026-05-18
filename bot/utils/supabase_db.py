@@ -106,10 +106,10 @@ class SupabaseDatabase:
         )
 
     @staticmethod
-    def _global_music_index_select_fields(include_stream_url: bool) -> str:
-        base_fields = "query_key,track_id,title,artist,duration,thumbnail,source,metadata,sources,last_played"
-        if include_stream_url:
-            return base_fields.replace("source,", "source,stream_url,")
+    def _global_music_index_select_fields(include_audio_url: bool) -> str:
+        base_fields = "query_key,jamendo_track_id,title,artist,duration,thumbnail_url,metadata,sources,last_played"
+        if include_audio_url:
+            return base_fields + ",audio_url"
         return base_fields
 
     @staticmethod
@@ -406,12 +406,12 @@ class SupabaseDatabase:
 
         # Fallback path if RPC isn't deployed yet.
         if not rows:
-            include_stream_url = self._supports_stream_url_column is not False
+            include_audio_url = self._supports_stream_url_column is not False
             try:
                 like_query = f"%{q}%"
                 result = (
                     self.client.table("global_music_index")
-                    .select(self._global_music_index_select_fields(include_stream_url))
+                    .select(self._global_music_index_select_fields(include_audio_url))
                     .or_(f"title.ilike.{like_query},artist.ilike.{like_query}")
                     .order("last_played", desc=True)
                     .limit(max(1, limit))
@@ -419,7 +419,7 @@ class SupabaseDatabase:
                 )
                 rows = [r for r in (getattr(result, "data", None) or []) if isinstance(r, dict)]
             except Exception as e:
-                if include_stream_url and self._is_missing_stream_url_column_error(e):
+                if include_audio_url and self._is_missing_stream_url_column_error(e):
                     self._disable_stream_url_column(
                         "Supabase global_music_index.stream_url is unavailable in the live schema; falling back to legacy index fields until migration is applied."
                     )
@@ -462,7 +462,7 @@ class SupabaseDatabase:
             except Exception:
                 duration = 0
 
-            track_id = row.get("track_id") or metadata.get("id") or metadata.get("track_id")
+            jamendo_track_id = row.get("jamendo_track_id") or metadata.get("id") or metadata.get("jamendo_track_id")
             thumb = row.get("thumbnail") or metadata.get("thumbnail") or metadata.get("thumb")
 
             stream_url = row.get("stream_url") or metadata.get("stream_url") or metadata.get("url") or ""
@@ -483,8 +483,8 @@ class SupabaseDatabase:
                 "thumbnail": thumb,
                 "source": "global_index",
                 "origin_source": row.get("source") or metadata.get("source") or "unknown",
-                "id": track_id,
-                "track_id": track_id,
+                "id": jamendo_track_id,
+                "jamendo_track_id": jamendo_track_id,
                 "metadata": metadata,
                 "sources": sources,
                 "query_key": row.get("query_key"),
@@ -496,12 +496,12 @@ class SupabaseDatabase:
         """🟢 Saves a track to Supabase, but automatically deletes old ones to protect the Free Tier."""
         try:
             query_key = query.strip().lower()
-            track_id = track.get("id") or track.get("track_id")
+            jamendo_track_id = track.get("id") or track.get("jamendo_track_id")
             source_name = track.get("source", "unknown")
             stream_url = track.get("url") or track.get("stream_url") or ""
             saved_at = datetime.utcnow().isoformat()
 
-            include_stream_url = self._supports_stream_url_column is not False
+            include_audio_url = self._supports_stream_url_column is not False
 
             metadata = {
                 "title": track.get("title", "Unknown"),
@@ -509,7 +509,7 @@ class SupabaseDatabase:
                 "duration": track.get("duration", 0),
                 "thumbnail": track.get("thumbnail") or track.get("thumb") or "",
                 "source": source_name,
-                "id": track_id,
+                "id": jamendo_track_id,
                 "url": stream_url,
                 "stream_url": stream_url,
                 "saved_at": saved_at,
@@ -525,7 +525,7 @@ class SupabaseDatabase:
 
             sources_payload.append({
                 "source": source_name,
-                "track_id": track_id,
+                "jamendo_track_id": jamendo_track_id,
                 "url": stream_url,
                 "stream_url": stream_url,
                 "saved_at": saved_at,
@@ -533,7 +533,7 @@ class SupabaseDatabase:
 
             data = {
                 "query_key": query_key,
-                "track_id": track_id,
+                "jamendo_track_id": jamendo_track_id,
                 "title": metadata.get("title", "Unknown"),
                 "artist": metadata.get("artist", "Unknown Artist"),
                 "duration": track.get("duration", 0),
@@ -544,16 +544,16 @@ class SupabaseDatabase:
                 "last_played": saved_at,
             }
 
-            if include_stream_url:
+            if include_audio_url:
                 data["stream_url"] = stream_url
 
             # 1. Save or update the current track
             try:
                 self.client.table("global_music_index").upsert(data).execute()
-                if include_stream_url:
+                if include_audio_url:
                     self._supports_stream_url_column = True
             except Exception as upsert_exc:
-                if include_stream_url and self._is_missing_stream_url_column_error(upsert_exc):
+                if include_audio_url and self._is_missing_stream_url_column_error(upsert_exc):
                     self._disable_stream_url_column(
                         "Supabase global_music_index.stream_url is unavailable in the live schema; storing the resolved URL only in metadata/sources until migration is applied."
                     )
@@ -894,9 +894,110 @@ class SupabaseDatabase:
             logger.error(f"Migration failed: {e}")
             return False
 
+    async def create_playlist(self, name: str, user_id: int) -> int:
+        """Create a new playlist."""
+        try:
+            result = self.client.table("playlists").insert({
+                "name": name,
+                "creator_user_id": user_id
+            }).execute()
+            if result.data:
+                return result.data[0]['id']
+            return -1
+        except Exception as e:
+            logger.error(f"Error creating playlist in Supabase: {e}")
+            return -1
+
+    async def get_user_playlists(self, user_id: int) -> List[Dict[str, Any]]:
+        """Get playlists for a user."""
+        try:
+            result = self.client.table("playlists").select("*").eq("creator_user_id", user_id).execute()
+            return result.data or []
+        except Exception as e:
+            logger.error(f"Error getting user playlists from Supabase: {e}")
+            return []
+
+    async def get_playlist_by_name(self, name: str) -> Optional[Dict[str, Any]]:
+        """Get playlist by name."""
+        try:
+            result = self.client.table("playlists").select("*").eq("name", name).execute()
+            if result.data:
+                return result.data[0]
+            return None
+        except Exception as e:
+            logger.error(f"Error getting playlist by name from Supabase: {e}")
+            return None
+
+    async def get_playlist_tracks(self, playlist_id: int) -> List[Dict[str, Any]]:
+        """Get tracks in a playlist."""
+        try:
+            result = self.client.table("playlist_tracks").select("*").eq("playlist_id", playlist_id).order("position").execute()
+            return result.data or []
+        except Exception as e:
+            logger.error(f"Error getting playlist tracks from Supabase: {e}")
+            return []
+
+    async def add_track_to_playlist(self, playlist_id: int, track_id: str, added_by: int) -> bool:
+        """Add a track to a playlist."""
+        try:
+            # Get max position
+            tracks = await self.get_playlist_tracks(playlist_id)
+            pos = len(tracks) + 1
+
+            self.client.table("playlist_tracks").insert({
+                "playlist_id": playlist_id,
+                "jamendo_track_id": track_id,
+                "position": pos,
+                "added_by": added_by
+            }).execute()
+            return True
+        except Exception as e:
+            logger.error(f"Error adding track to playlist in Supabase: {e}")
+            return False
+
+    async def remove_track_from_playlist(self, playlist_id: int, position: int) -> bool:
+        """Remove a track from a playlist by position."""
+        try:
+            self.client.table("playlist_tracks").delete().match({"playlist_id": playlist_id, "position": position}).execute()
+            return True
+        except Exception as e:
+            logger.error(f"Error removing track from playlist in Supabase: {e}")
+            return False
+
+    async def toggle_playlist_collab(self, playlist_id: int, is_collab: bool) -> bool:
+        """Toggle collaborative mode for a playlist."""
+        try:
+            self.client.table("playlists").update({"is_collaborative": is_collab}).eq("id", playlist_id).execute()
+            return True
+        except Exception as e:
+            logger.error(f"Error toggling playlist collab in Supabase: {e}")
+            return False
+
+    async def save_jamendo_token(self, user_id: int, token: Dict[str, Any]) -> bool:
+        """Save Jamendo token for user in playlists table."""
+        try:
+            self.client.table("playlists").update({"jamendo_token": token}).eq("creator_user_id", user_id).execute()
+            return True
+        except Exception as e:
+            logger.error(f"Error saving jamendo token in Supabase: {e}")
+            return False
+
+    async def get_jamendo_token(self, user_id: int) -> Optional[Dict[str, Any]]:
+        """Get Jamendo token for a user."""
+        try:
+            result = self.client.table("playlists").select("jamendo_token").eq("creator_user_id", user_id).neq("jamendo_token", "null").limit(1).execute()
+            if result.data and result.data[0].get('jamendo_token'):
+                return result.data[0]['jamendo_token']
+            return None
+        except Exception as e:
+            logger.error(f"Error getting jamendo token from Supabase: {e}")
+            return None
+
 
 # Global instance
 supabase_db: Optional[SupabaseDatabase] = None
+
+
 
 
 def init_supabase(url: str, key: str):
@@ -904,3 +1005,102 @@ def init_supabase(url: str, key: str):
     global supabase_db
     supabase_db = SupabaseDatabase(url, key)
     logger.info("Supabase database initialized")
+
+    # Radio Shows Implementation for Supabase
+    async def create_radio_show(self, chat_id: int, host_user_id: int, show_name: str, description: str, day: int, time: str, genre: str, duration: int) -> int:
+        """Create a new radio show."""
+        try:
+            data = {
+                "chat_id": chat_id,
+                "host_user_id": host_user_id,
+                "show_name": show_name,
+                "description": description,
+                "schedule_day_of_week": day,
+                "schedule_time": time,
+                "genre_tags": genre,
+                "duration_minutes": duration,
+                "is_active": True
+            }
+            result = self.client.table("radio_shows").insert(data).execute()
+            if result.data:
+                return result.data[0].get("id", -1)
+            return -1
+        except Exception as e:
+            logger.error(f"Error creating radio show in Supabase: {e}")
+            return -1
+
+    async def add_track_to_show(self, show_id: int, track_id: int, added_by: int) -> bool:
+        """Add a track to a radio show."""
+        try:
+            # Get current max position
+            result = self.client.table("show_tracks").select("position").eq("show_id", show_id).order("position", desc=True).limit(1).execute()
+            pos = 0
+            if result.data and len(result.data) > 0:
+                pos = result.data[0].get("position", 0)
+
+            data = {
+                "show_id": show_id,
+                "jamendo_track_id": track_id,
+                "position": pos + 1,
+                "added_by": added_by
+            }
+            self.client.table("show_tracks").insert(data).execute()
+            return True
+        except Exception as e:
+            logger.error(f"Error adding track to show in Supabase: {e}")
+            return False
+
+    async def get_upcoming_shows(self, chat_id: int) -> List[Dict[str, Any]]:
+        """Get all upcoming shows for a chat."""
+        try:
+            result = self.client.table("radio_shows").select("*").eq("chat_id", chat_id).eq("is_active", True).order("schedule_day_of_week").order("schedule_time").execute()
+            return result.data if result.data else []
+        except Exception as e:
+            logger.error(f"Error getting upcoming shows from Supabase: {e}")
+            return []
+
+    async def get_show_tracks(self, show_id: int) -> List[Dict[str, Any]]:
+        """Get all tracks for a radio show."""
+        try:
+            result = self.client.table("show_tracks").select("*").eq("show_id", show_id).order("position").execute()
+            return result.data if result.data else []
+        except Exception as e:
+            logger.error(f"Error getting show tracks from Supabase: {e}")
+            return []
+
+    async def get_shows_by_time(self, day: int, time: str) -> List[Dict[str, Any]]:
+        """Get all shows scheduled for a specific time."""
+        try:
+            result = self.client.table("radio_shows").select("*").eq("schedule_day_of_week", day).eq("schedule_time", time).eq("is_active", True).execute()
+            return result.data if result.data else []
+        except Exception as e:
+            logger.error(f"Error getting shows by time from Supabase: {e}")
+            return []
+
+    async def delete_show(self, show_id: int) -> bool:
+        """Delete a radio show."""
+        try:
+            self.client.table("show_tracks").delete().eq("show_id", show_id).execute()
+            self.client.table("radio_shows").delete().eq("id", show_id).execute()
+            return True
+        except Exception as e:
+            logger.error(f"Error deleting radio show in Supabase: {e}")
+            return False
+
+    async def get_past_shows(self, chat_id: int) -> List[Dict[str, Any]]:
+        """Get past shows for a chat."""
+        try:
+            result = self.client.table("radio_shows").select("*").eq("chat_id", chat_id).eq("is_active", False).order("created_at", desc=True).execute()
+            return result.data if result.data else []
+        except Exception as e:
+            logger.error(f"Error getting past shows from Supabase: {e}")
+            return []
+
+    async def set_show_inactive(self, show_id: int) -> bool:
+        """Mark a show as inactive (past)."""
+        try:
+            self.client.table("radio_shows").update({"is_active": False}).eq("id", show_id).execute()
+            return True
+        except Exception as e:
+            logger.error(f"Error setting show inactive in Supabase: {e}")
+            return False
