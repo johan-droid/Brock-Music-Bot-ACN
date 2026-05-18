@@ -1,15 +1,14 @@
 from bot.platforms.jamendo import JamendoClient
 import asyncio
 import logging
-import re
-from dataclasses import asdict, dataclass
-from typing import Any, Dict, List, Optional
+import asyncio
+from typing import List, Dict, Any, Optional
+from config import config
 
 import bot.utils.database as database_module
 from bot.utils.circuit_breaker import source_health_tracker
 from bot.utils.errors import BotDetectionError, PreviewOnlyError, summarize_exception, FallbackExhaustedError
 
-from bot.utils.multi_tier_cache import multi_cache
 logger = logging.getLogger(__name__)
 
 
@@ -107,6 +106,15 @@ class Track:
     source: str = "direct"
     track_id: Optional[str] = None
 
+    def __init__(self, **kwargs):
+        self.title = kwargs.get("title", "Unknown Title")
+        self.artist = kwargs.get("artist", "Unknown Artist")
+        self.duration = kwargs.get("duration", 0)
+        self.stream_url = kwargs.get("stream_url", "")
+        self.thumbnail = kwargs.get("thumbnail")
+        self.source = kwargs.get("source", "jamendo")
+        self.track_id = kwargs.get("track_id") or kwargs.get("id")
+
     def get(self, key: str, default: Any = None) -> Any:
         mapping = {
             "url": "stream_url",
@@ -114,7 +122,8 @@ class Track:
             "id": "track_id",
             "thumb": "thumbnail",
         }
-        return getattr(self, mapping.get(key, key), default)
+        actual_key = mapping.get(key, key)
+        return getattr(self, actual_key, default)
 
     def to_dict(self) -> Dict[str, Any]:
         data = asdict(self)
@@ -196,7 +205,7 @@ def calculate_track_quality(track: Track) -> float:
 
 class MusicBackend:
     """
-    YouTube Music primary extractor with JioSaavn fallback and database cache.
+    Jamendo Music API primary extractor with database cache.
     """
 
     @property
@@ -439,68 +448,13 @@ class MusicBackend:
             sorted_sources = ["vk", "deezer"]
 
         tracks = []
-
-        if config.PARALLEL_SEARCH:
-            tasks = []
-            for src_name in sorted_sources:
-                extractor = self.extractors_map.get(src_name)
-                if extractor and hasattr(extractor, "search"):
-                    tasks.append(asyncio.create_task(self._search_with_extractor(
-                        extractor, query, limit, src_name)))
-
-            if tasks:
-                done, pending = await asyncio.wait(tasks, timeout=65)
-                results = []
-                for task in done:
-                    try:
-                        res = task.result()
-                        if res:
-                            results.append(res)
-                    except Exception as e:
-                        logger.error(f"Search task failed: {summarize_exception(e)}")
-                
-                if pending:
-                    for task in pending:
-                        task.cancel()
-
-                combined = []
-                seen = set()
-                for res in results:
-                    for t in res:
-                        identity = f"{t.source}:{t.track_id or t.stream_url or t.title}"
-                        if identity and identity not in seen:
-                            seen.add(identity)
-                            combined.append(t)
-                tracks = combined
-            tracks.sort(key=calculate_track_quality, reverse=True)
-            tracks = tracks[:limit]
-        else:
-            if not config.PRIORITIZE_EXTRACTORS:
-                tracks = await self._search_index(query, limit)
-
-            if not tracks:
-                for src_name in sorted_sources:
-                    extractor = self.extractors_map.get(src_name)
-                    if extractor and hasattr(extractor, "search"):
-                        try:
-                            tracks = await self._search_with_extractor(extractor, query, limit, src_name)
-                            if tracks:
-                                break
-                        except Exception as e:
-                            logger.debug(f"Search failed for {src_name}: {e}")
-
-            if not tracks and config.PRIORITIZE_EXTRACTORS:
-                tracks = await self._search_index(query, limit)
-
-        if tracks and len(_background_tasks) < _MAX_BACKGROUND_TASKS:
-            task = asyncio.create_task(self._cache_to_index(query, tracks))
-            _background_tasks.add(task)
-            task.add_done_callback(_background_tasks.discard)
-
+        for res in results:
+            tracks.append(Track(**res))
         return tracks
 
     async def get_stream_payload(self, track: Track) -> Optional[Dict[str, Any]]:
-        if not track:
+        """Return the direct stream url from Jamendo."""
+        if not track or not track.stream_url:
             return None
 
         if track.stream_url and track.stream_url.startswith("http") and _infer_source_from_url(track.stream_url) == "direct":
@@ -600,16 +554,11 @@ class MusicBackend:
             text = target.strip()
             if not text:
                 return None
-            if _looks_like_url(text):
-                source = _infer_source_from_url(text)
-                if source == "unsupported":
-                    return None
-                return await self.get_stream_payload(self._coerce_track(text))
-            return await self._resolve_from_search(text)
+            results = await self.search(text, limit=1)
+            if not results:
+                return None
+            return await self.get_stream_payload(results[0])
         return await self.get_stream_payload(self._coerce_track(target))
-
-    async def _resolve_fallback_payload(self, track: Track) -> Optional[Dict[str, Any]]:
-        return await self.get_stream_payload(track)
 
     async def get_stream_url(self, track: Track) -> Optional[str]:
         payload = await self.get_stream_payload(track)
@@ -617,41 +566,18 @@ class MusicBackend:
             return None
         return payload.get("url") or payload.get("stream_url")
 
-    def _build_payload(self, track: Track, resolved: Optional[Dict[str, Any]], source: str) -> Dict[str, Any]:
-        """Helper to build a unified payload for play.py"""
-        if resolved:
-            return {
-                "id": resolved.get("id") or track.track_id,
-                "title": resolved.get("title") or track.title,
-                "artist": resolved.get("artist") or track.artist,
-                "duration": resolved.get("duration") or track.duration,
-                "url": resolved.get("stream_url") or resolved.get("url"),
-                "thumbnail": resolved.get("thumbnail") or track.thumbnail,
-                "source": source,
-                "headers": resolved.get("headers"),
-            }
-        return {
-            "id": track.track_id,
-            "title": track.title,
-            "artist": track.artist,
-            "duration": track.duration,
-            "url": track.stream_url,
-            "thumbnail": track.thumbnail,
-            "source": source,
-        }
+    def get_source_headers(self, source: str) -> Optional[Dict[str, str]]:
+        return None
 
     def _coerce_track(self, target: Any) -> Track:
-        """Compatibility helper to convert various types to Track object."""
         if isinstance(target, Track):
             return target
         if isinstance(target, str):
             return Track(title="Direct Link", artist="Unknown", duration=0, stream_url=target)
         if isinstance(target, dict):
-            return self._row_to_track(target) or self._item_to_track(target, "unknown")
+            return Track(**target)
         return Track(title="Unknown", artist="Unknown", duration=0, stream_url="")
-
 
 music_backend = MusicBackend()
 
-__all__ = ["Track", "SourceRanker", "calculate_track_quality",
-           "MusicBackend", "music_backend"]
+__all__ = ["Track", "MusicBackend", "music_backend"]
