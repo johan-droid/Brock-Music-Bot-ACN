@@ -376,6 +376,17 @@ async def add_track_and_play(
         except Exception:
             pass
 
+    # --- Intercept for voting mode ---
+    from bot.utils.database import db
+    group_data = await db.get_group(chat_id)
+    settings = group_data.get("settings", {})
+    if settings.get("voting_mode", False):
+        from bot.plugins.anon_requests import start_vote_session
+        from bot.core.bot import app
+        await start_vote_session(search_msg._client if search_msg else app, chat_id, track, requester_id=user_id, is_anonymous=False)
+        return
+    # ---------------------------------
+
     status = await queue_manager.get_status(chat_id)
     is_playing = status in ("playing", "paused")
 
