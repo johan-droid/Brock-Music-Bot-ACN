@@ -197,7 +197,7 @@ class SoulKingLiveUI:
         status: str,
         user_level: int,
         chat_id: int,
-        track_id: Optional[str] = None,
+        track_id: Optional[int] = None,
         playback_state: dict = None
     ) -> InlineKeyboardMarkup:
         """
@@ -322,7 +322,7 @@ class SoulKingLiveUI:
             "last_update": datetime.now(),
             "user_level": user_level,
             "last_position": 0,
-            "last_track_id": None,
+            "last_jamendo_track_id": None,
         }
         
         # Start update loop
