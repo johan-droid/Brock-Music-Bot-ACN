@@ -130,23 +130,41 @@ def with_retries_and_cb(circuit_breaker: CircuitBreaker, max_retries: int = 5, t
 
 
 class Watchdog:
-    def __init__(self, timeout: int = 300):
+    def __init__(self, timeout: int = 300, interval: int = 60):
         self.timeout = timeout
-        self.last_ping = time.time()
+        self.interval = interval
+        self.last_ping = time.monotonic()
         self._task = None
 
     def ping(self):
-        self.last_ping = time.time()
+        self.last_ping = time.monotonic()
 
     async def _loop(self):
+        expected_wake = time.monotonic() + self.interval
         while True:
-            await asyncio.sleep(60)
-            if time.time() - self.last_ping > self.timeout:
-                logger.error(f"Watchdog triggered! Process hung for {self.timeout}s. Exiting for restart.")
+            await asyncio.sleep(self.interval)
+            now = time.monotonic()
+            event_loop_lag = now - expected_wake
+            self.last_ping = now
+
+            if event_loop_lag > self.timeout:
+                logger.error(
+                    "Watchdog triggered! Event loop was blocked for %.1fs (threshold=%ss). Exiting for restart.",
+                    event_loop_lag,
+                    self.timeout,
+                )
                 os._exit(1)
+            expected_wake = now + self.interval
 
     def start(self):
+        if self._task is not None and not self._task.done():
+            return
         self._task = asyncio.create_task(self._loop())
+
+    def stop(self):
+        if self._task is not None:
+            self._task.cancel()
+            self._task = None
 
 
 global_watchdog = Watchdog()

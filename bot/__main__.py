@@ -114,6 +114,7 @@ async def _main_impl():
             raise
         finally:
             logger.info("Shutting down...")
+            global_watchdog.stop()
         
             try:
                 from bot.core.bot import stop_bot
