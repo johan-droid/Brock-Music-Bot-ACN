@@ -37,7 +37,32 @@ class NeonDatabase:
         """Initialize database tables if they don't exist."""
         try:
             with self.conn.cursor() as cur:
+                # Check if music_index has old column track_id
+                cur.execute("""
+                    SELECT EXISTS (
+                        SELECT 1 FROM information_schema.columns 
+                        WHERE table_name = 'music_index' AND column_name = 'track_id'
+                    )
+                """)
+                if cur.fetchone()[0]:
+                    logger.info("Outdated music_index table found. Renaming to music_index_old.")
+                    cur.execute("DROP TABLE IF EXISTS music_index_old CASCADE")
+                    cur.execute("ALTER TABLE music_index RENAME TO music_index_old")
+
+                # Check if play_history has old column track_id
+                cur.execute("""
+                    SELECT EXISTS (
+                        SELECT 1 FROM information_schema.columns 
+                        WHERE table_name = 'play_history' AND column_name = 'track_id'
+                    )
+                """)
+                if cur.fetchone()[0]:
+                    logger.info("Outdated play_history table found. Renaming to play_history_old.")
+                    cur.execute("DROP TABLE IF EXISTS play_history_old CASCADE")
+                    cur.execute("ALTER TABLE play_history RENAME TO play_history_old")
+
                 # Music index table (cached tracks)
+
                 cur.execute("""
                     CREATE TABLE IF NOT EXISTS music_index (
                         id SERIAL PRIMARY KEY,
@@ -52,6 +77,11 @@ class NeonDatabase:
                         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                     )
+                """)
+
+                cur.execute("""
+                    ALTER TABLE IF EXISTS music_index
+                    ADD COLUMN IF NOT EXISTS jamendo_track_id INTEGER
                 """)
                 
                 # Queues table
@@ -90,6 +120,11 @@ class NeonDatabase:
                         artist TEXT,
                         played_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                     )
+                """)
+
+                cur.execute("""
+                    ALTER TABLE IF EXISTS play_history
+                    ADD COLUMN IF NOT EXISTS jamendo_track_id INTEGER
                 """)
 
                 # Global bans table
@@ -534,13 +569,6 @@ class NeonDatabase:
             logger.error(f"Error getting jamendo token from Neon: {e}")
             return None
 
-
-def init_neon(database_url: str):
-    """Initialize Neon database singleton."""
-    global neon_db
-    neon_db = NeonDatabase(database_url)
-    logger.info("Neon Database initialized.")
-
     # Radio Shows Implementation for Neon
     async def create_radio_show(self, chat_id: int, host_user_id: int, show_name: str, description: str, day: int, time: str, genre: str, duration: int) -> int:
         """Create a new radio show."""
@@ -646,3 +674,11 @@ def init_neon(database_url: str):
             self.conn.rollback()
             logger.error(f"Error setting show inactive in Neon: {e}")
             return False
+
+
+def init_neon(database_url: str):
+    """Initialize Neon database singleton."""
+    global neon_db
+    neon_db = NeonDatabase(database_url)
+    logger.info("Neon Database initialized.")
+

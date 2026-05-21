@@ -6,11 +6,24 @@ import asyncio
 import logging
 from typing import Optional, Dict
 
-from pydub import AudioSegment
-from pedalboard import Pedalboard, Reverb, Chorus, HighpassFilter, LowpassFilter, PeakFilter, LowShelfFilter, HighShelfFilter
-from pedalboard.io import AudioFile
+try:
+    from pydub import AudioSegment
+except ImportError:  # pragma: no cover - depends on deployment image
+    AudioSegment = None
+
+try:
+    from pedalboard import Pedalboard, Reverb, Chorus, HighpassFilter, LowpassFilter, PeakFilter, LowShelfFilter, HighShelfFilter
+    from pedalboard.io import AudioFile
+except ImportError:  # pragma: no cover - depends on deployment image
+    Pedalboard = None
+    Reverb = Chorus = HighpassFilter = LowpassFilter = PeakFilter = LowShelfFilter = HighShelfFilter = None
+    AudioFile = None
 
 logger = logging.getLogger(__name__)
+
+
+def _effects_runtime_available() -> bool:
+    return AudioSegment is not None and Pedalboard is not None and AudioFile is not None
 
 # Memory store for active effects per chat
 # Map of chat_id (int) -> effect name (str)
@@ -53,6 +66,10 @@ async def _download_audio(url: str, dest_path: str) -> bool:
 
 def apply_effect(input_path: str, output_path: str, effect: str) -> bool:
     """Apply the chosen effect using pedalboard and pydub."""
+    if not _effects_runtime_available():
+        logger.warning("Audio effects are unavailable because pydub or pedalboard is not installed")
+        return False
+
     try:
         if effect == "Slowed+Reverb" or effect == "Nightcore":
             # Pydub speed modifications
@@ -144,6 +161,14 @@ async def process_track(track_id: str, audio_url: str, effect: str) -> str:
     Returns the path to the cached processed file, or original audio_url if processing fails/no effect.
     """
     if effect is None or effect == "Remove Effects" or effect == "none":
+        return audio_url
+
+    if not _effects_runtime_available():
+        logger.warning(
+            "Skipping audio effect '%s' for track %s because pydub or pedalboard is unavailable",
+            effect,
+            track_id,
+        )
         return audio_url
 
     track_id_safe = str(track_id).replace("/", "_").replace("\\", "_")
