@@ -5,6 +5,8 @@ import asyncio
 import aiohttp
 from typing import List, Dict, Optional, Any
 
+from bot.platforms.jamendo_embedded import DEFAULT_JAMENDO_CLIENT_ID, JamendoEmbedded
+
 logger = logging.getLogger(__name__)
 
 class JamendoClient:
@@ -13,8 +15,9 @@ class JamendoClient:
     BASE_URL = "https://api.jamendo.com/v3.0/"
 
     def __init__(self):
-        self.client_id = os.environ.get("JAMENDO_CLIENT_ID", "")
+        self.client_id = os.environ.get("JAMENDO_CLIENT_ID") or DEFAULT_JAMENDO_CLIENT_ID
         self.test_mode = os.environ.get("TEST_MODE", "").lower() in ("1", "true", "yes")
+        self.embedded = JamendoEmbedded(client_id=self.client_id)
 
         # TTL Cache structure: { cache_key: {"data": value, "expiry": timestamp} }
         self._cache: Dict[str, Dict[str, Any]] = {}
@@ -22,10 +25,6 @@ class JamendoClient:
 
     async def _request(self, endpoint: str, params: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         """Make an async HTTP request to the Jamendo API."""
-        if not self.client_id and not self.test_mode:
-            logger.error("JAMENDO_CLIENT_ID is not set in environment variables.")
-            return None
-
         params["client_id"] = self.client_id
         params["format"] = "jsonpretty"
 
@@ -80,7 +79,7 @@ class JamendoClient:
 
         response_data = await self._request("tracks/", params)
         if not response_data or "results" not in response_data:
-            return []
+            return await self.embedded.search_tracks(query, limit)
 
         results = []
         for track in response_data.get("results", []):
@@ -126,7 +125,7 @@ class JamendoClient:
 
         response_data = await self._request("tracks/", params)
         if not response_data or "results" not in response_data or not response_data["results"]:
-            return None
+            return await self.embedded.get_track_by_id(track_id)
 
         track = response_data["results"][0]
         try:

@@ -324,7 +324,14 @@ class MusicBackend:
             item.get("source") or default_source or "unknown")
         track_id = item.get("id") or item.get("track_id")
         
-        stream_url = _normalize_url_text(item.get("stream_url") or item.get("url") or item.get("play_url") or "")
+        stream_url = _normalize_url_text(
+            item.get("stream_url")
+            or item.get("audio_url")
+            or item.get("audio")
+            or item.get("url")
+            or item.get("play_url")
+            or ""
+        )
 
         if not stream_url:
             if not stream_url:
@@ -350,7 +357,7 @@ class MusicBackend:
                 "uploader") or item.get("author") or "Unknown Artist",
             duration=int(item.get("duration") or item.get("length") or 0),
             stream_url=stream_url,
-            thumbnail=item.get("thumbnail") or item.get("cover") or None,
+            thumbnail=item.get("thumbnail") or item.get("thumbnail_url") or item.get("image") or item.get("album_image") or item.get("cover") or None,
             source=source,
             track_id=str(track_id) if track_id is not None else None,
         )

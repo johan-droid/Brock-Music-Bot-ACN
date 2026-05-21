@@ -169,15 +169,7 @@ health_checker = HealthChecker()
 async def check_jamendo() -> HealthCheckResult:
     start_time = time.time()
     try:
-        from bot.platforms.jamendo import JAMENDO_CLIENT_ID, JamendoClient
-
-        if not JAMENDO_CLIENT_ID:
-            return HealthCheckResult(
-                service="jamendo",
-                status=HealthStatus.DEGRADED,
-                response_time_ms=0,
-                message="Client ID not configured",
-            )
+        from bot.platforms.jamendo import JAMENDO_CLIENT_ID_SOURCE, JamendoClient
 
         res = await JamendoClient.search("test", limit=1)
         response_time = (time.time() - start_time) * 1000
@@ -188,6 +180,7 @@ async def check_jamendo() -> HealthCheckResult:
                 status=HealthStatus.HEALTHY,
                 response_time_ms=response_time,
                 message="Service healthy",
+                details={"client_id_source": JAMENDO_CLIENT_ID_SOURCE},
             )
 
         return HealthCheckResult(

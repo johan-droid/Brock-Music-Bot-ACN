@@ -4,11 +4,21 @@ import logging
 import asyncio
 import aiohttp
 from typing import List, Dict, Optional, Any
-from bs4 import BeautifulSoup
 import json
 import re
 
 logger = logging.getLogger(__name__)
+
+DEFAULT_JAMENDO_CLIENT_ID = "56d30c95"
+
+
+def _build_soup(html: str):
+    try:
+        from bs4 import BeautifulSoup
+    except ImportError:
+        logger.warning("beautifulsoup4 is not installed; Jamendo web scraping fallback is disabled.")
+        return None
+    return BeautifulSoup(html, 'html.parser')
 
 class JamendoEmbedded:
     """
@@ -56,7 +66,7 @@ class JamendoEmbedded:
         if client_id is not None:
             self.client_id = client_id
         else:
-            self.client_id = os.environ.get("JAMENDO_CLIENT_ID", "")
+            self.client_id = os.environ.get("JAMENDO_CLIENT_ID") or DEFAULT_JAMENDO_CLIENT_ID
         self.cache_ttl = cache_ttl
         self._cache = {}
 
@@ -133,7 +143,9 @@ class JamendoEmbedded:
                 async with session.get(url, params={"q": query}, timeout=8) as resp:
                     if resp.status == 200:
                         html = await resp.text()
-                        soup = BeautifulSoup(html, 'html.parser')
+                        soup = _build_soup(html)
+                        if soup is None:
+                            return []
 
                         track_ids = []
 
@@ -212,7 +224,9 @@ class JamendoEmbedded:
                 async with session.get(url, timeout=8) as resp:
                     if resp.status == 200:
                         html = await resp.text()
-                        soup = BeautifulSoup(html, 'html.parser')
+                        soup = _build_soup(html)
+                        if soup is None:
+                            return None
 
                         title = "Unknown Title"
                         artist = "Unknown Artist"
@@ -256,7 +270,9 @@ class JamendoEmbedded:
                 async with session.get(licensing_url, timeout=8) as resp:
                     if resp.status == 200:
                         html = await resp.text()
-                        soup = BeautifulSoup(html, 'html.parser')
+                        soup = _build_soup(html)
+                        if soup is None:
+                            return None
                         scripts = soup.find_all('script')
                         for s in scripts:
                             if s.string and 'prod-1.storage.jamendo.com' in s.string:
