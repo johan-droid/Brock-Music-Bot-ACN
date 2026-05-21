@@ -377,28 +377,60 @@ def require_owner(func):
     return wrapper
 
 
-def rate_limit(func):
-    """Decorator to apply rate limiting."""
-    @wraps(func)
-    async def wrapper(client, message: Message):
-        user_id = message.from_user.id if message.from_user else None
-        
-        if not user_id:
-            return
-        
-        # Get command name from function
-        cmd = func.__name__.replace("_cmd", "").replace("_", "")
-        
-        if not await cache.check_cooldown(user_id, cmd, config.COMMAND_COOLDOWN):
-            return  # Silent reject on cooldown
-        
+def rate_limit(func=None, *, limit: int = None, period: int = None, interval: int = None):
+    """Decorator to apply rate limiting.
+
+    Supports both usages:
+    - @rate_limit
+    - @rate_limit(limit=3, period=10) or @rate_limit(limit=3, interval=10)
+    """
+
+    def _to_positive_int(value):
         try:
-            return await func(client, message)
-        except FloodWait as e:
-            logger.warning(f"FloodWait of {e.value}s on {cmd}. Dropping request to protect token limitation.")
-            return
-        except Exception as e:
-            logger.error(f"Error executing command {cmd}: {e}")
-            return
-    
-    return wrapper
+            iv = int(value)
+            return iv if iv > 0 else None
+        except Exception:
+            return None
+
+    def _build_wrapper(target_func):
+        parsed_limit = _to_positive_int(limit)
+        parsed_window = _to_positive_int(period if period is not None else interval)
+
+        @wraps(target_func)
+        async def wrapper(client, message: Message):
+            user_id = message.from_user.id if message.from_user else None
+            if not user_id:
+                return
+
+            # Keep command key stable across existing handlers.
+            cmd = target_func.__name__.replace("_cmd", "").replace("_", "")
+
+            # Advanced fixed-window limiter if explicit limit/window is provided.
+            if parsed_limit and parsed_window:
+                window_key = f"ratelimit:{user_id}:{cmd}"
+                current_count = await cache.incr(window_key, 1)
+                if current_count == 1:
+                    await cache.expire(window_key, parsed_window)
+                if current_count > parsed_limit:
+                    return
+            else:
+                # Backward-compatible simple cooldown behavior.
+                if not await cache.check_cooldown(user_id, cmd, config.COMMAND_COOLDOWN):
+                    return
+
+            try:
+                return await target_func(client, message)
+            except FloodWait as e:
+                logger.warning(f"FloodWait of {e.value}s on {cmd}. Dropping request to protect token limitation.")
+                return
+            except Exception as e:
+                logger.error(f"Error executing command {cmd}: {e}")
+                return
+
+        return wrapper
+
+    # @rate_limit without arguments
+    if callable(func):
+        return _build_wrapper(func)
+    # @rate_limit(...)
+    return _build_wrapper
