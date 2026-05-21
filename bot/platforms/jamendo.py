@@ -4,15 +4,20 @@ from typing import List, Dict, Any, Optional
 
 import aiohttp
 
+from bot.platforms.jamendo_embedded import DEFAULT_JAMENDO_CLIENT_ID, JamendoEmbedded
 from bot.utils.resilience import with_retries_and_cb, jamendo_cb
 from config import config
 
 logger = logging.getLogger(__name__)
 
-JAMENDO_CLIENT_ID = os.getenv("JAMENDO_CLIENT_ID", "")
+_env_client_id = os.getenv("JAMENDO_CLIENT_ID")
+_config_client_id = getattr(config, "JAMENDO_CLIENT_ID", None)
+JAMENDO_CLIENT_ID = _env_client_id or _config_client_id or DEFAULT_JAMENDO_CLIENT_ID
+JAMENDO_CLIENT_ID_SOURCE = "env" if _env_client_id else "config" if _config_client_id else "embedded"
 JAMENDO_API_BASE = "https://api.jamendo.com/v3.0"
 
 _cache = {}
+_embedded = JamendoEmbedded(client_id=JAMENDO_CLIENT_ID)
 
 
 class Track:
@@ -22,6 +27,34 @@ class Track:
 
 
 class JamendoClient:
+    @staticmethod
+    def _to_track_dict(item: Dict[str, Any]) -> Dict[str, Any]:
+        track_id = item.get("id") or item.get("track_id")
+        title = item.get("name") or item.get("title") or "Unknown Title"
+        artist = item.get("artist_name") or item.get("artist") or "Unknown Artist"
+        audio = item.get("audio") or item.get("audio_url") or item.get("stream_url") or item.get("url") or ""
+        image = item.get("image") or item.get("album_image") or item.get("thumbnail_url") or item.get("thumbnail") or ""
+        duration = int(item.get("duration") or 0)
+
+        return {
+            "id": str(track_id) if track_id is not None else "",
+            "track_id": str(track_id) if track_id is not None else "",
+            "name": title,
+            "title": title,
+            "artist_name": artist,
+            "artist": artist,
+            "duration": duration,
+            "audio": audio,
+            "audio_url": audio,
+            "stream_url": audio,
+            "url": audio,
+            "image": image,
+            "album_image": image,
+            "thumbnail": image,
+            "thumbnail_url": image,
+            "source": "jamendo",
+        }
+
     @staticmethod
     @with_retries_and_cb(jamendo_cb, max_retries=5, timeout=8)
     async def _make_request(endpoint: str, params: dict) -> dict:
@@ -49,57 +82,37 @@ class JamendoClient:
             raise e
 
     @classmethod
-    async def search(cls, query: str, limit: int = 5) -> List[Track]:
-        if not JAMENDO_CLIENT_ID:
-            logger.warning("JAMENDO_CLIENT_ID not set")
-            return []
-
+    async def search(cls, query: str, limit: int = 5) -> List[Dict[str, Any]]:
         try:
             data = await cls._make_request("tracks/", {"search": query, "limit": limit})
             results = data.get("results", [])
-            tracks = []
-            for item in results:
-                tracks.append(
-                    Track(
-                        track_id=item["id"],
-                        title=item["name"],
-                        artist=item.get("artist_name", "Unknown"),
-                        duration=item.get("duration", 0),
-                        stream_url=item.get("audio", ""),
-                        thumbnail=item.get("image", ""),
-                        source="jamendo",
-                    )
-                )
-            return tracks
+            tracks = [cls._to_track_dict(item) for item in results]
+            if tracks:
+                return tracks
         except Exception as e:
             logger.error(f"Jamendo search failed: {e}")
-            return []
+
+        fallback = await _embedded.search_tracks(query, limit)
+        return [cls._to_track_dict(item) for item in fallback]
 
     @classmethod
     async def extract(cls, track_id: str) -> Optional[Dict[str, Any]]:
-        if not JAMENDO_CLIENT_ID:
-            return None
-
         try:
             data = await cls._make_request("tracks/", {"id": track_id})
             results = data.get("results", [])
-            if not results:
-                return None
-
-            item = results[0]
-            return {
-                "id": item["id"],
-                "title": item["name"],
-                "artist": item.get("artist_name", "Unknown"),
-                "duration": item.get("duration", 0),
-                "url": item.get("audio", ""),
-                "thumbnail": item.get("image", ""),
-                "source": "jamendo",
-                "headers": {},
-            }
+            if results:
+                track = cls._to_track_dict(results[0])
+                track["headers"] = {}
+                return track
         except Exception as e:
             logger.error(f"Jamendo extract failed: {e}")
+
+        fallback = await _embedded.get_track_by_id(int(track_id)) if str(track_id).isdigit() else None
+        if not fallback:
             return None
+        track = cls._to_track_dict(fallback)
+        track["headers"] = {}
+        return track
 
     async def get_random_tracks(self, limit: int = 20, genre: Optional[str] = None) -> List[Dict[str, Any]]:
         params = {"limit": limit}
@@ -107,10 +120,14 @@ class JamendoClient:
             params["tags"] = genre
         try:
             data = await self._make_request("tracks/", params)
-            return data.get("results", [])
+            results = data.get("results", [])
+            if results:
+                return [self._to_track_dict(item) for item in results]
         except Exception as e:
             logger.error(f"Jamendo random tracks failed: {e}")
-            return []
+
+        fallback = await _embedded.search_by_genre(genre or "popular", limit)
+        return [self._to_track_dict(item) for item in fallback]
 
 
 class JamendoAPI:

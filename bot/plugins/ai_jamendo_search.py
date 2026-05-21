@@ -13,6 +13,7 @@ from pyrogram.enums import ParseMode
 from bot.utils.cache import cache
 from config import config
 from bot.utils.permissions import rate_limit, get_permission_level
+from bot.platforms.jamendo_embedded import DEFAULT_JAMENDO_CLIENT_ID, JamendoEmbedded
 
 logger = logging.getLogger(__name__)
 
@@ -50,9 +51,16 @@ async def _ensure_allowed_callback(query: CallbackQuery) -> bool:
         return False
     return True
 
-# Try to get from config, fallback to a known public dev ID if not set
-JAMENDO_CLIENT_ID = getattr(config, "JAMENDO_CLIENT_ID", "56d30c95")
+# Try config first, then use the embedded no-env Jamendo client ID.
+JAMENDO_CLIENT_ID = getattr(config, "JAMENDO_CLIENT_ID", None) or DEFAULT_JAMENDO_CLIENT_ID
 JAMENDO_API_BASE = "https://api.jamendo.com/v3.0"
+jamendo_embedded = JamendoEmbedded(client_id=JAMENDO_CLIENT_ID)
+
+DEFAULT_TAGS = [
+    "happy", "upbeat", "energetic", "chill", "ambient", "calm", "rock",
+    "pop", "jazz", "classical", "electronic", "dance", "acoustic", "piano",
+    "guitar", "focus", "party", "romantic", "sad", "dark",
+]
 
 # --- Vocabulary & Search ---
 
@@ -85,7 +93,19 @@ async def fetch_jamendo_tags() -> List[str]:
     except Exception as e:
         logger.error(f"Failed to fetch Jamendo tags: {e}")
 
-    return tags
+    return tags or DEFAULT_TAGS
+
+
+def _embedded_to_api_track(item: Dict[str, Any]) -> Dict[str, Any]:
+    return {
+        "id": str(item.get("id", "")),
+        "name": item.get("title", "Unknown Title"),
+        "artist_name": item.get("artist", "Unknown Artist"),
+        "duration": int(item.get("duration", 0)),
+        "audio": item.get("audio_url", ""),
+        "image": item.get("thumbnail_url", ""),
+        "source": "jamendo",
+    }
 
 def map_keywords_to_tags(query: str, vocabulary: List[str]) -> List[str]:
     """Map natural language input to Jamendo tags using a simple scoring algorithm."""
@@ -150,6 +170,12 @@ async def search_jamendo_tracks(tags: List[str]) -> List[Dict[str, Any]]:
             await cache.set(cache_key, json.dumps(results), ex=600)
     except Exception as e:
         logger.error(f"Jamendo search failed: {e}")
+
+    if not results:
+        fallback = await jamendo_embedded.search_by_genre(tags[0], limit=10)
+        results = [_embedded_to_api_track(item) for item in fallback]
+        if results:
+            await cache.set(cache_key, json.dumps(results), ex=600)
 
     return results
 

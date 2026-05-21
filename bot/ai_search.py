@@ -3,6 +3,8 @@ import asyncio
 import logging
 from typing import List, Dict, Any, Tuple
 
+from bot.platforms.jamendo_embedded import DEFAULT_JAMENDO_CLIENT_ID, JamendoEmbedded
+
 logger = logging.getLogger(__name__)
 
 # Very basic dictionary mapping words to Jamendo tags
@@ -30,12 +32,13 @@ KEYWORD_TO_TAG = {
     "piano": "instrument:piano",
 }
 
-JAMENDO_CLIENT_ID = "b6747d04"  # Jamendo default test client ID
+JAMENDO_CLIENT_ID = DEFAULT_JAMENDO_CLIENT_ID
 JAMENDO_API_URL = "https://api.jamendo.com/v3.0/tracks/"
 
 class JamendoVibeSearch:
     def __init__(self):
         self._cache: Dict[str, List[Dict[str, Any]]] = {}
+        self._embedded = JamendoEmbedded(client_id=JAMENDO_CLIENT_ID)
 
     def extract_tags(self, query: str) -> List[str]:
         """Extract tags from a natural language query using simple keyword matching."""
@@ -89,11 +92,24 @@ class JamendoVibeSearch:
 
                         self._cache[tags_str] = tracks
                         return tracks
-                    else:
-                        logger.error(f"Jamendo API returned status {resp.status}")
-                        return []
+                    logger.error(f"Jamendo API returned status {resp.status}")
         except Exception as e:
             logger.error(f"Error fetching from Jamendo: {e}")
-            return []
+
+        fallback = await self._embedded.search_by_genre(tags[0], limit)
+        tracks = [
+            {
+                "title": item.get("title", "Unknown Title"),
+                "artist": item.get("artist", "Unknown Artist"),
+                "duration": int(item.get("duration", 0)),
+                "stream_url": item.get("audio_url", ""),
+                "thumbnail": item.get("thumbnail_url", ""),
+                "source": "jamendo",
+                "track_id": str(item.get("id", ""))
+            }
+            for item in fallback
+        ]
+        self._cache[tags_str] = tracks
+        return tracks
 
 vibe_search = JamendoVibeSearch()
