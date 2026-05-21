@@ -4,13 +4,14 @@ from pyrogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton
 from pyrogram.enums import ParseMode
 
 from bot.ai_search import vibe_search
-from bot.utils.permissions import rate_limit
+from bot.utils.permissions import rate_limit, require_member
 from bot.core.music_backend import music_backend
 from bot.plugins.play import add_track_and_play, _show_conflict_options
 
 logger = logging.getLogger(__name__)
 
 @Client.on_message(filters.command(["vibe"]) & filters.group)
+@require_member
 @rate_limit(limit=3, period=10)
 async def vibe_command(client: Client, message: Message):
     """Search music by mood/vibe using Jamendo tags."""

@@ -3,13 +3,22 @@
 import logging
 from pyrogram import Client, filters
 from pyrogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton
-from bot.utils.database import db
+import bot.utils.database as app_db
 from bot.platforms.jamendo import jamendo_api
+from bot.utils.permissions import require_member, rate_limit
 from config import config
 
 logger = logging.getLogger(__name__)
 
+
+def _db():
+    if app_db.db is None:
+        raise RuntimeError("Database is not initialized")
+    return app_db.db
+
 @Client.on_message(filters.command("plcreate") & filters.group)
+@require_member
+@rate_limit
 async def plcreate_cmd(client: Client, message: Message):
     """Create a new playlist."""
     if not message.text or len(message.text.split()) < 2:
@@ -19,11 +28,11 @@ async def plcreate_cmd(client: Client, message: Message):
     user_id = message.from_user.id
 
     # Check if exists
-    existing = await db.get_playlist_by_name(name)
+    existing = await _db().get_playlist_by_name(name)
     if existing:
         return await message.reply_text(f"❌ Playlist '{name}' already exists.")
 
-    playlist_id = await db.create_playlist(name, user_id)
+    playlist_id = await _db().create_playlist(name, user_id)
     if playlist_id != -1:
         await message.reply_text(
             f"✅ Playlist **{name}** created successfully!\n\n"
@@ -34,17 +43,18 @@ async def plcreate_cmd(client: Client, message: Message):
         await message.reply_text("❌ Failed to create playlist.")
 
 @Client.on_message(filters.command("pllist"))
+@rate_limit
 async def pllist_cmd(client: Client, message: Message):
     """List user's playlists."""
     user_id = message.from_user.id
-    playlists = await db.get_user_playlists(user_id)
+    playlists = await _db().get_user_playlists(user_id)
 
     if not playlists:
         return await message.reply_text("You don't have any playlists yet. Use `/plcreate <name>` to create one.")
 
     text = "🎵 **Your Playlists:**\n\n"
     for pl in playlists:
-        tracks = await db.get_playlist_tracks(pl['id'])
+        tracks = await _db().get_playlist_tracks(pl['id'])
         collab_flag = "👥 Collab" if pl.get('is_collaborative') else "🔒 Private"
         text += f"▪️ **{pl['name']}** (ID: `{pl['id']}`)\n   Tracks: {len(tracks)} | {collab_flag}\n"
 
@@ -65,7 +75,7 @@ async def handle_jamendo_auth(client: Client, message: Message):
         token_data = await jamendo_api.exchange_auth_code(code)
 
         if token_data and "access_token" in token_data:
-            success = await db.save_jamendo_token(user_id, token_data)
+            success = await _db().save_jamendo_token(user_id, token_data)
             if success:
                 await msg.edit_text("✅ Successfully connected your Jamendo account! You can now use `/plsync`.")
             else:
@@ -79,6 +89,8 @@ async def handle_jamendo_auth(client: Client, message: Message):
     message.continue_propagation()
 
 @Client.on_message(filters.command("pladd") & filters.group)
+@require_member
+@rate_limit
 async def pladd_cmd(client: Client, message: Message):
     """Add a track to a playlist."""
     args = message.text.split()
@@ -89,24 +101,26 @@ async def pladd_cmd(client: Client, message: Message):
     track_id = args[2]
     user_id = message.from_user.id
 
-    playlist = await db.get_playlist_by_name(pl_name)
+    playlist = await _db().get_playlist_by_name(pl_name)
     if not playlist:
         return await message.reply_text(f"❌ Playlist '{pl_name}' not found.")
 
     # Permission check
     if playlist['creator_user_id'] != user_id and not playlist.get('is_collaborative'):
         # Allow sudo users too? Sure, but let's stick to simple rules
-        is_sudo = await db.is_sudo(user_id)
+        is_sudo = await _db().is_sudo(user_id)
         if not is_sudo:
             return await message.reply_text("❌ You don't have permission to add tracks to this playlist. It is not collaborative.")
 
-    success = await db.add_track_to_playlist(playlist['id'], track_id, user_id)
+    success = await _db().add_track_to_playlist(playlist['id'], track_id, user_id)
     if success:
         await message.reply_text(f"✅ Track `{track_id}` added to **{pl_name}**.")
     else:
         await message.reply_text("❌ Failed to add track.")
 
 @Client.on_message(filters.command("plremove") & filters.group)
+@require_member
+@rate_limit
 async def plremove_cmd(client: Client, message: Message):
     """Remove a track from a playlist by position."""
     args = message.text.split()
@@ -121,22 +135,24 @@ async def plremove_cmd(client: Client, message: Message):
 
     user_id = message.from_user.id
 
-    playlist = await db.get_playlist_by_name(pl_name)
+    playlist = await _db().get_playlist_by_name(pl_name)
     if not playlist:
         return await message.reply_text(f"❌ Playlist '{pl_name}' not found.")
 
     if playlist['creator_user_id'] != user_id and not playlist.get('is_collaborative'):
-        is_sudo = await db.is_sudo(user_id)
+        is_sudo = await _db().is_sudo(user_id)
         if not is_sudo:
             return await message.reply_text("❌ You don't have permission to remove tracks from this playlist.")
 
-    success = await db.remove_track_from_playlist(playlist['id'], position)
+    success = await _db().remove_track_from_playlist(playlist['id'], position)
     if success:
         await message.reply_text(f"✅ Track at position {position} removed from **{pl_name}**.")
     else:
         await message.reply_text("❌ Failed to remove track.")
 
 @Client.on_message(filters.command("plcollab") & filters.group)
+@require_member
+@rate_limit
 async def plcollab_cmd(client: Client, message: Message):
     """Toggle collaborative mode for a playlist."""
     args = message.text.split()
@@ -147,14 +163,14 @@ async def plcollab_cmd(client: Client, message: Message):
     mode = args[2].lower() == 'on'
     user_id = message.from_user.id
 
-    playlist = await db.get_playlist_by_name(pl_name)
+    playlist = await _db().get_playlist_by_name(pl_name)
     if not playlist:
         return await message.reply_text(f"❌ Playlist '{pl_name}' not found.")
 
     if playlist['creator_user_id'] != user_id:
         return await message.reply_text("❌ Only the creator can toggle collaborative mode.")
 
-    success = await db.toggle_playlist_collab(playlist['id'], mode)
+    success = await _db().toggle_playlist_collab(playlist['id'], mode)
     if success:
         state = "Collaborative (anyone can add/remove)" if mode else "Private (only you can add/remove)"
         await message.reply_text(f"✅ Playlist **{pl_name}** is now {state}.")
@@ -162,6 +178,8 @@ async def plcollab_cmd(client: Client, message: Message):
         await message.reply_text("❌ Failed to update playlist mode.")
 
 @Client.on_message(filters.command("plshare") & filters.group)
+@require_member
+@rate_limit
 async def plshare_cmd(client: Client, message: Message):
     """Generate a shareable inline button to share a playlist."""
     args = message.text.split()
@@ -169,7 +187,7 @@ async def plshare_cmd(client: Client, message: Message):
         return await message.reply_text("Usage: `/plshare <playlist_name>`")
 
     pl_name = args[1]
-    playlist = await db.get_playlist_by_name(pl_name)
+    playlist = await _db().get_playlist_by_name(pl_name)
     if not playlist:
         return await message.reply_text(f"❌ Playlist '{pl_name}' not found.")
 
@@ -180,6 +198,8 @@ async def plshare_cmd(client: Client, message: Message):
     await message.reply_text(f"🔗 **Share Playlist:** {pl_name}\n\nAnyone with this link can start playing your playlist!", reply_markup=markup)
 
 @Client.on_message(filters.command("plsync") & filters.group)
+@require_member
+@rate_limit
 async def plsync_cmd(client: Client, message: Message):
     """Sync a local playlist to Jamendo API."""
     args = message.text.split()
@@ -189,14 +209,14 @@ async def plsync_cmd(client: Client, message: Message):
     pl_name = args[1]
     user_id = message.from_user.id
 
-    playlist = await db.get_playlist_by_name(pl_name)
+    playlist = await _db().get_playlist_by_name(pl_name)
     if not playlist:
         return await message.reply_text(f"❌ Playlist '{pl_name}' not found.")
 
     if playlist['creator_user_id'] != user_id:
         return await message.reply_text("❌ Only the creator can sync the playlist.")
 
-    token = await db.get_jamendo_token(user_id)
+    token = await _db().get_jamendo_token(user_id)
     if not token or 'access_token' not in token:
         # User not authenticated with Jamendo
         auth_url = jamendo_api.generate_oauth_url(user_id)
@@ -217,7 +237,7 @@ async def plsync_cmd(client: Client, message: Message):
         return await msg.edit_text("❌ Failed to create playlist on Jamendo API.")
 
     # 2. Add tracks
-    tracks = await db.get_playlist_tracks(playlist['id'])
+    tracks = await _db().get_playlist_tracks(playlist['id'])
     track_ids = [t['jamendo_track_id'] for t in tracks if t.get('jamendo_track_id')]
 
     if track_ids:
@@ -229,6 +249,8 @@ async def plsync_cmd(client: Client, message: Message):
 
 
 @Client.on_message(filters.command("plplay") & filters.group)
+@require_member
+@rate_limit
 async def plplay_cmd(client: Client, message: Message):
     """Play a playlist by name."""
     args = message.text.split()
@@ -236,11 +258,11 @@ async def plplay_cmd(client: Client, message: Message):
         return await message.reply_text("Usage: `/plplay <playlist_name>`")
 
     pl_name = args[1]
-    playlist = await db.get_playlist_by_name(pl_name)
+    playlist = await _db().get_playlist_by_name(pl_name)
     if not playlist:
         return await message.reply_text(f"❌ Playlist '{pl_name}' not found.")
 
-    tracks = await db.get_playlist_tracks(playlist['id'])
+    tracks = await _db().get_playlist_tracks(playlist['id'])
     if not tracks:
         return await message.reply_text("❌ Playlist is empty.")
 

@@ -23,6 +23,7 @@ from bot.utils.health_monitor import health_checker
 from bot.utils.permissions import (
     require_sudo, get_permission_level,
     is_owner, is_sudo, is_gbanned,
+    rate_limit,
 )
 from bot.utils.cache import cache
 import bot.utils.database as app_db
@@ -326,7 +327,7 @@ async def ungban_cmd(client: Client, message: Message):
 # ─────────────────────────────────────────────
 
 @Client.on_message(filters.command("block") & (filters.group | filters.private))
-@require_sudo
+@rate_limit
 async def block_cmd(client: Client, message: Message):
     """Block user (sudo+)."""
     caller = message.from_user.id if message.from_user else None
@@ -376,7 +377,7 @@ async def block_cmd(client: Client, message: Message):
 # ─────────────────────────────────────────────
 
 @Client.on_message(filters.command("unblock") & (filters.group | filters.private))
-@require_sudo
+@rate_limit
 async def unblock_cmd(client: Client, message: Message):
     """Unblock user (sudo+)."""
     caller = message.from_user.id if message.from_user else None

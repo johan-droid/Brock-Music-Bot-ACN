@@ -12,9 +12,43 @@ from pyrogram.enums import ParseMode
 
 from bot.utils.cache import cache
 from config import config
-from bot.utils.permissions import rate_limit
+from bot.utils.permissions import rate_limit, get_permission_level
 
 logger = logging.getLogger(__name__)
+
+
+def _is_group_chat(chat) -> bool:
+    return "group" in str(getattr(chat, "type", "")).lower()
+
+
+async def _ensure_allowed_message(message: Message) -> bool:
+    if not _is_group_chat(message.chat):
+        return True
+
+    chat_id = message.chat.id
+    user_id = message.from_user.id if message.from_user else None
+    if config.BOUND_GROUP_ID is not None and chat_id != config.BOUND_GROUP_ID:
+        await message.reply("⛔ This bot is bound to a different group and cannot be used here.")
+        return False
+    if not user_id or await get_permission_level(user_id, chat_id) < 1:
+        await message.reply("⛔ You are not allowed to use this bot.")
+        return False
+    return True
+
+
+async def _ensure_allowed_callback(query: CallbackQuery) -> bool:
+    if not query.message or not _is_group_chat(query.message.chat):
+        return True
+
+    chat_id = query.message.chat.id
+    user_id = query.from_user.id if query.from_user else None
+    if config.BOUND_GROUP_ID is not None and chat_id != config.BOUND_GROUP_ID:
+        await query.answer("⛔ This bot is bound to a different group.", show_alert=True)
+        return False
+    if not user_id or await get_permission_level(user_id, chat_id) < 1:
+        await query.answer("⛔ You are not allowed to use this bot.", show_alert=True)
+        return False
+    return True
 
 # Try to get from config, fallback to a known public dev ID if not set
 JAMENDO_CLIENT_ID = getattr(config, "JAMENDO_CLIENT_ID", "56d30c95")
@@ -157,6 +191,9 @@ def build_results_keyboard(tracks: List[Dict[str, Any]], page: int, query_id: st
 @rate_limit
 async def moodsearch_cmd(client: Client, message: Message):
     """Semantic search for music based on natural language input."""
+    if not await _ensure_allowed_message(message):
+        return
+
     if len(message.command) < 2:
         await message.reply(
             "🧠 **Jamendo AI Mood Search**\n\n"
@@ -212,6 +249,9 @@ MOOD_CATEGORIES = {
 @rate_limit
 async def mooddiscovery_cmd(client: Client, message: Message):
     """Interactive mood discovery."""
+    if not await _ensure_allowed_message(message):
+        return
+
     buttons = []
     row = []
     for mood in MOOD_CATEGORIES.keys():
@@ -231,6 +271,9 @@ async def mooddiscovery_cmd(client: Client, message: Message):
 @Client.on_callback_query(filters.regex(r"^jmood:(.+)$"))
 async def mood_callback(client: Client, query: CallbackQuery):
     """Handle primary mood selection."""
+    if not await _ensure_allowed_callback(query):
+        return
+
     mood = query.matches[0].group(1)
 
     if mood not in MOOD_CATEGORIES:
@@ -259,6 +302,9 @@ async def mood_callback(client: Client, query: CallbackQuery):
 @Client.on_callback_query(filters.regex(r"^jmood_back$"))
 async def mood_back_callback(client: Client, query: CallbackQuery):
     """Handle back to primary moods."""
+    if not await _ensure_allowed_callback(query):
+        return
+
     buttons = []
     row = []
     for mood in MOOD_CATEGORIES.keys():
@@ -278,6 +324,9 @@ async def mood_back_callback(client: Client, query: CallbackQuery):
 @Client.on_callback_query(filters.regex(r"^jtag:(.+)$"))
 async def tag_callback(client: Client, query: CallbackQuery):
     """Handle specific tag selection."""
+    if not await _ensure_allowed_callback(query):
+        return
+
     tag = query.matches[0].group(1)
     await query.answer(f"Searching for {tag} tracks...")
 
@@ -309,6 +358,9 @@ async def tag_callback(client: Client, query: CallbackQuery):
 @Client.on_callback_query(filters.regex(r"^jpage:(.+):(\d+):(.+)$"))
 async def page_callback(client: Client, query: CallbackQuery):
     """Handle pagination for search results."""
+    if not await _ensure_allowed_callback(query):
+        return
+
     query_id = query.matches[0].group(1)
     page = int(query.matches[0].group(2))
     tags_str = query.matches[0].group(3)

@@ -1104,3 +1104,13 @@ def init_supabase(url: str, key: str):
         except Exception as e:
             logger.error(f"Error setting show inactive in Supabase: {e}")
             return False
+
+    from types import MethodType
+    supabase_db.create_radio_show = MethodType(create_radio_show, supabase_db)
+    supabase_db.add_track_to_show = MethodType(add_track_to_show, supabase_db)
+    supabase_db.get_upcoming_shows = MethodType(get_upcoming_shows, supabase_db)
+    supabase_db.get_show_tracks = MethodType(get_show_tracks, supabase_db)
+    supabase_db.get_shows_by_time = MethodType(get_shows_by_time, supabase_db)
+    supabase_db.delete_show = MethodType(delete_show, supabase_db)
+    supabase_db.get_past_shows = MethodType(get_past_shows, supabase_db)
+    supabase_db.set_show_inactive = MethodType(set_show_inactive, supabase_db)

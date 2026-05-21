@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 
 
 @Client.on_message(filters.command(["sleep", "sleeptimer"]) & filters.group)
-@require_member
+@require_admin
 @rate_limit
 async def sleep_cmd(client: Client, message: Message):
     """Set a sleep timer for the current chat."""
@@ -62,7 +62,7 @@ async def sleep_cmd(client: Client, message: Message):
 
 
 @Client.on_message(filters.command(["cancelsleep", "unsleep"]) & filters.group)
-@require_member
+@require_admin
 @rate_limit
 async def cancel_sleep_cmd(client: Client, message: Message):
     """Cancel the active sleep timer."""

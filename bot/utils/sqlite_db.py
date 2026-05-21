@@ -692,3 +692,13 @@ def init_sqlite_db(db_path: str = "./data/bot.db"):
         conn.execute("UPDATE radio_shows SET is_active = 0 WHERE id = ?", (show_id,))
         conn.commit()
         return True
+
+    from types import MethodType
+    sqlite_db.create_radio_show = MethodType(create_radio_show, sqlite_db)
+    sqlite_db.add_track_to_show = MethodType(add_track_to_show, sqlite_db)
+    sqlite_db.get_upcoming_shows = MethodType(get_upcoming_shows, sqlite_db)
+    sqlite_db.get_show_tracks = MethodType(get_show_tracks, sqlite_db)
+    sqlite_db.get_shows_by_time = MethodType(get_shows_by_time, sqlite_db)
+    sqlite_db.delete_show = MethodType(delete_show, sqlite_db)
+    sqlite_db.get_past_shows = MethodType(get_past_shows, sqlite_db)
+    sqlite_db.set_show_inactive = MethodType(set_show_inactive, sqlite_db)
