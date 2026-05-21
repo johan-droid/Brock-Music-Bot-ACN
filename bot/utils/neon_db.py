@@ -95,6 +95,18 @@ class NeonDatabase:
                         UNIQUE(chat_id)
                     )
                 """)
+
+                cur.execute("""
+                    CREATE TABLE IF NOT EXISTS groups (
+                        id BIGINT PRIMARY KEY,
+                        title TEXT,
+                        lang TEXT DEFAULT 'en',
+                        is_active BOOLEAN DEFAULT TRUE,
+                        joined_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        settings JSONB DEFAULT '{}'::jsonb,
+                        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    )
+                """)
                 
                 # Chats table
                 cur.execute("""
@@ -134,6 +146,15 @@ class NeonDatabase:
                         reason TEXT,
                         banned_by BIGINT,
                         banned_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    )
+                """)
+
+                cur.execute("""
+                    CREATE TABLE IF NOT EXISTS groupbans (
+                        chat_id BIGINT NOT NULL,
+                        user_id BIGINT NOT NULL,
+                        banned_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        PRIMARY KEY (chat_id, user_id)
                     )
                 """)
 
@@ -232,6 +253,28 @@ class NeonDatabase:
                 """)
                 cur.execute("""
                     CREATE INDEX IF NOT EXISTS idx_playlist_tracks_playlist ON playlist_tracks(playlist_id)
+                """)
+
+                cur.execute("""
+                    CREATE TABLE IF NOT EXISTS anon_requests (
+                        id SERIAL PRIMARY KEY,
+                        track_id TEXT,
+                        requested_by TEXT,
+                        chat_id BIGINT,
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    )
+                """)
+
+                cur.execute("""
+                    CREATE TABLE IF NOT EXISTS vote_sessions (
+                        message_id BIGINT PRIMARY KEY,
+                        track_id TEXT,
+                        chat_id BIGINT,
+                        yes_votes INTEGER DEFAULT 0,
+                        no_votes INTEGER DEFAULT 0,
+                        expired BOOLEAN DEFAULT FALSE,
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    )
                 """)
 
                 self.conn.commit()
@@ -452,6 +495,280 @@ class NeonDatabase:
         except Exception as e:
             logger.debug(f"is_sudo check error: {e}")
             return False
+
+    @staticmethod
+    def _default_group_settings() -> Dict[str, Any]:
+        return {
+            "play_on_join": True,
+            "max_queue": 100,
+            "vol_default": 100,
+            "loop_mode": "none",
+            "quality": "high",
+            "thumb_mode": True,
+        }
+
+    @staticmethod
+    def _merge_dotted_settings(settings: Dict[str, Any], dotted_key: str, value: Any) -> None:
+        parts = dotted_key.split(".")[1:]
+        target = settings
+        for part in parts[:-1]:
+            if part not in target or not isinstance(target[part], dict):
+                target[part] = {}
+            target = target[part]
+        if parts:
+            target[parts[-1]] = value
+
+    async def get_group(self, chat_id: int) -> dict:
+        """Get group settings or create defaults for a chat."""
+        try:
+            with self.conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute("SELECT * FROM groups WHERE id = %s", (chat_id,))
+                row = cur.fetchone()
+                if not row:
+                    settings = self._default_group_settings()
+                    cur.execute(
+                        "INSERT INTO groups (id, title, is_active, settings) VALUES (%s, %s, %s, %s::jsonb)",
+                        (chat_id, "", True, json.dumps(settings)),
+                    )
+                    self.conn.commit()
+                    return {
+                        "_id": chat_id,
+                        "title": "",
+                        "lang": "en",
+                        "is_active": True,
+                        "settings": settings,
+                    }
+
+                settings = row.get("settings") or {}
+                if isinstance(settings, str):
+                    try:
+                        settings = json.loads(settings)
+                    except Exception:
+                        settings = {}
+                return {
+                    "_id": row["id"],
+                    "title": row.get("title") or "",
+                    "lang": row.get("lang") or "en",
+                    "is_active": bool(row.get("is_active")),
+                    "settings": settings if isinstance(settings, dict) else {},
+                }
+        except Exception as e:
+            self.conn.rollback()
+            logger.error(f"Error getting group from Neon: {e}")
+            return {
+                "_id": chat_id,
+                "title": "",
+                "lang": "en",
+                "is_active": True,
+                "settings": self._default_group_settings(),
+            }
+
+    async def update_group(self, chat_id: int, updates: dict):
+        """Update group settings and metadata."""
+        try:
+            current = await self.get_group(chat_id)
+            settings = dict(current.get("settings") or {})
+
+            if "settings" in updates and isinstance(updates["settings"], dict):
+                settings.update(updates["settings"])
+
+            for key, value in updates.items():
+                if key.startswith("settings."):
+                    self._merge_dotted_settings(settings, key, value)
+
+            update_fields = ["settings = %s::jsonb", "updated_at = CURRENT_TIMESTAMP"]
+            params: List[Any] = [json.dumps(settings)]
+
+            if "title" in updates:
+                update_fields.append("title = %s")
+                params.append(updates["title"])
+            if "is_active" in updates:
+                update_fields.append("is_active = %s")
+                params.append(bool(updates["is_active"]))
+            if "lang" in updates:
+                update_fields.append("lang = %s")
+                params.append(updates["lang"])
+
+            params.append(chat_id)
+            with self.conn.cursor() as cur:
+                cur.execute(
+                    f"UPDATE groups SET {', '.join(update_fields)} WHERE id = %s",
+                    tuple(params),
+                )
+                self.conn.commit()
+        except Exception as e:
+            self.conn.rollback()
+            logger.error(f"Error updating group in Neon: {e}")
+
+    async def set_group_active(self, chat_id: int, active: bool):
+        await self.update_group(chat_id, {"is_active": active})
+
+    async def add_sudo(self, user_id: int, name: str, added_by: int):
+        try:
+            with self.conn.cursor() as cur:
+                cur.execute(
+                    """
+                    INSERT INTO sudo_users (id, name, added_by)
+                    VALUES (%s, %s, %s)
+                    ON CONFLICT (id) DO UPDATE SET
+                        name = EXCLUDED.name,
+                        added_by = EXCLUDED.added_by,
+                        added_at = CURRENT_TIMESTAMP
+                    """,
+                    (user_id, name, added_by),
+                )
+                self.conn.commit()
+        except Exception as e:
+            self.conn.rollback()
+            logger.error(f"Error adding sudo in Neon: {e}")
+
+    async def remove_sudo(self, user_id: int):
+        try:
+            with self.conn.cursor() as cur:
+                cur.execute("DELETE FROM sudo_users WHERE id = %s", (user_id,))
+                self.conn.commit()
+        except Exception as e:
+            self.conn.rollback()
+            logger.error(f"Error removing sudo in Neon: {e}")
+
+    async def get_sudo_users(self) -> list:
+        try:
+            with self.conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute("SELECT * FROM sudo_users ORDER BY added_at DESC")
+                return [{"_id": r["id"], "name": r.get("name"), "added_by": r.get("added_by")} for r in cur.fetchall()]
+        except Exception as e:
+            logger.error(f"Error getting sudo users from Neon: {e}")
+            return []
+
+    async def gban_user(self, user_id: int, reason: str, banned_by: int):
+        try:
+            with self.conn.cursor() as cur:
+                cur.execute(
+                    """
+                    INSERT INTO gbanned (id, reason, banned_by)
+                    VALUES (%s, %s, %s)
+                    ON CONFLICT (id) DO UPDATE SET
+                        reason = EXCLUDED.reason,
+                        banned_by = EXCLUDED.banned_by,
+                        banned_at = CURRENT_TIMESTAMP
+                    """,
+                    (user_id, reason, banned_by),
+                )
+                self.conn.commit()
+        except Exception as e:
+            self.conn.rollback()
+            logger.error(f"Error gbanning user in Neon: {e}")
+
+    async def ungban_user(self, user_id: int):
+        try:
+            with self.conn.cursor() as cur:
+                cur.execute("DELETE FROM gbanned WHERE id = %s", (user_id,))
+                self.conn.commit()
+        except Exception as e:
+            self.conn.rollback()
+            logger.error(f"Error ungbanning user in Neon: {e}")
+
+    async def ban_user(self, chat_id: int, user_id: int):
+        try:
+            with self.conn.cursor() as cur:
+                cur.execute(
+                    """
+                    INSERT INTO groupbans (chat_id, user_id)
+                    VALUES (%s, %s)
+                    ON CONFLICT (chat_id, user_id) DO NOTHING
+                    """,
+                    (chat_id, user_id),
+                )
+                self.conn.commit()
+        except Exception as e:
+            self.conn.rollback()
+            logger.error(f"Error banning user in Neon: {e}")
+
+    async def unban_user(self, chat_id: int, user_id: int):
+        try:
+            with self.conn.cursor() as cur:
+                cur.execute("DELETE FROM groupbans WHERE chat_id = %s AND user_id = %s", (chat_id, user_id))
+                self.conn.commit()
+        except Exception as e:
+            self.conn.rollback()
+            logger.error(f"Error unbanning user in Neon: {e}")
+
+    async def is_banned(self, chat_id: int, user_id: int) -> bool:
+        try:
+            with self.conn.cursor() as cur:
+                cur.execute("SELECT 1 FROM groupbans WHERE chat_id = %s AND user_id = %s", (chat_id, user_id))
+                return cur.fetchone() is not None
+        except Exception as e:
+            logger.debug(f"is_banned check error: {e}")
+            return False
+
+    async def get_stats(self) -> dict:
+        try:
+            with self.conn.cursor() as cur:
+                cur.execute("SELECT COUNT(*) FROM groups")
+                total_groups = cur.fetchone()[0]
+                cur.execute("SELECT COUNT(*) FROM groups WHERE is_active = TRUE")
+                active_groups = cur.fetchone()[0]
+                cur.execute("SELECT COUNT(*) FROM sudo_users")
+                sudo_count = cur.fetchone()[0]
+                cur.execute("SELECT COUNT(*) FROM gbanned")
+                gban_count = cur.fetchone()[0]
+            return {
+                "total_groups": total_groups,
+                "active_groups": active_groups,
+                "sudo_users": sudo_count,
+                "gbanned_users": gban_count,
+            }
+        except Exception as e:
+            logger.error(f"Error getting stats from Neon: {e}")
+            return {}
+
+    async def get_all_groups(self) -> list:
+        try:
+            with self.conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute("SELECT id FROM groups WHERE is_active = TRUE")
+                return [{"_id": row["id"]} for row in cur.fetchall()]
+        except Exception as e:
+            logger.error(f"Error getting groups from Neon: {e}")
+            return []
+
+    async def prune_inactive_data(self) -> int:
+        try:
+            with self.conn.cursor() as cur:
+                cur.execute("DELETE FROM groups WHERE is_active = FALSE")
+                deleted_count = cur.rowcount or 0
+                self.conn.commit()
+                return deleted_count
+        except Exception as e:
+            self.conn.rollback()
+            logger.error(f"Error pruning inactive Neon data: {e}")
+            return 0
+
+    async def search_global_music_index(self, query: str, limit: int = 5) -> List[Dict[str, Any]]:
+        rows = await self.search_tracks(query, limit)
+        for row in rows:
+            row.setdefault("stream_url", row.get("audio_url") or "")
+            row.setdefault("url", row.get("audio_url") or "")
+            row.setdefault("thumbnail", row.get("thumbnail_url"))
+            row.setdefault("track_id", row.get("jamendo_track_id"))
+            row.setdefault("source", "global_index")
+            row.setdefault("metadata", {})
+            row.setdefault("sources", [])
+        return rows
+
+    async def save_track_to_index(self, query: str, track: dict):
+        track_id = track.get("id") or track.get("track_id") or track.get("jamendo_track_id")
+        if track_id is None:
+            track_id = abs(hash(query or track.get("title") or track.get("url") or "")) % 2147483647
+        track_data = {
+            "jamendo_track_id": track_id,
+            "title": track.get("title") or "Unknown",
+            "artist": track.get("artist") or track.get("uploader") or "Unknown Artist",
+            "duration": track.get("duration") or 0,
+            "thumbnail_url": track.get("thumbnail_url") or track.get("thumbnail") or track.get("thumb"),
+            "audio_url": track.get("url") or track.get("stream_url") or "",
+        }
+        return await self.save_track(track_data)
 
 
 

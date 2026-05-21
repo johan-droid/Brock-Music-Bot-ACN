@@ -8,13 +8,19 @@ from pyrogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton, 
 from pyrogram.enums import ParseMode
 from pyrogram.errors import MessageDeleteForbidden
 
-from bot.utils.database import db
-from bot.utils.permissions import rate_limit, require_admin
+import bot.utils.database as app_db
+from bot.utils.permissions import rate_limit, require_admin, require_member, get_permission_level
 from bot.core.music_backend import music_backend
 from bot.core.queue import queue_manager
 from bot.plugins.play import start_playback
 
 logger = logging.getLogger(__name__)
+
+
+def _db():
+    if app_db.db is None:
+        raise RuntimeError("Database is not initialized")
+    return app_db.db
 
 # In-memory storage for active vote sessions and rate limits
 # Structure: {message_id: {"chat_id": int, "track": dict, "yes_users": set, "no_users": set, "expired": bool}}
@@ -28,14 +34,14 @@ RATE_LIMIT_WINDOW = timedelta(hours=1)
 
 
 @Client.on_message(filters.command(["votemode"]) & filters.group & ~filters.forwarded)
-@rate_limit(limit=3, interval=10)
 @require_admin
+@rate_limit(limit=3, interval=10)
 async def votemode_cmd(client: Client, message: Message):
     """Toggle voting mode for the group."""
     chat_id = message.chat.id
 
     if len(message.command) < 2:
-        group_data = await db.get_group(chat_id)
+        group_data = await _db().get_group(chat_id)
         settings = group_data.get("settings", {})
         current = settings.get("voting_mode", False)
         status = "ON" if current else "OFF"
@@ -48,12 +54,14 @@ async def votemode_cmd(client: Client, message: Message):
         return
 
     is_on = mode == "on"
-    await db.update_group(chat_id, {"settings": {"voting_mode": is_on}})
+    await _db().update_group(chat_id, {"settings": {"voting_mode": is_on}})
     status = "ON 🗳️\nAll new song requests will require a group vote." if is_on else "OFF 🚫\nSong requests will be added immediately."
     await message.reply_text(f"Voting mode turned **{status}**")
 
 
 @Client.on_message(filters.command(["anonplay"]) & filters.group & ~filters.forwarded)
+@require_member
+@rate_limit(limit=5, interval=3600)
 async def anonplay_cmd(client: Client, message: Message):
     """Anonymous song request."""
     chat_id = message.chat.id
@@ -123,7 +131,7 @@ async def anonplay_cmd(client: Client, message: Message):
     }
 
     # Check voting mode
-    group_data = await db.get_group(chat_id)
+    group_data = await _db().get_group(chat_id)
     settings = group_data.get("settings", {})
     voting_mode = settings.get("voting_mode", False)
 
@@ -151,6 +159,7 @@ async def anonplay_cmd(client: Client, message: Message):
 
     # Log the anonymous request to DB
     try:
+        db = _db()
         if hasattr(db, "client"):
             db.client.table("anon_requests").insert({"track_id": track.get("id"), "requested_by": str(user_id) if user_id else None, "chat_id": chat_id}).execute()
         else:
@@ -204,6 +213,7 @@ async def start_vote_session(client: Client, chat_id: int, track: Dict[str, Any]
     # Store in DB async (fire and forget wrapper since we don't strictly need to wait for it)
 
     try:
+        db = _db()
         if hasattr(db, "client"):
             # Supabase
             db.client.table("vote_sessions").insert({"message_id": msg.id, "track_id": track.get("id"), "chat_id": chat_id, "yes_votes": 0, "no_votes": 0, "expired": False}).execute()
@@ -236,6 +246,9 @@ async def on_vote_callback(client: Client, callback_query: CallbackQuery):
     chat_id = callback_query.message.chat.id
     vote_key = f"{chat_id}_{msg_id}"
     user_id = callback_query.from_user.id
+    if await get_permission_level(user_id, chat_id) < 1:
+        await callback_query.answer("You are not allowed to vote.", show_alert=True)
+        return
 
     if vote_key not in active_votes:
         await callback_query.answer("Voting session has expired.", show_alert=True)
@@ -282,6 +295,7 @@ async def on_vote_callback(client: Client, callback_query: CallbackQuery):
         await callback_query.answer("Vote registered.", show_alert=False)
 
     try:
+        db = _db()
         if hasattr(db, "client"):
             db.client.table("vote_sessions").update({"yes_votes": yes_count, "no_votes": no_count}).eq("message_id", msg_id).execute()
         else:
@@ -309,6 +323,7 @@ async def vote_timeout(client: Client, vote_key: str, chat_id: int, track: Dict[
     session = active_votes[vote_key]
     session["expired"] = True
     try:
+        db = _db()
         if hasattr(db, "client"):
             db.client.table("vote_sessions").update({"expired": True}).eq("message_id", msg_id).execute()
         else:

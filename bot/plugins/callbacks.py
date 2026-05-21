@@ -120,19 +120,6 @@ async def callback_handler(client: Client, callback: CallbackQuery):
     elif data is None:
         data = ""
 
-    # Handle play conflict resolution (new format "ps:N", legacy "play_select_N")
-    if data.startswith("ps:") or data.startswith("play_select_"):
-        await handle_play_select(client, callback, chat_id, user_id, data)
-        return
-
-    if data.startswith("pc:"):
-        await handle_play_cancel(client, callback, chat_id, user_id, data)
-        return
-
-    if data == "play_cancel":  # legacy
-        await handle_play_cancel(client, callback, chat_id, user_id, data)
-        return
-
     # Enforce group binder at callback level
     if config.BOUND_GROUP_ID is not None and chat_id != config.BOUND_GROUP_ID:
         await callback.answer(
@@ -143,6 +130,21 @@ async def callback_handler(client: Client, callback: CallbackQuery):
 
     # Check permissions
     level = await get_permission_level(user_id, chat_id)
+
+    # Handle play conflict resolution (new format "ps:N", legacy "play_select_N")
+    if data.startswith("ps:") or data.startswith("play_select_"):
+        if level < 1:
+            await callback.answer("⛔ You are banned from using this bot!", show_alert=True)
+            return
+        await handle_play_select(client, callback, chat_id, user_id, data)
+        return
+
+    if data.startswith("pc:") or data == "play_cancel":
+        if level < 1:
+            await callback.answer("⛔ You are banned from using this bot!", show_alert=True)
+            return
+        await handle_play_cancel(client, callback, chat_id, user_id, data)
+        return
 
     # Map callbacks to handlers
     handlers = {
@@ -175,8 +177,16 @@ async def callback_handler(client: Client, callback: CallbackQuery):
             await handler(client, callback, chat_id)
             return
         
-        admin_actions = {"skip", "stop", "shuffle", "clearqueue", "loop", "forceresume"}
-        member_actions = {"pause", "resume", "queue"}
+        public_actions = {"help", "help_menu", "status_check", "brok_info", "noop"}
+        admin_actions = {
+            "skip", "stop", "shuffle", "clearqueue", "loop", "forceresume",
+            "vol_up", "vol_down", "replay", "previous",
+        }
+        member_actions = {"pause", "resume", "queue", "more_options", "export_queue"}
+
+        if data not in public_actions and level < 1:
+            await callback.answer("⛔ You are banned from using this bot!", show_alert=True)
+            return
 
         if data in admin_actions and level < 3:
             await callback.answer("⛔ Admins only for this action.", show_alert=True)
@@ -518,9 +528,9 @@ async def handle_help_info(client: Client, callback: CallbackQuery, chat_id: int
     """Handle help callback prompt by editing the message."""
     text = (
         "🍁 <b>Commands &amp; Authority List</b>\n\n"
-        "<b>👥 Members:</b> /play, /queue (/q), /pause, /resume, /next (/skip), /prev (/previous), /seek, /replay, /now (/np), /volume\n"
-        "<b>🛡 Admins:</b> /vplay, /clearqueue, /stop (/off), /remove, /shuffle, /loop\n"
-        "<b>👑 Owner/Sudo:</b> /addsudo, /delsudo, /sudolist, /gban, /ungban, /block, /unblock, /stats, /broadcast, /restart, /maintenance\n\n"
+        "<b>👥 Members:</b> /play, /vibe, /queue (/q), /now (/np), /pause, /resume, /uptime, /anonplay, /showlist, /showhistory\n"
+        "<b>🛡 Admins:</b> /vplay, /skip (/next), /prev (/previous), /seek, /replay, /volume, /clearqueue, /stop (/off), /remove, /shuffle, /loop, /effects, /sleep, /starthunter, /stophunter, /block, /unblock\n"
+        "<b>👑 Owner/Sudo:</b> /addsudo, /delsudo, /sudolist, /gban, /ungban, /stats, /broadcast, /restart, /maintenance\n\n"
         "<i>Authority is strictly role-based.</i>"
     )
     from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton

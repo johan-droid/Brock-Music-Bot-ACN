@@ -208,7 +208,7 @@ async def skip_cmd(client: Client, message: Message):
 
 
 @Client.on_message(filters.command(["prev", "previous"]) & filters.group)
-@require_member
+@require_admin
 @rate_limit
 async def prev_cmd(client: Client, message: Message):
     """Return to the previous track."""
@@ -262,7 +262,7 @@ async def stop_cmd(client: Client, message: Message):
 
 
 @Client.on_message(filters.command("seek") & filters.group)
-@require_member
+@require_admin
 @rate_limit
 async def seek_cmd(client: Client, message: Message):
     """Seek to position in track."""
@@ -319,7 +319,7 @@ async def seek_cmd(client: Client, message: Message):
 
 
 @Client.on_message(filters.command("replay") & filters.group)
-@require_member
+@require_admin
 @rate_limit
 async def replay_cmd(client: Client, message: Message):
     """Restart current track."""
@@ -360,7 +360,7 @@ async def replay_cmd(client: Client, message: Message):
 
 
 @Client.on_message(filters.command("volume") & filters.group)
-@require_member
+@require_admin
 @rate_limit
 async def volume_cmd(client: Client, message: Message):
     """Adjust playback volume."""

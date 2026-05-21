@@ -8,10 +8,7 @@ from fastapi.responses import HTMLResponse, JSONResponse
 from pydantic import BaseModel
 
 from config import config
-from bot.core.call import call_manager
-from bot.core.queue import queue_manager
-
-from bot.utils.database import db
+import bot.utils.database as app_db
 
 admin_app = FastAPI(title="Brook Music Bot Admin Panel", docs_url=None, redoc_url=None)
 security = HTTPBasic()
@@ -21,7 +18,10 @@ START_TIME = time.time()
 
 def get_current_username(credentials: HTTPBasicCredentials = Depends(security)):
     if not config.ADMIN_PASSWORD:
-        return "admin"
+        raise HTTPException(
+            status_code=503,
+            detail="Admin panel is disabled until ADMIN_PASSWORD is configured",
+        )
 
     correct_username = secrets.compare_digest(credentials.username, "admin")
     correct_password = secrets.compare_digest(credentials.password, config.ADMIN_PASSWORD)
@@ -44,8 +44,11 @@ async def get_stats(username: str = Depends(get_current_username)):
     cpu_percent = psutil.cpu_percent(interval=None)
 
     # Bot metrics
+    from bot.core import call
+
+    call_manager = call.call_manager
     active_vcs = len(call_manager.active_chats) if call_manager else 0
-    total_users = await db.get_stats() if db else {}
+    total_users = await app_db.db.get_stats() if app_db.db else {}
     total_tracks_played = 0 # To do: check if db has this
 
     # Jamendo stats (mocked if not tracked)
@@ -80,6 +83,8 @@ async def get_stats(username: str = Depends(get_current_username)):
 @admin_app.get("/api/queues")
 async def get_queues(username: str = Depends(get_current_username)):
     """Get live queues for all active voice chats."""
+    from bot.core.queue import queue_manager
+
     queues_data = {}
     if queue_manager:
         for chat_id, queue in queue_manager.queues.items():
@@ -107,6 +112,9 @@ async def perform_action(req: ActionRequest, username: str = Depends(get_current
             pass # No bulk clear in abstract cache, but we can clear specific keys
         return {"status": "caches_cleared"}
     elif action == "leave_vc" and req.chat_id:
+        from bot.core import call
+
+        call_manager = call.call_manager
         if call_manager:
             await call_manager.leave_call(req.chat_id)
         return {"status": f"left_vc_{req.chat_id}"}

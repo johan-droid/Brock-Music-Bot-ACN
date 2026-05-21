@@ -14,14 +14,21 @@ import logging
 from pyrogram import Client, filters
 from pyrogram.types import Message
 
-from bot.utils.database import db
-from bot.utils.permissions import require_admin
+import bot.utils.database as app_db
+from bot.utils.permissions import require_admin, require_member, rate_limit
 from bot.platforms import search_tracks
 
 logger = logging.getLogger(__name__)
 
+
+def _db():
+    if app_db.db is None:
+        raise RuntimeError("Database is not initialized")
+    return app_db.db
+
 @Client.on_message(filters.command(["showcreate", "vshowcreate"]) & filters.group)
 @require_admin
+@rate_limit
 async def show_create_cmd(client: Client, message: Message):
     """Create a new radio show slot."""
     if len(message.command) < 5:
@@ -67,7 +74,7 @@ async def show_create_cmd(client: Client, message: Message):
     # Default duration 60 mins for now
     duration = 60
 
-    show_id = await db.create_radio_show(
+    show_id = await _db().create_radio_show(
         chat_id=message.chat.id,
         host_user_id=message.from_user.id,
         show_name=name,
@@ -93,6 +100,7 @@ async def show_create_cmd(client: Client, message: Message):
 
 @Client.on_message(filters.command(["showcancel", "vshowcancel"]) & filters.group)
 @require_admin
+@rate_limit
 async def show_cancel_cmd(client: Client, message: Message):
     """Cancel and delete a radio show."""
     if len(message.command) < 2:
@@ -105,7 +113,7 @@ async def show_cancel_cmd(client: Client, message: Message):
         await message.reply_text("Show ID must be a number.")
         return
 
-    success = await db.delete_show(show_id)
+    success = await _db().delete_show(show_id)
     if success:
         await message.reply_text(f"🗑️ Radio show `{show_id}` has been cancelled and deleted.")
     else:
@@ -113,6 +121,7 @@ async def show_cancel_cmd(client: Client, message: Message):
 
 @Client.on_message(filters.command(["showadd", "vshowadd"]) & filters.group)
 @require_admin
+@rate_limit
 async def show_add_cmd(client: Client, message: Message):
     """Add a track to a radio show's lineup."""
     if len(message.command) < 3:
@@ -142,7 +151,7 @@ async def show_add_cmd(client: Client, message: Message):
     except (ValueError, TypeError):
         track_id_int = hash(track.id) % 2147483647 # Ensure fits in INTEGER
 
-    success = await db.add_track_to_show(show_id, track_id_int, message.from_user.id)
+    success = await _db().add_track_to_show(show_id, track_id_int, message.from_user.id)
 
     if success:
         await msg.edit_text(f"✅ Added **{track.title}** by {track.artist} to Show `{show_id}`!")
@@ -150,9 +159,11 @@ async def show_add_cmd(client: Client, message: Message):
         await msg.edit_text("❌ Failed to add track to the show.")
 
 @Client.on_message(filters.command(["showlist", "vshowlist"]) & filters.group)
+@require_member
+@rate_limit
 async def show_list_cmd(client: Client, message: Message):
     """List upcoming radio shows."""
-    shows = await db.get_upcoming_shows(message.chat.id)
+    shows = await _db().get_upcoming_shows(message.chat.id)
 
     if not shows:
         await message.reply_text("📻 No upcoming radio shows scheduled for this chat.")
@@ -170,6 +181,7 @@ async def show_list_cmd(client: Client, message: Message):
 
 @Client.on_message(filters.command(["showpreview", "vshowpreview"]) & filters.group)
 @require_admin
+@rate_limit
 async def show_preview_cmd(client: Client, message: Message):
     """Preview a radio show (mock implementation for brevity)."""
     if len(message.command) < 2:
@@ -182,7 +194,7 @@ async def show_preview_cmd(client: Client, message: Message):
         await message.reply_text("Show ID must be a number.")
         return
 
-    tracks = await db.get_show_tracks(show_id)
+    tracks = await _db().get_show_tracks(show_id)
     if not tracks:
         await message.reply_text(f"❌ Show `{show_id}` has no tracks in its lineup.")
         return
@@ -234,9 +246,11 @@ async def show_preview_cmd(client: Client, message: Message):
         await msg.edit_text("❌ Could not resolve any tracks for preview.")
 
 @Client.on_message(filters.command(["showhistory", "vshowhistory"]) & filters.group)
+@require_member
+@rate_limit
 async def show_history_cmd(client: Client, message: Message):
     """List past radio shows."""
-    shows = await db.get_past_shows(message.chat.id)
+    shows = await _db().get_past_shows(message.chat.id)
 
     if not shows:
         await message.reply_text("📻 No past radio shows found for this chat.")
@@ -250,7 +264,7 @@ async def show_history_cmd(client: Client, message: Message):
         created_at = show.get('created_at', 'Unknown date')
 
         # Get tracks for the show
-        tracks = await db.get_show_tracks(show_id)
+        tracks = await _db().get_show_tracks(show_id)
         track_count = len(tracks) if tracks else 0
 
         # We don't have attendance count in schema, so we omit or mock it
@@ -260,6 +274,7 @@ async def show_history_cmd(client: Client, message: Message):
 
 @Client.on_message(filters.command(["showtalk", "vshowtalk"]) & filters.group)
 @require_admin
+@rate_limit
 async def show_talk_cmd(client: Client, message: Message):
     """Host talks during a show."""
     if not message.reply_to_message or not message.reply_to_message.voice:

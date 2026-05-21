@@ -13,6 +13,7 @@ from bot.core.call import CallManager
 from bot.core.queue import queue_manager
 from bot.platforms.jamendo import jamendo_client
 import bot.utils.database as app_db
+from bot.utils.permissions import require_admin, rate_limit, get_permission_level
 from bot.plugins.song_hunter.audio_utils import download_and_trim_audio
 from bot.plugins.song_hunter.game_state import game_manager, GameState
 
@@ -187,6 +188,8 @@ async def finish_game(client: Client, chat_id: int, game: GameState):
     game_manager.end_game(chat_id)
 
 @Client.on_message(filters.command(["starthunter", "sh"]) & filters.group)
+@require_admin
+@rate_limit
 async def start_hunter(client: Client, message: Message):
     chat_id = message.chat.id
 
@@ -228,6 +231,8 @@ async def start_hunter(client: Client, message: Message):
     asyncio.create_task(start_round(client, chat_id, game))
 
 @Client.on_message(filters.command(["stophunter", "stopsh"]) & filters.group)
+@require_admin
+@rate_limit
 async def stop_hunter(client: Client, message: Message):
     chat_id = message.chat.id
     game = game_manager.get_game(chat_id)
@@ -262,6 +267,10 @@ async def handle_answer(client: Client, callback_query: CallbackQuery):
     user_id = callback_query.from_user.id
     data = callback_query.data
 
+    if await get_permission_level(user_id, chat_id) < 1:
+        await callback_query.answer("You are not allowed to play Song Hunter.", show_alert=True)
+        return
+
     _, _, round_str, track_id = data.split('_', 3)
     round_num = int(round_str)
 
@@ -286,6 +295,7 @@ async def handle_answer(client: Client, callback_query: CallbackQuery):
         await callback_query.answer("❌ Wrong answer!", show_alert=True)
 
 @Client.on_message(filters.command(["hunterboard", "shboard"]))
+@rate_limit
 async def hunter_board(client: Client, message: Message):
     msg = await message.reply_text("📊 Fetching leaderboard...")
     chat_id = message.chat.id

@@ -2,6 +2,7 @@ from pyrogram import Client, filters
 from pyrogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
 from pyrogram.enums import ParseMode
 from bot.utils.effects_engine import get_active_effect, set_active_effect
+from bot.utils.permissions import require_admin, get_permission_level, rate_limit
 
 EFFECTS_OPTIONS = [
     "8D Audio",
@@ -13,6 +14,8 @@ EFFECTS_OPTIONS = [
 ]
 
 @Client.on_message(filters.command("effects") & filters.group)
+@require_admin
+@rate_limit
 async def effects_cmd(client: Client, message: Message):
     """Show audio effects menu."""
     chat_id = message.chat.id
@@ -47,6 +50,11 @@ async def on_effect_callback(client: Client, callback_query: CallbackQuery):
     """Handle effect selection."""
     effect = callback_query.matches[0].group(1)
     chat_id = callback_query.message.chat.id
+    user_id = callback_query.from_user.id
+
+    if await get_permission_level(user_id, chat_id) < 3:
+        await callback_query.answer("Admins only for audio effects.", show_alert=True)
+        return
 
     set_active_effect(chat_id, effect)
 
