@@ -4,14 +4,26 @@ import os
 import logging
 import random
 from typing import Optional
-from pydub import AudioSegment
+
+try:
+    from pydub import AudioSegment
+except ImportError:  # pragma: no cover - depends on deployment image
+    AudioSegment = None
 
 logger = logging.getLogger(__name__)
+
+
+def _audio_runtime_available() -> bool:
+    return AudioSegment is not None
 
 CACHE_DIR = "data/hunter_cache"
 os.makedirs(CACHE_DIR, exist_ok=True)
 
 async def download_and_trim_audio(url: str, track_id: str, duration_sec: int = 15) -> Optional[str]:
+    if not _audio_runtime_available():
+        logger.warning("Song Hunter audio trimming is unavailable because pydub is not installed")
+        return None
+
     file_path = os.path.join(CACHE_DIR, f"{track_id}_full.mp3")
     trimmed_path = os.path.join(CACHE_DIR, f"{track_id}_trimmed.mp3")
 
