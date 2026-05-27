@@ -260,8 +260,12 @@ class CallManager:
         """Switch stream with compatibility fallback for py-tgcalls builds without change_stream."""
         try:
             if hasattr(call, "change_stream"):
-                await asyncio.wait_for(call.change_stream(chat_id, stream), timeout=timeout_s)
-                return
+                cs = getattr(call, "change_stream", None)
+                if callable(cs):
+                    # narrow for static type checkers
+                    cs_fn: Any = cs
+                    await asyncio.wait_for(cs_fn(chat_id, stream), timeout=timeout_s)
+                    return
         except AttributeError:
             # Some builds may expose the attribute but raise on access; treat as missing
             logger.debug("change_stream attribute lookup raised; falling back to leave+play")
@@ -707,9 +711,9 @@ class CallManager:
         
         if video:
             # For video, we use a higher bitrate if possible
-            video_cfg = VideoParameters(
-                bitrate=2_000_000,  # 2 Mbps for decent 720p/1080p
-            )
+            from types import SimpleNamespace
+            from typing import cast
+            video_cfg = cast(VideoParameters, SimpleNamespace(bitrate=2_000_000))
             video_flags = MediaStream.Flags.AUTO_DETECT
 
         # FFmpeg Input Options: placed before the input URL
@@ -802,7 +806,10 @@ class CallManager:
                         except Exception:
                             pass
                 
-                await call.stop()
+                stop_fn = getattr(call, "stop", None)
+                if callable(stop_fn):
+                    stop_any: Any = stop_fn
+                    await stop_any()
             except Exception as exc:
                 logger.debug(f"Failed to stop py-tgcalls instance {idx}: {exc}")
         

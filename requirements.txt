@@ -22,6 +22,7 @@ upstash-redis>=1.7.0
 # Async Utilities
 aiofiles>=24.1.0
 aiohttp>=3.11.0
+aiosqlite>=0.20.0
 
 # Image Processing
 Pillow>=11.0.0
@@ -44,6 +45,7 @@ psycopg2-binary>=2.9.0
 # Additional utilities
 httpx>=0.28.0
 beautifulsoup4>=4.12.0
+prometheus-client>=0.20.0
 typing-extensions>=4.12.0
 pycryptodome>=3.20.0
 fastapi>=0.100.0

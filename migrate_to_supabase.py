@@ -19,6 +19,7 @@ Requirements:
 import asyncio
 import os
 import logging
+from typing import Any, cast
 from datetime import datetime
 
 # Setup logging
@@ -73,7 +74,7 @@ async def migrate():
         supabase_client = create_client(supabase_url, supabase_key)
         
         # Test connection
-        result = supabase_client.table("groups").select("count", count="exact").limit(1).execute()
+        result = supabase_client.table("groups").select("count", count=cast(Any, "exact")).limit(1).execute()
         logger.info("✓ Supabase connected")
     except Exception as e:
         logger.error(f"✗ Failed to connect to Supabase: {e}")

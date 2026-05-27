@@ -14,8 +14,8 @@ DEFAULT_JAMENDO_CLIENT_ID = "56d30c95"
 
 def _build_soup(html: str):
     try:
-        from bs4 import BeautifulSoup
-    except ImportError:
+        from bs4 import BeautifulSoup  # type: ignore[import]
+    except Exception:
         logger.warning("beautifulsoup4 is not installed; Jamendo web scraping fallback is disabled.")
         return None
     return BeautifulSoup(html, 'html.parser')
@@ -62,7 +62,7 @@ class JamendoEmbedded:
         {"name": "Chanson", "url": "http://listen.radionomy.com/jamendo-chanson"}
     ]
 
-    def __init__(self, client_id: str = None, cache_ttl: int = 600):
+    def __init__(self, client_id: Optional[str] = None, cache_ttl: int = 600):
         if client_id is not None:
             self.client_id = client_id
         else:
@@ -96,7 +96,8 @@ class JamendoEmbedded:
 
         try:
             async with aiohttp.ClientSession() as session:
-                async with session.get(url, params=params, timeout=8) as resp:
+                timeout = aiohttp.ClientTimeout(total=8)
+                async with session.get(url, params=params, timeout=timeout) as resp:
                     if resp.status == 200:
                         return await resp.json()
         except Exception as e:
@@ -140,7 +141,8 @@ class JamendoEmbedded:
         url = f"https://www.jamendo.com/search"
         try:
             async with aiohttp.ClientSession() as session:
-                async with session.get(url, params={"q": query}, timeout=8) as resp:
+                timeout = aiohttp.ClientTimeout(total=8)
+                async with session.get(url, params={"q": query}, timeout=timeout) as resp:
                     if resp.status == 200:
                         html = await resp.text()
                         soup = _build_soup(html)
@@ -221,7 +223,8 @@ class JamendoEmbedded:
         url = f"https://www.jamendo.com/track/{track_id}"
         try:
             async with aiohttp.ClientSession() as session:
-                async with session.get(url, timeout=8) as resp:
+                timeout = aiohttp.ClientTimeout(total=8)
+                async with session.get(url, timeout=timeout) as resp:
                     if resp.status == 200:
                         html = await resp.text()
                         soup = _build_soup(html)
@@ -267,7 +270,8 @@ class JamendoEmbedded:
         licensing_url = f"https://licensing.jamendo.com/track/{track_id}"
         try:
             async with aiohttp.ClientSession() as session:
-                async with session.get(licensing_url, timeout=8) as resp:
+                timeout = aiohttp.ClientTimeout(total=8)
+                async with session.get(licensing_url, timeout=timeout) as resp:
                     if resp.status == 200:
                         html = await resp.text()
                         soup = _build_soup(html)
@@ -303,7 +307,8 @@ class JamendoEmbedded:
         try:
             async with aiohttp.ClientSession() as session:
                 headers = {"Range": "bytes=0-100"}
-                async with session.get(url, headers=headers, timeout=5) as resp:
+                timeout = aiohttp.ClientTimeout(total=5)
+                async with session.get(url, headers=headers, timeout=timeout) as resp:
                     if resp.status in (200, 206):
                         content_type = resp.headers.get('Content-Type', '')
                         if 'audio' in content_type.lower() or 'mpeg' in content_type.lower() or 'ogg' in content_type.lower():
@@ -340,7 +345,7 @@ class JamendoEmbedded:
         return await self.search_by_genre(tags[0], limit)
 
     # --- Layer 3: Radios ---
-    async def get_radio_stream(self, genre: str = None) -> Optional[str]:
+    async def get_radio_stream(self, genre: Optional[str] = None) -> Optional[str]:
         if self.client_id:
             try:
                 data = await self._api_get("radios/", {})

@@ -6,6 +6,7 @@ from fastapi import FastAPI, Depends, HTTPException, Request, Response
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from fastapi.responses import HTMLResponse, JSONResponse
 from pydantic import BaseModel
+from typing import Optional
 
 from config import config
 import bot.utils.database as app_db
@@ -100,8 +101,8 @@ async def get_queues(username: str = Depends(get_current_username)):
 
 class ActionRequest(BaseModel):
     action: str
-    chat_id: int = None
-    message: str = None
+    chat_id: Optional[int] = None
+    message: Optional[str] = None
 
 @admin_app.post("/api/action")
 async def perform_action(req: ActionRequest, username: str = Depends(get_current_username)):
