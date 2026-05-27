@@ -1,6 +1,6 @@
 # 🎵 Brook Music Bot
 
-The ultimate Telegram Music Bot with multi-source extraction, intelligent fallback, and premium voice chat streaming.
+Telegram Voice Chat music bot that now runs as a **pure microservice client** for music discovery/resolution.
 
 ## 🚀 Quick Start
 
@@ -16,7 +16,7 @@ The ultimate Telegram Music Bot with multi-source extraction, intelligent fallba
    ```
 
 3. **Configure Environment**
-   Create a `.env` file with your `BOT_TOKEN`, `API_ID`, and `API_HASH`.
+   Create a `.env` file with `BOT_TOKEN`, `API_ID`, `API_HASH`, and `MUSIC_MICROSERVICE_URL`.
 
 4. **Run System**
    ```bash
@@ -33,10 +33,10 @@ The project follows strict IEEE documentation standards. Please refer to the fol
 
 ## 🛠️ Key Features
 
-- **Multi-Source**: Parallel search across VK, and Deezer.
-- **Intelligent Fallback**: Automatic source switching to ensure 99.9% playback success.
+- **Microservice-first architecture**: Bot never calls Jamendo or provider APIs directly.
+- **Endpoint failover**: Supports multiple music microservice URLs for resilience.
 - **High Fidelity**: Up to 320kbps audio with EBU R128 normalization.
-- **Distributed**: Specialized wrappers to bypass regional blocks and rate limits.
+- **Command-safe refactor**: `/play`, `/vibe`, playlists, and Song Hunter all run through shared backend resolution.
 
 ---
 *Built with ❤️ by the Brook Music Team.*

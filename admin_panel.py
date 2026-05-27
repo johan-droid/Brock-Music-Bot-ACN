@@ -51,9 +51,9 @@ async def get_stats(username: str = Depends(get_current_username)):
     total_users = await app_db.db.get_stats() if app_db.db else {}
     total_tracks_played = 0 # To do: check if db has this
 
-    # Jamendo stats (mocked if not tracked)
+    # Music microservice health snapshot
     from bot.core.music_backend import music_backend
-    jamendo_stats = {"calls_today": 0, "cache_hit_ratio": 0.0, "remaining_rate_limit": "Unknown"}
+    microservice_stats = await music_backend.health()
 
     # Error logs (read from file)
     errors = []
@@ -76,7 +76,7 @@ async def get_stats(username: str = Depends(get_current_username)):
         "active_vcs": active_vcs,
         "total_users": total_users.get("total_groups", 0) if isinstance(total_users, dict) else 0,
         "total_tracks_played": total_tracks_played,
-        "jamendo_stats": jamendo_stats,
+        "music_microservice": microservice_stats,
         "errors": errors
     }
 
@@ -84,14 +84,18 @@ async def get_stats(username: str = Depends(get_current_username)):
 async def get_queues(username: str = Depends(get_current_username)):
     """Get live queues for all active voice chats."""
     from bot.core.queue import queue_manager
+    from bot.core import call
 
     queues_data = {}
     if queue_manager:
-        for chat_id, queue in queue_manager.queues.items():
-            queues_data[str(chat_id)] = [
-                {"title": item.track.title, "url": item.track.audio_url, "duration": item.track.duration}
-                for item in queue
-            ]
+        active_chat_ids = list((call.call_manager.active_chats.keys() if call.call_manager else []))
+        for chat_id in active_chat_ids:
+            current = await queue_manager.get_current(chat_id)
+            queue = await queue_manager.get_queue(chat_id)
+            queues_data[str(chat_id)] = {
+                "current": current,
+                "queue": queue,
+            }
     return queues_data
 
 class ActionRequest(BaseModel):
@@ -287,8 +291,14 @@ DASHBOARD_HTML = """
             const container = document.getElementById('queues_container');
             container.innerHTML = '';
 
-            for (const [chat_id, items] of Object.entries(queues)) {
-                let html = `<h3>Chat: ${chat_id}</h3><ul>`;
+            for (const [chat_id, payload] of Object.entries(queues)) {
+                const items = (payload && payload.queue) ? payload.queue : [];
+                const current = payload ? payload.current : null;
+                let html = `<h3>Chat: ${chat_id}</h3>`;
+                if (current) {
+                    html += `<p><b>Now:</b> ${current.title || 'Unknown'} (${current.duration || 0}s)</p>`;
+                }
+                html += `<ul>`;
                 if (items.length === 0) {
                     html += `<li>Queue empty</li>`;
                 } else {

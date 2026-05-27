@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 @require_member
 @rate_limit(limit=3, period=10)
 async def vibe_command(client: Client, message: Message):
-    """Search music by mood/vibe using Jamendo tags."""
+    """Search music by mood/vibe using microservice-backed hints."""
     if len(message.command) < 2:
         return await message.reply("🎵 **Usage:** `/vibe <mood/activity>`\n*Example:* `/vibe something calm for reading`")
 
@@ -37,13 +37,13 @@ async def vibe_command(client: Client, message: Message):
 
         return await _show_conflict_options(message, chat_id, user_id, results, search_msg)
 
-    await search_msg.edit(f"🎧 *Searching Jamendo for vibes:* `{', '.join(tags)}`...", parse_mode=ParseMode.MARKDOWN)
+    await search_msg.edit(f"🎧 *Searching vibe tracks:* `{', '.join(tags)}`...", parse_mode=ParseMode.MARKDOWN)
 
     results = await vibe_search.search_by_tags(tags, limit=5)
 
     if not results:
         # Fallback to normal search
-        await search_msg.edit("🤔 *No Jamendo tracks found for those vibes. Falling back to regular search...*", parse_mode=ParseMode.MARKDOWN)
+        await search_msg.edit("🤔 *No vibe-specific tracks found. Falling back to regular search...*", parse_mode=ParseMode.MARKDOWN)
         results = await music_backend.search(query, limit=5)
 
         if not results:

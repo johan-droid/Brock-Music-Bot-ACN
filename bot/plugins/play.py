@@ -67,6 +67,8 @@ _SOURCE_BADGE = {
     "vk": "🟦 VK Music",
     "deezer": "🎧 Deezer",
     "telegram": "✈️ Telegram",
+    "direct": "🌐 Direct",
+    "unknown": "🎵 Stream",
 }
 
 # ── Background tasks ──────────────────────────────────────────────────────────
@@ -596,7 +598,13 @@ async def start_playback(chat_id: int, prefetched_track: Optional[Dict[str, Any]
         # Use consolidated play method
         try:
             if call.call_manager:
-                await call.call_manager.play(chat_id, url, video=is_video, headers=headers)
+                await call.call_manager.play(
+                    chat_id,
+                    url,
+                    video=is_video,
+                    headers=headers,
+                    source=track.get("source", effective_source),
+                )
         except Exception as exc:
             exc_str = str(exc)
             logger.warning(f"Playback failed on initial URL for '{track.get('title', 'unknown')}' in {chat_id}: {exc}")
@@ -627,7 +635,13 @@ async def start_playback(chat_id: int, prefetched_track: Optional[Dict[str, Any]
                             
                             try:
                                 if call.call_manager:
-                                    await call.call_manager.play(chat_id, alt_url, video=is_video, headers=alt_headers)
+                                    await call.call_manager.play(
+                                        chat_id,
+                                        alt_url,
+                                        video=is_video,
+                                        headers=alt_headers,
+                                        source=alt_source,
+                                    )
                                 logger.info(f"Alternative playback succeeded: {alt_track.title} [{alt_source}]")
                                 url = alt_url
                                 headers = alt_headers
@@ -661,7 +675,13 @@ async def start_playback(chat_id: int, prefetched_track: Optional[Dict[str, Any]
 
                     try:
                         if call.call_manager:
-                            await call.call_manager.play(chat_id, fallback_url, video=is_video, headers=fallback_headers)
+                            await call.call_manager.play(
+                                chat_id,
+                                fallback_url,
+                                video=is_video,
+                                headers=fallback_headers,
+                                source=track.get("source", "unknown"),
+                            )
                         logger.info(f"Fallback playback succeeded for '{track.get('title','unknown')}' in {chat_id}")
                         url = fallback_url
                         headers = fallback_headers

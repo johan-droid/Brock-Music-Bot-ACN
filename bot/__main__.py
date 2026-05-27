@@ -21,7 +21,6 @@ from bot.utils.logger import setup_logging
 from bot.utils.scheduler import start_scheduler
 from bot.core.music_backend import music_backend
 import os
-from bot.core.jamendo_client import jamendo_client
 from config import config
 from bot.utils.resilience import global_watchdog, setup_json_logging, log_error, notify_owner
 import sys

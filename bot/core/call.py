@@ -35,7 +35,7 @@ _BLOCKED_URL_PATTERNS = [
 ]
 
 
-def validate_stream_url(url: str) -> bool:
+def validate_stream_url(url: str, source: str = "auto") -> bool:
     """
     Validate stream URL to prevent SSRF attacks.
     
@@ -46,6 +46,12 @@ def validate_stream_url(url: str) -> bool:
     
     url = url.strip()
     
+    source_name = (source or "auto").strip().lower()
+
+    # Allow trusted local files for Telegram media / Song Hunter clips.
+    if source_name in {"telegram", "song_hunter", "local"} and os.path.isfile(url):
+        return True
+
     # Check URL scheme
     try:
         scheme_match = re.match(r'^([a-zA-Z][a-zA-Z0-9+.-]*)://', url)
@@ -308,7 +314,7 @@ class CallManager:
                 raise RuntimeError(f"No call instance for userbot {selected_idx}")
 
             # Validate stream URL to prevent SSRF attacks
-            if not validate_stream_url(stream_url):
+            if not validate_stream_url(stream_url, source=kwargs.get("source", "auto")):
                 raise RuntimeError(f"Invalid stream URL: {stream_url[:50]}... URL failed security validation")
             
             stream_source = kwargs.get('source', 'auto')

@@ -299,13 +299,23 @@ async def seek_cmd(client: Client, message: Message):
         # Use the shared audio optimizer instead of hardcoded stream settings
         from bot.utils.audio_config import get_audio_optimizer
         optimizer = get_audio_optimizer()
-        
+
         # In ping/test or replay, we just need to re-stream it with the seek offset
         is_video = current.get("is_video", False)
+        stream_url = current.get("url") or current.get("stream_url")
+        if not stream_url:
+            await message.reply("❌ Current track has no playable URL.")
+            return
         
         # Change stream (py-tgcalls handles the transition)
         if call.call_manager:
-            await call.call_manager.change_stream(chat_id, current["url"], video=is_video, seek=seconds)
+            await call.call_manager.change_stream(
+                chat_id,
+                stream_url,
+                video=is_video,
+                seek=seconds,
+                source=current.get("source", "unknown"),
+            )
         
         # Update position
         await queue_manager.update_position(chat_id, seconds)
@@ -345,8 +355,18 @@ async def replay_cmd(client: Client, message: Message):
         
         # Replay is just seeking to 0
         is_video = current.get("is_video", False)
+        stream_url = current.get("url") or current.get("stream_url")
+        if not stream_url:
+            await message.reply("❌ Current track has no playable URL.")
+            return
         if call.call_manager:
-            await call.call_manager.change_stream(chat_id, current["url"], video=is_video, seek=0)
+            await call.call_manager.change_stream(
+                chat_id,
+                stream_url,
+                video=is_video,
+                seek=0,
+                source=current.get("source", "unknown"),
+            )
         
         # Reset position
         await queue_manager.update_position(chat_id, 0)

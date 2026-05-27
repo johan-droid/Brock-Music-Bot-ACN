@@ -1,5 +1,31 @@
 services:
   - type: web
+    name: music-microservice
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: python vk_music_backend.py
+    envVars:
+      - key: SOURCE_ORDER
+        value: vk,deezer
+      - key: HTTP_TIMEOUT
+        value: 10
+      - key: SEARCH_CACHE_TTL
+        value: 900
+      - key: RESOLVE_CACHE_TTL
+        value: 19800
+      - key: RATE_LIMIT_PER_MINUTE
+        value: 120
+      - key: DEEZER_API_BASE_URL
+        value: https://api.deezer.com
+      - key: DEEZER_TOKENS
+        sync: false
+      - key: VK_API_BASE_URL
+        sync: false
+      - key: VK_API_TOKEN
+        sync: false
+
+  - type: web
     name: musicbot
     runtime: docker
     plan: free
@@ -17,6 +43,10 @@ services:
         sync: false
       - key: OWNER_ID
         sync: false
+      - key: MUSIC_MICROSERVICE_URL
+        value: https://music-microservice.onrender.com
+      - key: MUSIC_MICROSERVICE_TIMEOUT
+        value: 12
       - key: MONGO_URI
         value: sqlite:///./data/bot.db
       - key: SQLITE_CACHE_PATH

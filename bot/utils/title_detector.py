@@ -229,7 +229,9 @@ class TitleConflictResolver:
         for track in all_results:
             # Generate a unique identity for this track
             identity = None
-            if hasattr(track, 'jamendo_track_id') and track.jamendo_track_id:
+            if hasattr(track, 'track_id') and getattr(track, 'track_id'):
+                identity = f"{getattr(track, 'source', 'unknown')}:{getattr(track, 'track_id')}"
+            elif hasattr(track, 'jamendo_track_id') and track.jamendo_track_id:
                 identity = f"{getattr(track, 'source', 'unknown')}:{track.jamendo_track_id}"
             elif hasattr(track, 'stream_url') and track.stream_url:
                 identity = track.stream_url
