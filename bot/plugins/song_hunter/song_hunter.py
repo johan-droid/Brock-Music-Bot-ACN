@@ -9,6 +9,7 @@ from pyrogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMa
 
 from bot.core import call
 from bot.core.music_backend import Track, music_backend
+from bot.core.queue import queue_manager
 from bot.plugins.song_hunter.audio_utils import download_and_trim_audio
 from bot.plugins.song_hunter.game_state import GameState, game_manager
 from bot.utils.permissions import get_permission_level, rate_limit, require_admin
