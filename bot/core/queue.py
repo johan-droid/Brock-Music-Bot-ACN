@@ -2,7 +2,6 @@
 
 import json
 import logging
-from bot.platforms.jamendo import JamendoClient
 from bot.utils.resilience import log_error
 
 import asyncio
@@ -227,30 +226,45 @@ class QueueManager:
             queue = await self.get_queue(chat_id)
             valid_queue = []
             changed = False
+            from bot.core.music_backend import Track, music_backend
+
             for track in queue:
-                if track.get("source") == "jamendo":
-                    # Check if valid
-                    try:
-                        valid = await JamendoClient.extract(track.get("id"))
-                        if valid and valid.get("url"):
-                            valid_queue.append(track)
-                        else:
-                            logger.warning(f"Removing invalid jamendo track from queue: {track.get('id')}")
-                            changed = True
-                    except Exception as e:
-                        log_error("Failed to revalidate jamendo track", e)
-                        valid_queue.append(track) # Keep on transient error
-                else:
+                source = (track.get("source") or "").lower()
+                url = track.get("url") or track.get("stream_url") or ""
+
+                if source == "telegram" and url and not url.startswith("http"):
+                    valid_queue.append(track)
+                    continue
+
+                try:
+                    payload = await music_backend.get_stream_payload(
+                        Track(
+                            title=track.get("title", ""),
+                            artist=track.get("uploader", track.get("artist", "")),
+                            duration=int(track.get("duration") or 0),
+                            stream_url=url,
+                            source=source or "unknown",
+                            track_id=track.get("id") or track.get("track_id"),
+                        )
+                    )
+                    if payload and payload.get("url"):
+                        track["url"] = payload["url"]
+                        track["source"] = payload.get("source", track.get("source", "unknown"))
+                        valid_queue.append(track)
+                    else:
+                        logger.warning("Removing invalid track from queue after revalidation: %s", track.get("id"))
+                        changed = True
+                except Exception as e:
+                    log_error("Failed to revalidate queued track", e)
                     valid_queue.append(track)
 
             if changed:
                 key = self._queue_key(chat_id)
-                import json
-                from bot.utils.cache import cache
-                async with self._locks[chat_id]:
+                async with self._get_lock(chat_id):
                     await cache.delete(key)
                     if valid_queue:
-                        await cache.rpush(key, *[json.dumps(t) for t in valid_queue])
+                        for item in valid_queue:
+                            await cache.rpush(key, json.dumps(item))
         except Exception as e:
             log_error("Queue revalidation failed", e)
 

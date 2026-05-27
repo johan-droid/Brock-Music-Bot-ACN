@@ -166,33 +166,33 @@ class HealthChecker:
 health_checker = HealthChecker()
 
 
-async def check_jamendo() -> HealthCheckResult:
+async def check_music_microservice() -> HealthCheckResult:
     start_time = time.time()
     try:
-        from bot.platforms.jamendo import JAMENDO_CLIENT_ID_SOURCE, JamendoClient
-
-        res = await JamendoClient.search("test", limit=1)
+        from bot.core.music_backend import music_backend
+        health = await music_backend.health()
         response_time = (time.time() - start_time) * 1000
 
-        if res:
+        if health.get("healthy"):
             return HealthCheckResult(
-                service="jamendo",
+                service="music_microservice",
                 status=HealthStatus.HEALTHY,
                 response_time_ms=response_time,
                 message="Service healthy",
-                details={"client_id_source": JAMENDO_CLIENT_ID_SOURCE},
+                details=health,
             )
 
         return HealthCheckResult(
-            service="jamendo",
+            service="music_microservice",
             status=HealthStatus.UNHEALTHY,
             response_time_ms=response_time,
-            message="No search results/failed",
+            message="No healthy microservice endpoint reported",
+            details=health,
         )
     except Exception as e:
         response_time = (time.time() - start_time) * 1000
         return HealthCheckResult(
-            service="jamendo",
+            service="music_microservice",
             status=HealthStatus.UNHEALTHY,
             response_time_ms=response_time,
             message=str(e),
@@ -204,9 +204,8 @@ async def check_database() -> HealthCheckResult:
     try:
         from bot.utils.neon_db import neon_db
 
-        if neon_db._pool:
-            async with neon_db._pool.acquire() as conn:
-                await conn.fetchval("SELECT 1")
+        if neon_db:
+            if hasattr(neon_db, "health_check") and neon_db.health_check():
                 response_time = (time.time() - start_time) * 1000
                 return HealthCheckResult(
                     service="database",
@@ -244,7 +243,7 @@ async def check_database() -> HealthCheckResult:
 
 
 def register_default_health_checks():
-    health_checker.register_check("jamendo", check_jamendo)
+    health_checker.register_check("music_microservice", check_music_microservice)
     health_checker.register_check("database", check_database)
 
     for name in ["deezer", "vk"]:

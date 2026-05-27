@@ -11,6 +11,7 @@ Commands:
 """
 
 import logging
+from typing import Any, Dict
 from pyrogram import Client, filters
 from pyrogram.types import Message
 
@@ -25,6 +26,39 @@ def _db():
     if app_db.db is None:
         raise RuntimeError("Database is not initialized")
     return app_db.db
+
+
+def _coerce_track_fields(track) -> Dict[str, Any]:
+    if hasattr(track, "to_dict"):
+        raw = track.to_dict()
+        return {
+            "id": raw.get("id") or raw.get("track_id"),
+            "title": raw.get("title") or "Unknown",
+            "artist": raw.get("artist") or raw.get("uploader") or "Unknown Artist",
+            "duration": int(raw.get("duration") or 0),
+            "url": raw.get("url") or raw.get("stream_url") or "",
+            "thumbnail": raw.get("thumbnail") or raw.get("thumb"),
+            "source": raw.get("source") or "unknown",
+        }
+    if isinstance(track, dict):
+        return {
+            "id": track.get("id") or track.get("track_id"),
+            "title": track.get("title") or "Unknown",
+            "artist": track.get("artist") or track.get("uploader") or "Unknown Artist",
+            "duration": int(track.get("duration") or 0),
+            "url": track.get("url") or track.get("stream_url") or "",
+            "thumbnail": track.get("thumbnail") or track.get("thumb"),
+            "source": track.get("source") or "unknown",
+        }
+    return {
+        "id": None,
+        "title": "Unknown",
+        "artist": "Unknown Artist",
+        "duration": 0,
+        "url": "",
+        "thumbnail": None,
+        "source": "unknown",
+    }
 
 @Client.on_message(filters.command(["showcreate", "vshowcreate"]) & filters.group)
 @require_admin
@@ -145,16 +179,21 @@ async def show_add_cmd(client: Client, message: Message):
         return
 
     track = results[0]
-    # We need an integer ID for jamendo_track_id as per schema, or we hash it if it's a string
+    fields = _coerce_track_fields(track)
+    track_id_raw = fields.get("id")
     try:
-        track_id_int = int(track.id)
+        track_id_int = int(track_id_raw)
     except (ValueError, TypeError):
-        track_id_int = hash(track.id) % 2147483647 # Ensure fits in INTEGER
+        await msg.edit_text(
+            "❌ Selected track does not expose a stable numeric ID for radio show scheduling.\n"
+            "Try another query/source and retry."
+        )
+        return
 
     success = await _db().add_track_to_show(show_id, track_id_int, message.from_user.id)
 
     if success:
-        await msg.edit_text(f"✅ Added **{track.title}** by {track.artist} to Show `{show_id}`!")
+        await msg.edit_text(f"✅ Added **{fields['title']}** by {fields['artist']} to Show `{show_id}`!")
     else:
         await msg.edit_text("❌ Failed to add track to the show.")
 
@@ -210,17 +249,27 @@ async def show_preview_cmd(client: Client, message: Message):
 
     # Just preview first 3 tracks
     for t in tracks[:3]:
-        jamendo_id = t.get("jamendo_track_id")
+        track_ref = t.get("jamendo_track_id")
         # In a real scenario we'd lookup the track by ID from backend
         # Here we just search by ID or mock it if not found
-        results = await music_backend.search(str(jamendo_id), limit=1)
+        results = await music_backend.search(str(track_ref), limit=1)
         if results:
             track = results[0]
             track_dict = track.to_dict()
             track_dict["requested_by"] = message.from_user.id
             track_dict["duration"] = min(track.duration, 30) if track.duration else 30 # Preview 30s
 
-            await queue_manager.add_to_queue(chat_id, track_dict)
+            await queue_manager.add_to_queue(
+                chat_id=chat_id,
+                title=track_dict.get("title", "Unknown"),
+                url=track_dict.get("url") or track_dict.get("stream_url") or "",
+                duration=track_dict.get("duration", 0),
+                thumb=track_dict.get("thumbnail") or track_dict.get("thumb"),
+                requested_by=message.from_user.id,
+                source=track_dict.get("source", "unknown"),
+                track_id=track_dict.get("id") or track_dict.get("track_id"),
+                uploader=track_dict.get("uploader") or track_dict.get("artist"),
+            )
             added_count += 1
 
     if added_count > 0:
@@ -234,8 +283,9 @@ async def show_preview_cmd(client: Client, message: Message):
                     try:
                         await call.call_manager.play(
                             chat_id=chat_id,
-                            stream_url=next_track["stream_url"],
-                            video=next_track.get("video", False)
+                            stream_url=next_track.get("url") or next_track.get("stream_url"),
+                            video=next_track.get("video", False),
+                            source=next_track.get("source", "unknown"),
                         )
                         await msg.edit_text(f"📻 **Previewing Show {show_id}...**\nPlaying {added_count} tracks (30s previews).")
                     except Exception as e:
@@ -306,15 +356,27 @@ async def show_talk_cmd(client: Client, message: Message):
         }
 
         # Add to front of queue
-        await queue_manager.add_to_front(chat_id, track_dict)
+        await queue_manager.add_to_front(
+            chat_id=chat_id,
+            title=track_dict.get("title", "Unknown"),
+            url=track_dict.get("stream_url") or track_dict.get("url") or "",
+            duration=track_dict.get("duration", 0),
+            thumb=track_dict.get("thumbnail") or track_dict.get("thumb"),
+            requested_by=message.from_user.id,
+            source=track_dict.get("source", "telegram"),
+            track_id=track_dict.get("id"),
+            uploader=track_dict.get("artist", "Radio Host"),
+        )
 
         # If playing, we might want to skip current or just let it play next
         # We'll just let it play next for simplicity, or start if idle
         if call.call_manager:
             status = await queue_manager.get_status(chat_id)
             if status == "playing":
-                from bot.plugins.play import skip_current_track
-                await skip_current_track(chat_id)
+                from bot.plugins.play import start_playback
+                if call.call_manager:
+                    await call.call_manager.leave_call(chat_id)
+                await start_playback(chat_id)
                 await msg.edit_text("🎙️ **Host Announcement added!** Interrupting...")
             else:
                 next_track = await queue_manager.get_next(chat_id)
@@ -322,8 +384,9 @@ async def show_talk_cmd(client: Client, message: Message):
                     await queue_manager.set_status(chat_id, "playing")
                     await call.call_manager.play(
                         chat_id=chat_id,
-                        stream_url=next_track["stream_url"],
-                        video=False
+                        stream_url=next_track.get("url") or next_track.get("stream_url"),
+                        video=False,
+                        source=next_track.get("source", "telegram"),
                     )
 
         await msg.edit_text("🎙️ **Host Announcement added!**")

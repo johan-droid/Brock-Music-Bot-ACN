@@ -235,13 +235,23 @@ class TimeManager:
 
                 added_count = 0
                 for t in tracks:
-                    jamendo_id = t.get("jamendo_track_id")
-                    results = await music_backend.search(str(jamendo_id), limit=1)
+                    track_ref = t.get("jamendo_track_id")
+                    results = await music_backend.search(str(track_ref), limit=1)
                     if results:
                         track = results[0]
                         track_dict = track.to_dict()
                         track_dict["requested_by"] = show.get("host_user_id")
-                        await queue_manager.add_to_queue(chat_id, track_dict)
+                        await queue_manager.add_to_queue(
+                            chat_id=chat_id,
+                            title=track_dict.get("title", "Unknown"),
+                            url=track_dict.get("url") or track_dict.get("stream_url") or "",
+                            duration=track_dict.get("duration", 0),
+                            thumb=track_dict.get("thumbnail") or track_dict.get("thumb"),
+                            requested_by=show.get("host_user_id"),
+                            source=track_dict.get("source", "unknown"),
+                            track_id=track_dict.get("id") or track_dict.get("track_id"),
+                            uploader=track_dict.get("uploader") or track_dict.get("artist"),
+                        )
                         added_count += 1
 
                 if added_count > 0 and call.call_manager:
@@ -253,8 +263,9 @@ class TimeManager:
                             try:
                                 await call.call_manager.play(
                                     chat_id=chat_id,
-                                    stream_url=next_track["stream_url"],
-                                    video=next_track.get("video", False)
+                                    stream_url=next_track.get("url") or next_track.get("stream_url"),
+                                    video=next_track.get("video", False),
+                                    source=next_track.get("source", "unknown"),
                                 )
                             except Exception as e:
                                 await queue_manager.set_status(chat_id, "idle")

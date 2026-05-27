@@ -8,7 +8,6 @@ logger = logging.getLogger(__name__)
 
 
 class Config(BaseSettings):
-    JAMENDO_CLIENT_ID: Optional[str] = None
     """Bot configuration loaded from environment variables."""
     
     # Telegram API mode (set FALSE to run without Telegram client auth)
@@ -124,6 +123,16 @@ class Config(BaseSettings):
     PRIORITIZE_EXTRACTORS: bool = True     # Use high-quality extractors before Supabase Index
     PARALLEL_SEARCH: bool = True          # Search all sources at once for speed
 
+    # Remote music microservice configuration (Render/other cloud)
+    MUSIC_MICROSERVICE_URL: Optional[str] = None
+    MUSIC_MICROSERVICE_URLS: Optional[str] = None  # comma-separated failover endpoints
+    MUSIC_MICROSERVICE_TOKEN: Optional[str] = None
+    MUSIC_MICROSERVICE_TOKEN_HEADER: str = "Authorization"
+    MUSIC_MICROSERVICE_SEARCH_PATH: str = "/search"
+    MUSIC_MICROSERVICE_RESOLVE_PATH: str = "/resolve"
+    MUSIC_MICROSERVICE_HEALTH_PATH: str = "/health"
+    MUSIC_MICROSERVICE_TIMEOUT: int = 12
+
     # Now Playing card auto-clean (seconds)
     NP_AUTOCLEAN_DELAY: int = 30       # delete NP card N seconds after track ends / /stop
     SEARCH_MSG_AUTOCLEAN: int = 8      # delete "Searching..." msg N seconds after reply sent
@@ -136,7 +145,7 @@ class Config(BaseSettings):
     # Per-assistant active VC cap. 0 means unlimited.
     ASSISTANT_MAX_ACTIVE_CHATS: int = 0
 
-    # Jamendo configuration
+    # Legacy Jamendo settings (deprecated: kept for backward compatibility)
     JAMENDO_CLIENT_ID: Optional[str] = None
     JAMENDO_CLIENT_SECRET: Optional[str] = None
     JAMENDO_REDIRECT_URI: Optional[str] = "http://localhost:8000/jamendo/callback"

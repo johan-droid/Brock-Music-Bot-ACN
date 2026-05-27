@@ -1,115 +1,73 @@
-import aiohttp
-import asyncio
-import logging
-from typing import List, Dict, Any, Tuple
+"""Lightweight mood-query extraction for microservice-backed search."""
 
-from bot.platforms.jamendo_embedded import DEFAULT_JAMENDO_CLIENT_ID, JamendoEmbedded
+import logging
+from typing import Any, Dict, List
+
+from bot.core.music_backend import music_backend
 
 logger = logging.getLogger(__name__)
 
-# Very basic dictionary mapping words to Jamendo tags
+# Maps natural-language vibe words to search hint tokens.
 KEYWORD_TO_TAG = {
-    "chill": "mood:chill",
-    "relax": "mood:relaxing",
-    "calm": "mood:calm",
-    "workout": "mood:energetic",
-    "gym": "mood:energetic",
-    "energy": "mood:energetic",
-    "sad": "mood:sad",
-    "happy": "mood:happy",
-    "focus": "mood:focus",
-    "study": "mood:focus",
-    "party": "mood:party",
-    "dance": "genre:dance",
-    "rock": "genre:rock",
-    "pop": "genre:pop",
-    "jazz": "genre:jazz",
-    "classical": "genre:classical",
-    "electronic": "genre:electronic",
-    "ambient": "genre:ambient",
-    "acoustic": "instrument:acoustic",
-    "guitar": "instrument:guitar",
-    "piano": "instrument:piano",
+    "chill": "chill",
+    "relax": "relaxing",
+    "calm": "calm",
+    "workout": "energetic",
+    "gym": "energetic",
+    "energy": "energetic",
+    "sad": "sad",
+    "happy": "happy",
+    "focus": "focus",
+    "study": "focus",
+    "party": "party",
+    "dance": "dance",
+    "rock": "rock",
+    "pop": "pop",
+    "jazz": "jazz",
+    "classical": "classical",
+    "electronic": "electronic",
+    "ambient": "ambient",
+    "acoustic": "acoustic",
+    "guitar": "guitar",
+    "piano": "piano",
 }
 
-JAMENDO_CLIENT_ID = DEFAULT_JAMENDO_CLIENT_ID
-JAMENDO_API_URL = "https://api.jamendo.com/v3.0/tracks/"
 
-class JamendoVibeSearch:
+class VibeSearch:
     def __init__(self):
         self._cache: Dict[str, List[Dict[str, Any]]] = {}
-        self._embedded = JamendoEmbedded(client_id=JAMENDO_CLIENT_ID)
 
     def extract_tags(self, query: str) -> List[str]:
-        """Extract tags from a natural language query using simple keyword matching."""
-        words = query.lower().split()
-        tags = set()
+        """Extract vibe tags from natural language query."""
+        words = (query or "").lower().split()
+        tags = []
+        seen = set()
         for word in words:
-            if word in KEYWORD_TO_TAG:
-                tags.add(KEYWORD_TO_TAG[word])
-
-        # Strip prefixes for jamendo tags parameter (e.g. "mood:chill" -> "chill")
-        # Jamendo allows searching just by the tag name
-        return [t.split(":")[-1] if ":" in t else t for t in tags]
+            token = KEYWORD_TO_TAG.get(word)
+            if not token or token in seen:
+                continue
+            seen.add(token)
+            tags.append(token)
+        return tags
 
     async def search_by_tags(self, tags: List[str], limit: int = 5) -> List[Dict[str, Any]]:
         if not tags:
             return []
 
         tags_str = "+".join(tags)
-
         if tags_str in self._cache:
             return self._cache[tags_str]
 
-        params = {
-            "client_id": JAMENDO_CLIENT_ID,
-            "format": "json",
-            "limit": limit,
-            "tags": tags_str,
-            "include": "musicinfo",
-            "audioformat": "mp32"
-        }
-
+        query = " ".join(tags)
         try:
-            async with aiohttp.ClientSession() as session:
-                async with session.get(JAMENDO_API_URL, params=params, timeout=10) as resp:
-                    if resp.status == 200:
-                        data = await resp.json()
-                        results = data.get("results", [])
+            tracks = await music_backend.search(query, limit=limit)
+        except Exception as exc:
+            logger.error("Vibe search failed for tags=%s: %s", tags, exc)
+            return []
 
-                        # Format to internal Track-like dict
-                        tracks = []
-                        for item in results:
-                            tracks.append({
-                                "title": item.get("name", "Unknown Title"),
-                                "artist": item.get("artist_name", "Unknown Artist"),
-                                "duration": int(item.get("duration", 0)),
-                                "stream_url": item.get("audio", ""),
-                                "thumbnail": item.get("image", ""),
-                                "source": "jamendo",
-                                "track_id": str(item.get("id", ""))
-                            })
+        results = [track.to_dict() for track in tracks]
+        self._cache[tags_str] = results
+        return results
 
-                        self._cache[tags_str] = tracks
-                        return tracks
-                    logger.error(f"Jamendo API returned status {resp.status}")
-        except Exception as e:
-            logger.error(f"Error fetching from Jamendo: {e}")
 
-        fallback = await self._embedded.search_by_genre(tags[0], limit)
-        tracks = [
-            {
-                "title": item.get("title", "Unknown Title"),
-                "artist": item.get("artist", "Unknown Artist"),
-                "duration": int(item.get("duration", 0)),
-                "stream_url": item.get("audio_url", ""),
-                "thumbnail": item.get("thumbnail_url", ""),
-                "source": "jamendo",
-                "track_id": str(item.get("id", ""))
-            }
-            for item in fallback
-        ]
-        self._cache[tags_str] = tracks
-        return tracks
-
-vibe_search = JamendoVibeSearch()
+vibe_search = VibeSearch()
