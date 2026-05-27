@@ -10,6 +10,8 @@ on:
 jobs:
   validate-and-build:
     runs-on: ubuntu-latest
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
     steps:
       - uses: actions/checkout@v4
 
@@ -27,8 +29,8 @@ jobs:
 
       - name: Lint with flake8
         run: |
-          flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
-          flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
+          flake8 . --exclude=.venv --count --select=E9,F63,F7,F82 --show-source --statistics
+          flake8 . --exclude=.venv --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
 
       - name: Run tests
         run: pytest tests/ || echo "No tests found or tests failed"
@@ -40,6 +42,8 @@ jobs:
     needs: validate-and-build
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main'
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
     steps:
       - uses: actions/checkout@v4
 

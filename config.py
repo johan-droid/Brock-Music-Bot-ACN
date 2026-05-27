@@ -291,8 +291,7 @@ config = Config()
 # Robust API credential synchronization for production environments
 def synchronize_api_credentials():
     """Ensure API credentials are correctly prioritized from environment variables."""
-    global config
-    
+
     # 1. Environment variable search (Highest Priority)
     env_keys_id = ["API_ID", "TELEGRAM_API_ID", "TG_API_ID", "BOT_API_ID", "APP_ID"]
     env_keys_hash = ["API_HASH", "TELEGRAM_API_HASH", "TG_API_HASH", "BOT_API_HASH", "APP_HASH"]
@@ -371,7 +370,6 @@ synchronize_api_credentials()
 
 # Ensure BOT_TOKEN and session strings are loaded from env directly if empty config
 def synchronize_bot_token():
-    global config
     if config.TELEGRAM_ENABLED:
         token_keys = ["BOT_TOKEN", "TELEGRAM_BOT_TOKEN", "TG_BOT_TOKEN", "BOT_API_TOKEN"]
         for k in token_keys:
