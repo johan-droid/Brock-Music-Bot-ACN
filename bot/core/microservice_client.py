@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import aiohttp
 import logging
 from typing import Any, Dict, Iterable, List, Optional
 
@@ -94,13 +95,14 @@ class MusicMicroserviceClient:
             url = f"{base_url}{path}"
             try:
                 session = await HTTPConnectionPool.get_session()
+                timeout = aiohttp.ClientTimeout(total=self.timeout_seconds)
                 async with session.request(
                     method.upper(),
                     url,
                     params=params,
                     json=json_payload,
                     headers=headers,
-                    timeout=self.timeout_seconds,
+                    timeout=timeout,
                 ) as response:
                     if response.status not in expected:
                         body = await response.text()
@@ -177,7 +179,8 @@ class MusicMicroserviceClient:
             endpoint_state: Dict[str, Any] = {"url": url, "ok": False}
             try:
                 session = await HTTPConnectionPool.get_session()
-                async with session.get(url, headers=headers, timeout=self.timeout_seconds) as response:
+                timeout = aiohttp.ClientTimeout(total=self.timeout_seconds)
+                async with session.get(url, headers=headers, timeout=timeout) as response:
                     endpoint_state["status"] = response.status
                     if response.status == 200:
                         endpoint_state["ok"] = True

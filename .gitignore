@@ -90,6 +90,8 @@ tmp/
 cookies.txt
 pytgcalls_dir.txt
 downloads/
+*.orig
+*.patch
 
 # --- Test Artifacts ---
 test_*.py

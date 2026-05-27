@@ -32,7 +32,7 @@ def _sanitize_query(query: str) -> str:
     return query.strip()
 
 
-async def extract_audio(query: str, message: Message = None) -> Optional[Dict[str, Any]]:
+async def extract_audio(query: str, message: Optional[Message] = None) -> Optional[Dict[str, Any]]:
     """Extract audio using the shared VK-first aggregator with a hard 45s timeout."""
     query = _sanitize_query(query)
     if not query:

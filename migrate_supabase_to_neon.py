@@ -28,7 +28,7 @@ import json
 import argparse
 import logging
 from datetime import datetime
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 import psycopg2.extras
 
 # Setup logging
@@ -55,8 +55,8 @@ class SupabaseToNeonMigrator:
         self.neon_url = neon_url
         
         # Initialize clients
-        self.supabase = None
-        self.neon_conn = None
+        self.supabase: Optional[Any] = None
+        self.neon_conn: Optional[Any] = None
         
         # Migration stats
         self.stats = {
@@ -82,7 +82,11 @@ class SupabaseToNeonMigrator:
         try:
             import psycopg2
             self.neon_conn = psycopg2.connect(self.neon_url)
-            self.neon_conn.autocommit = False
+            # narrow type for static checkers
+            conn = self.neon_conn
+            assert conn is not None
+            conn.autocommit = False
+            self.neon_conn = conn
             logger.info("✓ Connected to Neon Database")
         except Exception as e:
             logger.error(f"✗ Failed to connect to Neon: {e}")
@@ -91,6 +95,9 @@ class SupabaseToNeonMigrator:
     def init_neon_tables(self):
         """Initialize Neon tables (idempotent - safe to run multiple times)."""
         try:
+            if not self.neon_conn:
+                raise RuntimeError("Neon connection not initialized")
+
             with self.neon_conn.cursor() as cur:
                 # Music index table
                 cur.execute("""
@@ -157,7 +164,11 @@ class SupabaseToNeonMigrator:
                 self.neon_conn.commit()
                 logger.info("✓ Neon tables initialized")
         except Exception as e:
-            self.neon_conn.rollback()
+            if self.neon_conn:
+                try:
+                    self.neon_conn.rollback()
+                except Exception:
+                    pass
             logger.error(f"✗ Failed to initialize Neon tables: {e}")
             raise
     
@@ -167,10 +178,17 @@ class SupabaseToNeonMigrator:
         
         try:
             # Fetch all tracks from Supabase
+            if not self.supabase:
+                raise RuntimeError("Supabase client not initialized")
+            if not self.neon_conn:
+                raise RuntimeError("Neon connection not initialized")
+            assert self.neon_conn is not None
+            neon_conn = self.neon_conn
+
             response = self.supabase.table('global_music_index').select('*').execute()
-            tracks = response.data
-            
-            if not tracks:
+            tracks = getattr(response, 'data', None)
+
+            if not tracks or not isinstance(tracks, list):
                 logger.info("  No tracks to migrate")
                 return
             
@@ -181,20 +199,23 @@ class SupabaseToNeonMigrator:
                 for i in range(0, len(tracks), batch_size):
                     batch = tracks[i:i + batch_size]
                     try:
-                        values = [
-                            (
-                                track.get('track_id'),
-                                track.get('platform', 'unknown'),
-                                track.get('title'),
-                                track.get('artist'),
-                                track.get('duration'),
-                                track.get('thumbnail'),
-                                track.get('stream_url'),
-                                track.get('file_id'),
-                                track.get('created_at') or datetime.now()
+                        values = []
+                        for track in batch:
+                            if not isinstance(track, dict):
+                                continue
+                            values.append(
+                                (
+                                    track.get('track_id'),
+                                    track.get('platform', 'unknown'),
+                                    track.get('title'),
+                                    track.get('artist'),
+                                    track.get('duration'),
+                                    track.get('thumbnail'),
+                                    track.get('stream_url'),
+                                    track.get('file_id'),
+                                    track.get('created_at') or datetime.now()
+                                )
                             )
-                            for track in batch
-                        ]
 
                         psycopg2.extras.execute_values(cur, """
                             INSERT INTO music_index 
@@ -210,12 +231,15 @@ class SupabaseToNeonMigrator:
                                 updated_at = CURRENT_TIMESTAMP
                         """, values)
                         
-                        self.stats['tracks_migrated'] += len(batch)
-                        self.neon_conn.commit()
+                        self.stats['tracks_migrated'] += len(values)
+                        neon_conn.commit()
                         logger.info(f"  Migrated {min(i + batch_size, len(tracks))}/{len(tracks)} tracks...")
                             
                     except Exception as e:
-                        self.neon_conn.rollback()
+                        try:
+                            neon_conn.rollback()
+                        except Exception:
+                            pass
                         self.stats['errors'].append(f"Batch starting at {i}: {e}")
                         logger.warning(f"  Error migrating track batch starting at {i}: {e}")
                 
@@ -230,9 +254,16 @@ class SupabaseToNeonMigrator:
         logger.info("\n📋 Migrating queues...")
         
         try:
+            if not self.supabase:
+                raise RuntimeError("Supabase client not initialized")
+            if not self.neon_conn:
+                raise RuntimeError("Neon connection not initialized")
+            assert self.neon_conn is not None
+            neon_conn = self.neon_conn
+
             try:
                 response = self.supabase.table('queues').select('*').execute()
-                queues = response.data
+                queues = getattr(response, 'data', None)
             except Exception as e:
                 if "404" in str(e) or "could not find" in str(e).lower():
                     logger.info("  No queues table found in Supabase (skipping)")
@@ -245,12 +276,14 @@ class SupabaseToNeonMigrator:
             
             logger.info(f"  Found {len(queues)} queues in Supabase")
             
-            with self.neon_conn.cursor() as cur:
+            with neon_conn.cursor() as cur:
                 for i in range(0, len(queues), batch_size):
                     batch = queues[i:i + batch_size]
                     try:
                         values = []
                         for queue in batch:
+                            if not isinstance(queue, dict):
+                                continue
                             queue_data = queue.get('queue_data', '{}')
                             if isinstance(queue_data, dict):
                                 queue_data = json.dumps(queue_data)
@@ -270,11 +303,14 @@ class SupabaseToNeonMigrator:
                         """, values)
                         
                         self.stats['queues_migrated'] += len(batch)
-                        self.neon_conn.commit()
+                        neon_conn.commit()
                         logger.info(f"  Migrated {min(i + batch_size, len(queues))}/{len(queues)} queues...")
                             
                     except Exception as e:
-                        self.neon_conn.rollback()
+                        try:
+                            neon_conn.rollback()
+                        except Exception:
+                            pass
                         self.stats['errors'].append(f"Queue batch starting at {i}: {e}")
                         logger.warning(f"  Error migrating queue batch starting at {i}: {e}")
                 
@@ -289,9 +325,16 @@ class SupabaseToNeonMigrator:
         logger.info("\n💬 Migrating chats...")
         
         try:
+            if not self.supabase:
+                raise RuntimeError("Supabase client not initialized")
+            if not self.neon_conn:
+                raise RuntimeError("Neon connection not initialized")
+            assert self.neon_conn is not None
+            neon_conn = self.neon_conn
+
             try:
                 response = self.supabase.table('chats').select('*').execute()
-                chats = response.data
+                chats = getattr(response, 'data', None)
             except Exception as e:
                 if "404" in str(e) or "could not find" in str(e).lower():
                     logger.info("  No chats table found in Supabase (skipping)")
@@ -304,21 +347,24 @@ class SupabaseToNeonMigrator:
             
             logger.info(f"  Found {len(chats)} chats in Supabase")
             
-            with self.neon_conn.cursor() as cur:
+            with neon_conn.cursor() as cur:
                 for i in range(0, len(chats), batch_size):
                     batch = chats[i:i + batch_size]
                     try:
-                        values = [
-                            (
-                                chat.get('chat_id'),
-                                chat.get('title'),
-                                chat.get('username'),
-                                chat.get('type'),
-                                chat.get('is_active', True),
-                                chat.get('created_at') or datetime.now()
+                        values = []
+                        for chat in batch:
+                            if not isinstance(chat, dict):
+                                continue
+                            values.append(
+                                (
+                                    chat.get('chat_id'),
+                                    chat.get('title'),
+                                    chat.get('username'),
+                                    chat.get('type'),
+                                    chat.get('is_active', True),
+                                    chat.get('created_at') or datetime.now()
+                                )
                             )
-                            for chat in batch
-                        ]
 
                         psycopg2.extras.execute_values(cur, """
                             INSERT INTO chats (chat_id, title, username, type, is_active, created_at)
@@ -332,11 +378,14 @@ class SupabaseToNeonMigrator:
                         """, values)
                         
                         self.stats['chats_migrated'] += len(batch)
-                        self.neon_conn.commit()
+                        neon_conn.commit()
                         logger.info(f"  Migrated {min(i + batch_size, len(chats))}/{len(chats)} chats...")
                             
                     except Exception as e:
-                        self.neon_conn.rollback()
+                        try:
+                            neon_conn.rollback()
+                        except Exception:
+                            pass
                         self.stats['errors'].append(f"Chat batch starting at {i}: {e}")
                         logger.warning(f"  Error migrating chat batch starting at {i}: {e}")
                 
@@ -351,9 +400,16 @@ class SupabaseToNeonMigrator:
         logger.info("\n🎵 Migrating play history...")
         
         try:
+            if not self.supabase:
+                raise RuntimeError("Supabase client not initialized")
+            if not self.neon_conn:
+                raise RuntimeError("Neon connection not initialized")
+            assert self.neon_conn is not None
+            neon_conn = self.neon_conn
+
             try:
                 response = self.supabase.table('play_history').select('*').execute()
-                history = response.data
+                history = getattr(response, 'data', None)
             except Exception as e:
                 if "404" in str(e) or "could not find" in str(e).lower():
                     logger.info("  No play_history table found in Supabase (skipping)")
@@ -366,20 +422,23 @@ class SupabaseToNeonMigrator:
             
             logger.info(f"  Found {len(history)} play history records in Supabase")
             
-            with self.neon_conn.cursor() as cur:
+            with neon_conn.cursor() as cur:
                 for i in range(0, len(history), batch_size):
                     batch = history[i:i + batch_size]
                     try:
-                        values = [
-                            (
-                                record.get('chat_id'),
-                                record.get('track_id'),
-                                record.get('title'),
-                                record.get('artist'),
-                                record.get('played_at') or datetime.now()
+                        values = []
+                        for record in batch:
+                            if not isinstance(record, dict):
+                                continue
+                            values.append(
+                                (
+                                    record.get('chat_id'),
+                                    record.get('track_id'),
+                                    record.get('title'),
+                                    record.get('artist'),
+                                    record.get('played_at') or datetime.now()
+                                )
                             )
-                            for record in batch
-                        ]
                         
                         psycopg2.extras.execute_values(cur, """
                             INSERT INTO play_history (chat_id, track_id, title, artist, played_at)
@@ -387,11 +446,14 @@ class SupabaseToNeonMigrator:
                         """, values)
                         
                         self.stats['history_migrated'] += len(batch)
-                        self.neon_conn.commit()
+                        neon_conn.commit()
                         logger.info(f"  Migrated {min(i + batch_size, len(history))}/{len(history)} history records...")
                             
                     except Exception as e:
-                        self.neon_conn.rollback()
+                        try:
+                            neon_conn.rollback()
+                        except Exception:
+                            pass
                         self.stats['errors'].append(f"History batch starting at {i}: {e}")
                         logger.warning(f"  Error migrating history record batch starting at {i}: {e}")
                 
@@ -406,7 +468,12 @@ class SupabaseToNeonMigrator:
         logger.info("\n🔍 Verifying migration...")
         
         try:
-            with self.neon_conn.cursor() as cur:
+            if not self.neon_conn:
+                raise RuntimeError("Neon connection not initialized")
+            assert self.neon_conn is not None
+            neon_conn = self.neon_conn
+
+            with neon_conn.cursor() as cur:
                 # Check counts in Neon
                 cur.execute("SELECT COUNT(*) FROM music_index")
                 neon_tracks = cur.fetchone()[0]

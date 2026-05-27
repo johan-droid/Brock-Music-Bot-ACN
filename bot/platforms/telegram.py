@@ -51,6 +51,8 @@ class TelegramAudioHandler:
             return None
         
         media = audio or video
+        from typing import Any as _Any
+        media_obj: _Any = media
         
         try:
             # Download the file
@@ -63,14 +65,14 @@ class TelegramAudioHandler:
             title = "Unknown"
             performer = "Unknown"
             
-            if hasattr(media, "duration"):
-                duration = media.duration or 0
-            if hasattr(media, "file_name"):
-                title = media.file_name or "Unknown"
-            if hasattr(media, "title"):
-                title = media.title or title
-            if hasattr(media, "performer"):
-                performer = media.performer or performer
+            if hasattr(media_obj, "duration"):
+                duration = media_obj.duration or 0
+            if hasattr(media_obj, "file_name"):
+                title = media_obj.file_name or "Unknown"
+            if hasattr(media_obj, "title"):
+                title = media_obj.title or title
+            if hasattr(media_obj, "performer"):
+                performer = media_obj.performer or performer
             
             return {
                 "url": file_path,  # Local file path
@@ -85,7 +87,7 @@ class TelegramAudioHandler:
             logger.error(f"Failed to extract Telegram audio: {e}")
             return None
     
-    async def _download_media(self, media) -> Optional[str]:
+    async def _download_media(self, media) -> Optional[object]:
         """Download media to local storage.
         
         Args:
@@ -99,18 +101,18 @@ class TelegramAudioHandler:
                 logger.error("Bot client is not initialized for Telegram media download")
                 return None
 
-            file_name = f"tg_{media.file_unique_id}"
-            if hasattr(media, 'file_name') and media.file_name:
-                file_name = media.file_name
-            
+            file_name = f"tg_{getattr(media, 'file_unique_id', 'unknown')}"
+            if hasattr(media, 'file_name') and getattr(media, 'file_name', None):
+                file_name = getattr(media, 'file_name')
+
             file_path = os.path.join(self.download_dir, file_name)
-            
+
             # Download using bot client
             downloaded = await bot_module.bot_client.download_media(
                 media,
                 file_name=file_path
             )
-            
+
             return downloaded
             
         except Exception as e:

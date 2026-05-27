@@ -51,7 +51,21 @@ class QueueManager:
         """Get the full queue for a chat."""
         key = self._queue_key(chat_id)
         data = await cache.lrange(key, 0, -1)
-        return [json.loads(item) for item in data]
+        parsed = []
+        for item in data:
+            if isinstance(item, (str, bytes, bytearray)):
+                try:
+                    txt = item.decode() if isinstance(item, (bytes, bytearray)) else item
+                    parsed.append(json.loads(txt))
+                except Exception:
+                    # Fallback: if it's already JSON-like, append as-is
+                    try:
+                        parsed.append(item)
+                    except Exception:
+                        continue
+            elif isinstance(item, dict):
+                parsed.append(item)
+        return parsed
     
     async def add_to_queue(
         self, 
@@ -136,12 +150,23 @@ class QueueManager:
                 await cache.ltrim(history_key, 0, 19)
 
             if data:
-                track = json.loads(data)
+                # parse popped data robustly
+                if isinstance(data, (str, bytes, bytearray)):
+                    txt = data.decode() if isinstance(data, (bytes, bytearray)) else data
+                    try:
+                        track = json.loads(txt)
+                    except Exception:
+                        track = None
+                elif isinstance(data, dict):
+                    track = data
+                else:
+                    track = None
                 # Store as currently playing
-                playing_key = self._playing_key(chat_id)
-                track["position"] = 0  # Reset position
-                await cache.set(playing_key, json.dumps(track))
-                return track
+                if track:
+                    playing_key = self._playing_key(chat_id)
+                    track["position"] = 0  # Reset position
+                    await cache.set(playing_key, json.dumps(track))
+                    return track
             return None
     
     async def get_current(self, chat_id: int) -> Optional[Dict[str, Any]]:
@@ -310,7 +335,16 @@ class QueueManager:
             if not data:
                 return None
 
-            prev = json.loads(data)
+            if isinstance(data, (str, bytes, bytearray)):
+                txt = data.decode() if isinstance(data, (bytes, bytearray)) else data
+                try:
+                    prev = json.loads(txt)
+                except Exception:
+                    prev = None
+            elif isinstance(data, dict):
+                prev = data
+            else:
+                prev = None
             # preserve old now playing into queue front
             current = await self.get_current(chat_id)
             if current:
@@ -319,9 +353,11 @@ class QueueManager:
                 logger.info(f"Moved current track back to queue for chat {chat_id}")
 
             # Set previous as now playing
-            prev["position"] = 0
-            await cache.set(self._playing_key(chat_id), json.dumps(prev))
-            return prev
+            if prev:
+                prev["position"] = 0
+                await cache.set(self._playing_key(chat_id), json.dumps(prev))
+                return prev
+            return None
 
 
 async def init_queue_manager():
