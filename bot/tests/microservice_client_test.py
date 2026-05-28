@@ -1,3 +1,4 @@
+import asyncio
 from bot.core.microservice_client import MusicMicroserviceClient, _normalize_urls
 from bot.utils.http_pool import HTTPConnectionPool
 import pytest
@@ -117,3 +118,71 @@ async def test_resolve_accepts_nested_track_shape():
     client._request = fake_request  # type: ignore[method-assign]
     item = await client.resolve({"track_id": "abc"})
     assert item == {"track_id": "abc", "stream_url": "https://cdn.example/track.mp3"}
+
+
+@pytest.mark.asyncio
+async def test_render_cold_start_timeout_retries_once_with_longer_timeout():
+    client = MusicMicroserviceClient(
+        base_urls=["https://music-ms.onrender.com"],
+        timeout_seconds=5,
+        cold_start_timeout_seconds=20,
+    )
+
+    timeouts_used = []
+
+    class TimeoutResponse:
+        async def __aenter__(self):
+            raise asyncio.TimeoutError()
+
+        async def __aexit__(self, exc_type, exc, tb):
+            return False
+
+    class SuccessResponse:
+        status = 200
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb):
+            return False
+
+        async def json(self, content_type=None):
+            return {"items": [{"id": "wake", "title": "Warm"}]}
+
+        async def text(self):
+            return ""
+
+    class FakeSession:
+        def __init__(self):
+            self.calls = 0
+
+        def request(self, method, url, **kwargs):
+            timeout_total = getattr(kwargs.get("timeout"), "total", None)
+            timeouts_used.append(timeout_total)
+            self.calls += 1
+            if self.calls == 1:
+                return TimeoutResponse()
+            return SuccessResponse()
+
+    fake_session = FakeSession()
+
+    async def fake_get_session():
+        return fake_session
+
+    original = HTTPConnectionPool.get_session
+    HTTPConnectionPool.get_session = fake_get_session  # type: ignore[assignment]
+    try:
+        items = await client.search("song", limit=1)
+    finally:
+        HTTPConnectionPool.get_session = original  # type: ignore[assignment]
+
+    assert items == [{"id": "wake", "title": "Warm"}]
+    assert timeouts_used[:2] == [5, 20]
+
+
+def test_initial_render_cold_start_detection():
+    render_client = MusicMicroserviceClient(base_urls=["https://music-ms.onrender.com"])
+    assert render_client.is_initial_render_cold_start() is True
+
+    non_render_client = MusicMicroserviceClient(base_urls=["https://api.example.com"])
+    assert non_render_client.is_initial_render_cold_start() is False

@@ -323,7 +323,7 @@ async def vplay_cmd(client: Client, message: Message):
     search_msg = await message.reply("🎬 <i>The Soul King is loading the video stage...</i>", parse_mode=ParseMode.HTML)
 
     try:
-        track = await asyncio.wait_for(extract_audio(query, message), timeout=35)
+        track = await asyncio.wait_for(extract_audio(query, message), timeout=80)
         if not track:
             await search_msg.edit("❌ <b>Could not extract video!</b>", parse_mode=ParseMode.HTML)
             return

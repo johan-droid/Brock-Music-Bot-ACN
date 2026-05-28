@@ -33,7 +33,7 @@ def _sanitize_query(query: str) -> str:
 
 
 async def extract_audio(query: str, message: Optional[Message] = None) -> Optional[Dict[str, Any]]:
-    """Extract audio using the shared VK-first aggregator with a hard 45s timeout."""
+    """Extract audio using the shared aggregator with a Render-safe timeout."""
     query = _sanitize_query(query)
     if not query:
         return None
@@ -47,7 +47,7 @@ async def extract_audio(query: str, message: Optional[Message] = None) -> Option
 
     # 2. Shared backend resolution
     try:
-        return await asyncio.wait_for(_get_music_backend().resolve(query), timeout=45.0)
+        return await asyncio.wait_for(_get_music_backend().resolve(query), timeout=75.0)
     except asyncio.TimeoutError:
         logger.error(f"💀 Extraction TIMEOUT for {query}")
         return None
