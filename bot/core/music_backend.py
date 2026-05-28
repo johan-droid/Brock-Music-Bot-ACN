@@ -11,6 +11,8 @@ from typing import Any, Dict, List, Optional
 
 import bot.utils.database as database_module
 from bot.core.microservice_client import MusicMicroserviceClient
+from bot.platforms.web_fallback import resolve_url as resolve_fallback_url
+from bot.platforms.web_fallback import search_tracks as search_fallback_tracks
 from bot.utils.circuit_breaker import source_health_tracker
 from bot.utils.errors import FallbackExhaustedError, DelegationRequested
 from bot.utils.title_detector import build_title_routing_hints
@@ -462,6 +464,31 @@ class MusicBackend:
                 logger.debug("Clean-query microservice retry failed for %r: %s", clean_query, exc)
         return tracks
 
+    async def _search_local_fallback(self, query: str, limit: int) -> List[Track]:
+        from config import config
+
+        try:
+            raw_results = await search_fallback_tracks(
+                query=query,
+                limit=max(1, int(limit or 1)),
+                provider_priority=getattr(config, "MUSIC_PROVIDER_PRIORITY", "youtube,soundcloud,apple_music"),
+            )
+        except Exception as exc:
+            logger.debug("Local fallback search failed for %r: %s", query, exc)
+            return []
+
+        tracks: List[Track] = []
+        for item in raw_results or []:
+            if not isinstance(item, dict):
+                continue
+            track = self._item_to_track(item, item.get("source", "external"))
+            if not track:
+                continue
+            tracks.append(track)
+            if len(tracks) >= limit:
+                break
+        return tracks
+
     @staticmethod
     def _dedupe_tracks(items: List[Track], limit: int) -> List[Track]:
         out: List[Track] = []
@@ -539,8 +566,7 @@ class MusicBackend:
         if _looks_like_url(query):
             url = _normalize_url_text(query)
             source = _infer_source_from_url(url)
-            if source == "unsupported":
-                return []
+            # Keep webpage URLs in the flow; resolver may convert them to direct streams.
             return [
                 Track(
                     title="Direct Link",
@@ -565,6 +591,9 @@ class MusicBackend:
             tracks_from_service = await self._search_microservice(query, limit)
 
         tracks = self._dedupe_tracks(tracks_from_service, limit)
+
+        if not tracks:
+            tracks = self._dedupe_tracks(await self._search_local_fallback(query, limit), limit)
 
         if tracks and len(_background_tasks) < _MAX_BACKGROUND_TASKS:
             task = asyncio.create_task(self._cache_to_index(query, tracks))
@@ -603,9 +632,6 @@ class MusicBackend:
         direct_source = _infer_source_from_url(track.stream_url)
         if track.stream_url and track.stream_url.startswith("http") and direct_source == "direct":
             return self._resolved_to_payload(track, track.to_dict(), fallback_source="direct")
-
-        if source == "unsupported":
-            raise FallbackExhaustedError("Unsupported source URL.")
 
         if self._client.is_configured:
             # First, try a normal resolve using the microservice's routing hints.
@@ -647,6 +673,15 @@ class MusicBackend:
                 except Exception:
                     continue
 
+        # In-process fallback resolver for webpage URLs and microservice misses.
+        if track.stream_url:
+            fallback_source = source if source not in {"unknown", "unsupported"} else "external"
+            local_resolved = await resolve_fallback_url(track.stream_url, source=fallback_source)
+            if local_resolved:
+                payload = self._resolved_to_payload(track, local_resolved, fallback_source=fallback_source)
+                if payload and payload.get("url"):
+                    return payload
+
         # Fallback: search by text and re-resolve one of the results.
         if self._client.is_configured and track.title:
             clean_title = self._clean_search_query(track.title)
@@ -658,6 +693,13 @@ class MusicBackend:
                 if isinstance(resolved, dict) and resolved.get("delegate"):
                     raise DelegationRequested(resolved.get("delegate"))
                 payload = self._resolved_to_payload(track, resolved or {}, fallback_source=candidate.source)
+                if payload and payload.get("url"):
+                    return payload
+
+            # If microservice search fallback misses, try local provider fallback search.
+            local_results = await self._search_local_fallback(search_query, limit=3)
+            for candidate in local_results:
+                payload = await self.get_stream_payload(candidate)
                 if payload and payload.get("url"):
                     return payload
 
