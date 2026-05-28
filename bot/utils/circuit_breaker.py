@@ -357,16 +357,6 @@ source_health_tracker = SourceHealthTracker()
 
 # Pre-configured circuit breakers for music services
 CIRCUIT_BREAKERS = {
-    "deezer": CircuitBreakerRegistry.register(
-        "deezer",
-        failure_threshold=5,
-        recovery_timeout=60
-    ),
-    "vk": CircuitBreakerRegistry.register(
-        "vk",
-        failure_threshold=3,
-        recovery_timeout=60
-    ),
     "database": CircuitBreakerRegistry.register(
         "database",
         failure_threshold=5,

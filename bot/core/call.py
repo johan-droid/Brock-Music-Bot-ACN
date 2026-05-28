@@ -16,7 +16,7 @@ import re
 from typing import Dict, Optional, Callable, List, Any
 
 # URL validation for stream sources - prevent SSRF attacks
-# NOTE: Only http/https are valid for FFmpeg streaming. vk:// and deezer:// are NOT valid protocols.
+# NOTE: Only http/https are valid for remote FFmpeg streaming.
 _ALLOWED_URL_SCHEMES = {"http", "https"}
 _BLOCKED_URL_PATTERNS = [
     r"^.*://127\.\d+\.\d+\.\d+.*$",  # Loopback addresses
@@ -743,10 +743,6 @@ class CallManager:
         # Source-specific fallbacks
         if not ua:
             ua = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-        if not referer:
-            if source == "deezer":
-                referer = "https://www.deezer.com/"
-
         if ua:
             ffmpeg_params += f'-user_agent "{ua}" '
         if referer:

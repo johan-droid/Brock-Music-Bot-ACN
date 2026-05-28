@@ -59,7 +59,7 @@ def _normalize_url_text(value: str) -> str:
         return text
     if _URL_SCHEME_RX.match(text):
         return text
-    if text.startswith(("www.", "vk.com", "m.vk.com", "vkvideo.ru", "deezer.com", "deezer.page.link")):
+    if text.startswith("www."):
         return f"https://{text}"
     return text
 
@@ -77,10 +77,6 @@ def _infer_source_from_url(value: str) -> str:
         return "unknown"
     if _looks_like_unsupported_page_url(text):
         return "unsupported"
-    if any(part in text for part in ("vk.com", "m.vk.com", "vk.ru", "vkvideo.ru", "vk://")):
-        return "vk"
-    if "deezer" in text or text.startswith("deezer://"):
-        return "deezer"
     if text.startswith("http"):
         return "direct"
     return "unknown"
@@ -92,7 +88,7 @@ def _looks_like_url(value: str) -> bool:
         return False
     if _URL_SCHEME_RX.match(text):
         return True
-    return text.startswith(("www.", "vk.com", "m.vk.com", "vkvideo.ru", "deezer.com", "deezer.page.link"))
+    return text.startswith("www.")
 
 
 @dataclass
@@ -122,8 +118,6 @@ class Track:
         self.track_id = (
             kwargs.get("track_id")
             or kwargs.get("id")
-            or kwargs.get("vk_id")
-            or kwargs.get("deezer_id")
         )
         if self.track_id is not None:
             self.track_id = str(self.track_id)
@@ -155,8 +149,6 @@ class SourceRanker:
     """Compatibility ranking helper used by the selection logic in play.py."""
 
     _BASE_WEIGHTS = {
-        "vk": 1.0,
-        "deezer": 1.1,
         "telegram": 1.8,
         "direct": 2.0,
         "global_index": 2.1,
@@ -247,8 +239,6 @@ class MusicBackend:
         self._index_misses = 0
         self._index_skip_until = 0.0
 
-        await source_health_tracker.register_source("vk", base_score=1.0)
-        await source_health_tracker.register_source("deezer", base_score=0.95)
         await source_health_tracker.register_source("telegram", base_score=1.05)
         await source_health_tracker.register_source("direct", base_score=1.1)
         await source_health_tracker.register_source("microservice", base_score=1.2)
@@ -330,7 +320,7 @@ class MusicBackend:
             return None
 
         source = _normalize_source(item.get("source") or default_source or "unknown")
-        track_id = item.get("id") or item.get("track_id") or item.get("vk_id") or item.get("deezer_id")
+        track_id = item.get("id") or item.get("track_id")
         stream_url = _normalize_url_text(
             item.get("stream_url")
             or item.get("audio_url")
@@ -343,7 +333,7 @@ class MusicBackend:
         if source == "unsupported":
             return None
 
-        if source not in {"telegram", "direct", "vk", "deezer", "unknown", "global_index"}:
+        if source == "unknown":
             source = _infer_source_from_url(stream_url)
             if source == "unsupported":
                 return None
@@ -659,9 +649,6 @@ class MusicBackend:
         return payload.get("url") or payload.get("stream_url")
 
     def get_source_headers(self, source: str) -> Optional[Dict[str, str]]:
-        normalized = _normalize_source(source)
-        if normalized == "deezer":
-            return {"Referer": "https://www.deezer.com/"}
         return None
 
     async def health(self) -> Dict[str, Any]:
