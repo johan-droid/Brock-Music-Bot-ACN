@@ -132,6 +132,7 @@ class Config(BaseSettings):
     MUSIC_MICROSERVICE_RESOLVE_PATH: str = "/resolve"
     MUSIC_MICROSERVICE_HEALTH_PATH: str = "/health"
     MUSIC_MICROSERVICE_TIMEOUT: int = 12
+    MUSIC_PROVIDER_PRIORITY: str = "youtube,soundcloud,apple_music"
 
     # Now Playing card auto-clean (seconds)
     NP_AUTOCLEAN_DELAY: int = 30       # delete NP card N seconds after track ends / /stop

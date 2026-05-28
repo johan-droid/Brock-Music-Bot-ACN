@@ -2,7 +2,7 @@
 
 import re
 import logging
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional, Tuple
 from difflib import SequenceMatcher
 
 logger = logging.getLogger(__name__)
@@ -179,6 +179,41 @@ def generate_search_fallbacks(query: str) -> List[str]:
         fallbacks.append(" ".join(words[-3:]))
 
     return list(dict.fromkeys([f for f in fallbacks if f and f.lower() != query.lower()]))
+
+
+def build_title_routing_hints(query: str, limit: int = 5) -> Dict[str, Any]:
+    """Build a compact routing payload for smart microservice-side provider selection."""
+    clean_query = (query or "").strip()
+    artist, title = extract_artist_title(clean_query)
+    variants = generate_search_variants(clean_query)
+    fallback_queries = generate_search_fallbacks(clean_query)
+    query_type = detect_query_type(clean_query)
+    source_weights = get_source_weights_for_query(clean_query)
+    provider_priority, provider_scores = get_provider_priority_for_query(clean_query)
+
+    ordered_queries: List[str] = []
+    for candidate in [clean_query, *variants, *fallback_queries]:
+        normalized = candidate.strip()
+        if not normalized:
+            continue
+        if normalized.lower() in {q.lower() for q in ordered_queries}:
+            continue
+        ordered_queries.append(normalized)
+
+    return {
+        "query": clean_query,
+        "normalized_query": normalize_text(clean_query),
+        "artist_hint": artist,
+        "title_hint": title,
+        "variants": ordered_queries[:8],
+        "fallback_queries": fallback_queries[:5],
+        "query_type": query_type,
+        "source_weights": source_weights,
+        "provider_priority": provider_priority,
+        "provider_scores": provider_scores,
+        "primary_provider": provider_priority[0] if provider_priority else None,
+        "result_limit": max(1, int(limit or 1)),
+    }
 
 
 class TitleConflictResolver:
@@ -459,6 +494,70 @@ def get_source_weights_for_query(query: str) -> Dict[str, float]:
         "global_index": 0.95,
         "unknown": 0.8,
     }
+
+
+def _load_default_provider_priority() -> List[str]:
+    from config import config
+
+    raw = getattr(config, "MUSIC_PROVIDER_PRIORITY", "youtube,soundcloud,apple_music") or ""
+    providers: List[str] = []
+    seen = set()
+    for item in re.split(r"[\s,;|]+", str(raw)):
+        provider = item.strip().lower()
+        if not provider or provider in seen:
+            continue
+        seen.add(provider)
+        providers.append(provider)
+
+    if not providers:
+        return ["youtube", "soundcloud", "apple_music"]
+    return providers
+
+
+def get_provider_priority_for_query(query: str) -> Tuple[List[str], Dict[str, float]]:
+    """
+    Build explicit provider priority for the external microservice.
+
+    Current desired default:
+    1. YouTube      - unlimited / primary source
+    2. SoundCloud   - direct download
+    3. Apple Music  - scrape + YouTube matching
+    """
+    query_lower = (query or "").strip().lower()
+    query_type = detect_query_type(query)
+    base_priority = _load_default_provider_priority()
+
+    scores: Dict[str, float] = {
+        "youtube": 1.0,
+        "soundcloud": 0.85,
+        "apple_music": 0.7,
+    }
+
+    for provider in base_priority:
+        scores.setdefault(provider, 0.5)
+
+    if any(token in query_lower for token in ("youtube", "youtu.be", "youtube.com", "yt ")):
+        scores["youtube"] += 0.35
+    if any(token in query_lower for token in ("soundcloud", "sound cloud", "soundcloud.com", "sc ")):
+        scores["soundcloud"] += 0.4
+    if any(token in query_lower for token in ("apple music", "music.apple.com", "itunes", "apple ")):
+        scores["apple_music"] += 0.35
+
+    if query_type["official"] > 0.4:
+        scores["youtube"] += 0.2
+    if query_type["live_acoustic"] > 0.4 or query_type["electronic"] > 0.5:
+        scores["soundcloud"] += 0.15
+    if query_type["western_pop"] > 0.7:
+        scores["youtube"] += 0.1
+    if query_type["indian"] > 0.7:
+        scores["youtube"] += 0.15
+        scores["apple_music"] += 0.05
+
+    provider_priority = sorted(
+        scores.keys(),
+        key=lambda provider: (-scores[provider], base_priority.index(provider) if provider in base_priority else 999),
+    )
+    return provider_priority, {provider: round(score, 3) for provider, score in scores.items()}
 
 
 # Global resolver instance

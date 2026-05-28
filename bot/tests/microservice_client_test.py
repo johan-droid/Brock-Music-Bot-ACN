@@ -1,4 +1,5 @@
 from bot.core.microservice_client import MusicMicroserviceClient, _normalize_urls
+from bot.utils.http_pool import HTTPConnectionPool
 import pytest
 
 
@@ -34,6 +35,76 @@ async def test_search_accepts_results_shape():
     client._request = fake_request  # type: ignore[method-assign]
     items = await client.search("song", limit=5)
     assert items == [{"id": "123", "title": "Song"}]
+
+
+@pytest.mark.asyncio
+async def test_search_prefers_post_routing_payload_when_available():
+    client = MusicMicroserviceClient(base_urls=["https://music-ms.onrender.com"])
+    calls = []
+
+    async def fake_request(method, path, **kwargs):
+        calls.append((method, path, kwargs))
+        if method == "POST":
+            return {"items": [{"id": "r1", "title": "Routed Song"}]}
+        return {"items": []}
+
+    client._request = fake_request  # type: ignore[method-assign]
+    items = await client.search("song", limit=5, routing={"variants": ["song"]})
+    assert items == [{"id": "r1", "title": "Routed Song"}]
+    assert calls[0][0] == "POST"
+
+
+@pytest.mark.asyncio
+async def test_request_failover_cools_failed_endpoint():
+    client = MusicMicroserviceClient(
+        base_urls=["https://primary-ms.onrender.com", "https://backup-ms.onrender.com"]
+    )
+
+    class FakeResponse:
+        def __init__(self, status, payload):
+            self.status = status
+            self._payload = payload
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb):
+            return False
+
+        async def json(self, content_type=None):
+            return self._payload
+
+        async def text(self):
+            return str(self._payload)
+
+    class FakeSession:
+        def __init__(self):
+            self.calls = []
+
+        def request(self, method, url, **kwargs):
+            self.calls.append(url)
+            if "primary-ms" in url:
+                return FakeResponse(503, {"error": "down"})
+            return FakeResponse(200, {"items": [{"id": "ok", "title": "Backup"}]})
+
+    fake_session = FakeSession()
+
+    async def fake_get_session():
+        return fake_session
+
+    original = HTTPConnectionPool.get_session
+    HTTPConnectionPool.get_session = fake_get_session  # type: ignore[assignment]
+    try:
+        first = await client.search("song", limit=3)
+        second = await client.search("song", limit=3)
+    finally:
+        HTTPConnectionPool.get_session = original  # type: ignore[assignment]
+
+    assert first == [{"id": "ok", "title": "Backup"}]
+    assert second == [{"id": "ok", "title": "Backup"}]
+    assert fake_session.calls[0].startswith("https://primary-ms")
+    assert fake_session.calls[1].startswith("https://backup-ms")
+    assert fake_session.calls[2].startswith("https://backup-ms")
 
 
 @pytest.mark.asyncio

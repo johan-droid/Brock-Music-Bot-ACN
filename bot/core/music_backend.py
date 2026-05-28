@@ -13,6 +13,7 @@ import bot.utils.database as database_module
 from bot.core.microservice_client import MusicMicroserviceClient
 from bot.utils.circuit_breaker import source_health_tracker
 from bot.utils.errors import FallbackExhaustedError
+from bot.utils.title_detector import build_title_routing_hints
 
 logger = logging.getLogger(__name__)
 
@@ -413,8 +414,9 @@ class MusicBackend:
         if not self._client.is_configured:
             return []
 
+        routing_hints = build_title_routing_hints(query, limit=limit)
         try:
-            raw_results = await self._client.search(query, limit=limit)
+            raw_results = await self._client.search(query, limit=limit, routing=routing_hints)
             await source_health_tracker.record_success("microservice")
         except Exception as exc:
             await source_health_tracker.record_failure("microservice")
@@ -423,7 +425,7 @@ class MusicBackend:
 
         tracks: List[Track] = []
         for item in raw_results or []:
-            track = self._item_to_track(item, item.get("source", "unknown"))
+            track = self._item_to_track(item, item.get("source", "external"))
             if not track:
                 continue
             tracks.append(track)
@@ -446,6 +448,10 @@ class MusicBackend:
         return out
 
     def _track_to_resolve_payload(self, track: Track) -> Dict[str, Any]:
+        routing_hints = build_title_routing_hints(
+            f"{track.title} {track.artist}".strip() or track.title or track.artist or "",
+            limit=3,
+        )
         payload = {
             "title": track.title,
             "artist": track.artist,
@@ -454,6 +460,7 @@ class MusicBackend:
             "source": track.source or "unknown",
             "track_id": track.track_id,
             "thumbnail": track.thumbnail,
+            "routing": routing_hints,
         }
         # Microservices commonly expect "id" rather than "track_id".
         payload["id"] = track.track_id

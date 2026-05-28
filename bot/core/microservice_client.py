@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import aiohttp
 import logging
+import time
 from typing import Any, Dict, Iterable, List, Optional
 
 from bot.utils.http_pool import HTTPConnectionPool
@@ -51,6 +52,16 @@ class MusicMicroserviceClient:
         self.timeout_seconds = max(4, int(timeout_seconds or 12))
         self.token = (token or "").strip() or None
         self.token_header = (token_header or "Authorization").strip() or "Authorization"
+        self._endpoint_state: Dict[str, Dict[str, Any]] = {
+            base_url: {
+                "failures": 0,
+                "successes": 0,
+                "cooldown_until": 0.0,
+                "last_error": None,
+                "last_latency_ms": None,
+            }
+            for base_url in self.base_urls
+        }
 
     @property
     def is_configured(self) -> bool:
@@ -75,6 +86,44 @@ class MusicMicroserviceClient:
         else:
             headers[self.token_header] = self.token
         return headers
+
+    def _ordered_base_urls(self) -> List[str]:
+        now = time.time()
+
+        def sort_key(base_url: str) -> tuple[int, float, int]:
+            state = self._endpoint_state.setdefault(
+                base_url,
+                {"failures": 0, "successes": 0, "cooldown_until": 0.0, "last_error": None, "last_latency_ms": None},
+            )
+            cooling = 1 if state.get("cooldown_until", 0.0) > now else 0
+            latency = float(state.get("last_latency_ms") or 0.0)
+            failures = int(state.get("failures") or 0)
+            return (cooling, latency, failures)
+
+        return sorted(self.base_urls, key=sort_key)
+
+    def _record_endpoint_success(self, base_url: str, latency_ms: Optional[float] = None) -> None:
+        state = self._endpoint_state.setdefault(
+            base_url,
+            {"failures": 0, "successes": 0, "cooldown_until": 0.0, "last_error": None, "last_latency_ms": None},
+        )
+        state["successes"] = int(state.get("successes") or 0) + 1
+        state["failures"] = 0
+        state["cooldown_until"] = 0.0
+        state["last_error"] = None
+        if latency_ms is not None:
+            state["last_latency_ms"] = round(float(latency_ms), 2)
+
+    def _record_endpoint_failure(self, base_url: str, error: str) -> None:
+        state = self._endpoint_state.setdefault(
+            base_url,
+            {"failures": 0, "successes": 0, "cooldown_until": 0.0, "last_error": None, "last_latency_ms": None},
+        )
+        failures = int(state.get("failures") or 0) + 1
+        state["failures"] = failures
+        state["last_error"] = error
+        cooldown_seconds = min(45, 5 * failures)
+        state["cooldown_until"] = time.time() + cooldown_seconds
 
     @staticmethod
     def _extract_items(payload: Any) -> List[Dict[str, Any]]:
@@ -109,6 +158,7 @@ class MusicMicroserviceClient:
         params: Optional[Dict[str, Any]] = None,
         json_payload: Optional[Dict[str, Any]] = None,
         expected: tuple[int, ...] = (200,),
+        non_fatal_statuses: tuple[int, ...] = (),
     ) -> Optional[Dict[str, Any]]:
         if not self.base_urls:
             return None
@@ -116,8 +166,11 @@ class MusicMicroserviceClient:
         headers = self._headers()
         last_error: Optional[str] = None
 
-        for idx, base_url in enumerate(self.base_urls):
+        ordered_urls = self._ordered_base_urls()
+
+        for idx, base_url in enumerate(ordered_urls):
             url = f"{base_url}{path}"
+            started = time.time()
             try:
                 session = await HTTPConnectionPool.get_session()
                 timeout = aiohttp.ClientTimeout(total=self.timeout_seconds)
@@ -132,35 +185,58 @@ class MusicMicroserviceClient:
                     if response.status not in expected:
                         body = await response.text()
                         last_error = f"HTTP {response.status}: {body[:200]}"
+                        if response.status not in non_fatal_statuses:
+                            self._record_endpoint_failure(base_url, last_error)
                         logger.warning("Microservice request failed %s %s (%s)", method, url, last_error)
                         continue
                     try:
-                        return await response.json(content_type=None)
+                        payload = await response.json(content_type=None)
+                        self._record_endpoint_success(base_url, (time.time() - started) * 1000.0)
+                        return payload
                     except Exception as exc:
                         last_error = f"invalid-json: {exc}"
+                        self._record_endpoint_failure(base_url, last_error)
                         logger.warning("Microservice returned invalid JSON for %s %s: %s", method, url, exc)
                         continue
             except asyncio.TimeoutError:
                 last_error = "timeout"
+                self._record_endpoint_failure(base_url, last_error)
                 logger.warning("Microservice request timed out for %s %s", method, url)
                 continue
             except Exception as exc:
                 last_error = str(exc)
+                self._record_endpoint_failure(base_url, last_error)
                 logger.warning("Microservice request error for %s %s: %s", method, url, exc)
                 continue
             finally:
                 # Keep loop deterministic and avoid hammering all failed endpoints at once.
-                if idx < len(self.base_urls) - 1:
+                if idx < len(ordered_urls) - 1:
                     await asyncio.sleep(0.05)
 
         if last_error:
             logger.debug("All microservice endpoints failed for %s %s: %s", method, path, last_error)
         return None
 
-    async def search(self, query: str, limit: int = 10) -> List[Dict[str, Any]]:
+    async def search(self, query: str, limit: int = 10, routing: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
         q = (query or "").strip()
         if not q:
             return []
+
+        if routing:
+            routed_payload = await self._request(
+                "POST",
+                self.search_path,
+                json_payload={
+                    "query": q,
+                    "limit": max(1, int(limit or 1)),
+                    "routing": routing,
+                },
+                expected=(200,),
+                non_fatal_statuses=(404, 405, 501),
+            )
+            items = self._extract_items(routed_payload)
+            if items:
+                return items
 
         payload = await self._request(
             "GET",
@@ -217,6 +293,7 @@ class MusicMicroserviceClient:
                         endpoint_state["error"] = await response.text()
             except Exception as exc:
                 endpoint_state["error"] = str(exc)
+            endpoint_state["client_state"] = self._endpoint_state.get(base_url, {})
             details["endpoints"].append(endpoint_state)
 
         return details
