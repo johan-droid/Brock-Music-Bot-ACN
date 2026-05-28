@@ -1,91 +1,81 @@
 # 🎵 Brook Music Bot
 
-Telegram Voice Chat music bot that runs as a **client for an external track server**.
+<p align="center">
+  <img src="assets/brook_readme_banner.svg" alt="Brook Music Bot animated banner" width="100%" />
+</p>
 
-## 🚀 Quick Start
+<p align="center">
+  <img src="assets/brook_start.png" alt="Brook Music Bot artwork" width="420" />
+</p>
 
-1. **Clone the repo**
+Brook Music Bot brings a full Soul King vibe to Telegram voice chats.  
+It is built around **Brook from One Piece**: stylish stage energy, playful setlist language, and a music-first group experience that feels more like a live show than a utility bot.
+
+## Why People Like It
+
+- Brook-themed personality across commands, queue messages, and concert prompts
+- Smooth voice chat playback for groups and communities
+- Mood search, saved setlists, and collaborative playlist-style flows
+- Works with your own external music server, so you can decide where tracks come from
+- Designed to feel lively, fun, and easy to run
+
+## What It Does
+
+Brook can:
+
+- play songs into Telegram voice chats
+- manage queues and encore-style looping
+- search by vibe or mood
+- save and replay setlists
+- check whether your music server is awake and reachable
+
+## Quick Setup
+
+1. Clone the repo
    ```bash
    git clone https://github.com/johan-droid/Music-Bot
    cd Music-Bot
    ```
 
-2. **Install Dependencies**
+2. Install dependencies
    ```bash
    pip install -r requirements.txt
    ```
 
-3. **Configure Environment**
-   Create a `.env` file with `BOT_TOKEN`, `API_ID`, `API_HASH`, and your external server URL in `MUSIC_MICROSERVICE_URL`.
+3. Add your Telegram credentials and your music server URL to `.env`
 
-4. **Run System**
+4. Start the bot
    ```bash
    supervisord -n -c supervisor.conf
    ```
 
-## 🔌 External Server Contract
+## Main Commands
 
-The bot expects a separate HTTP service that can search and resolve tracks.
+- `/play` - start the performance
+- `/queue` - see the current setlist
+- `/moodsearch` - ask Brook for a mood
+- `/mooddiscovery` - browse vibe picks
+- `/plcreate` - create a saved setlist
+- `/plplay` - replay a saved setlist
+- `/serverhealth` - check the music server
 
-- `GET /search?q=<query>&limit=<n>`
-- `POST /resolve`
-- `GET /health`
+## Theme
 
-Accepted search response shapes:
+This bot leans hard into the Soul King mood:
 
-```json
-{"items":[{"id":"123","title":"Song","artist":"Artist","source":"vk"}]}
-```
+- concert-style responses
+- Brook-inspired stage language
+- setlists instead of plain playlists
+- a more playful group music experience overall
 
-or
+## Notes
 
-```json
-{"results":[{"track_id":"123","title":"Song","artist":"Artist","stream_url":"https://..."}]}
-```
-
-Accepted resolve response shapes:
-
-```json
-{"id":"123","title":"Song","artist":"Artist","url":"https://cdn.example/track.mp3","source":"vk"}
-```
-
-or
-
-```json
-{"track":{"track_id":"123","title":"Song","artist":"Artist","stream_url":"https://cdn.example/track.mp3"}}
-```
-
-Minimum useful fields:
-
-- `id` or `track_id`
-- `title`
-- `artist` or `uploader`
-- `url`, `stream_url`, `audio_url`, or `audio`
-- optional: `duration`, `thumbnail`, `headers`, `source`
-
-## 📖 Technical Documentation
-
-The project follows strict IEEE documentation standards. Please refer to the following documents for deep technical details:
-
-1. **[System Design Specification](SYSTEM_DESIGN_SPECIFICATION.md)**: Architecture, Music Engine, and VC Integration.
-2. **[Operational Engineering Guide](OPERATIONAL_ENGINEERING_GUIDE.md)**: Deployment, Configuration, and Maintenance.
-3. **[Research & Performance Analysis](RESEARCH_AND_PERFORMANCE_ANALYSIS.md)**: Stability metrics and research findings.
-
-## 🛠️ Key Features
-
-- **External-server client architecture**: playback, discovery, playlists, and mood search all fetch from your configured track service.
-- **Endpoint failover**: Supports multiple music microservice URLs for resilience.
-- **Track management**: collaborative playlists, queueing, radio shows, and cached lookup all work through stored track references.
-- **Service diagnostics**: `/serverhealth` checks whether the configured remote endpoints are reachable.
-- **High Fidelity**: Up to 320kbps audio with EBU R128 normalization.
-- **Command-safe refactor**: `/play`, `/vibe`, playlists, and Song Hunter all run through shared backend resolution.
-
-## 🧭 Notes
-
-- This repo now treats the music server as external infrastructure.
-- `docker-compose.yml` is bot-only by default.
-- `render.yaml` deploys only the bot service and expects you to supply `MUSIC_MICROSERVICE_URL`.
-- `vk_music_backend.py` can still be kept around as a reference implementation, but the bot no longer depends on it locally.
+- The bot expects a separate music server URL in `MUSIC_MICROSERVICE_URL`
+- `docker-compose.yml` is set up for the bot itself, not a bundled music backend
+- Full engineering docs are still in the repo if you need them later:
+  - [System Design Specification](SYSTEM_DESIGN_SPECIFICATION.md)
+  - [Operational Engineering Guide](OPERATIONAL_ENGINEERING_GUIDE.md)
+  - [Research & Performance Analysis](RESEARCH_AND_PERFORMANCE_ANALYSIS.md)
 
 ---
-*Built with ❤️ by the Brook Music Team.*
+*Yohohoho! Built for crews who like their music bots with a little more soul.*
