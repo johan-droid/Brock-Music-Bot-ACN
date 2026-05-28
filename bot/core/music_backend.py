@@ -35,9 +35,6 @@ _MICROSERVICE_SEARCH_PATH = "/search"
 _MICROSERVICE_RESOLVE_PATH = "/resolve"
 _MICROSERVICE_HEALTH_PATH = "/health"
 _MICROSERVICE_TIMEOUT_SECONDS = 18
-_MICROSERVICE_COLD_START_TIMEOUT_SECONDS = 55
-_PARALLEL_SEARCH_WAIT_SECONDS = 30
-_PARALLEL_SEARCH_WAIT_COLD_START_SECONDS = 70
 
 
 def _get_multi_cache():
@@ -236,7 +233,6 @@ class MusicBackend:
             resolve_path=_MICROSERVICE_RESOLVE_PATH,
             health_path=_MICROSERVICE_HEALTH_PATH,
             timeout_seconds=_MICROSERVICE_TIMEOUT_SECONDS,
-            cold_start_timeout_seconds=_MICROSERVICE_COLD_START_TIMEOUT_SECONDS,
             token=None,
             token_header="Authorization",
         )
@@ -535,42 +531,13 @@ class MusicBackend:
         if cached:
             return [self._coerce_track(t) for t in cached]
 
-        from config import config
-
         tracks_from_service: List[Track] = []
-        tracks_from_index: List[Track] = []
 
-        if getattr(config, "PARALLEL_SEARCH", True):
-            svc_task = asyncio.create_task(self._search_microservice(query, limit))
-            idx_task = asyncio.create_task(self._search_index(query, limit))
-            wait_timeout = _PARALLEL_SEARCH_WAIT_SECONDS
-            if self._client.is_initial_render_cold_start():
-                wait_timeout = _PARALLEL_SEARCH_WAIT_COLD_START_SECONDS
-            done, pending = await asyncio.wait({svc_task, idx_task}, timeout=wait_timeout)
+        # Only use the configured microservice - no fallback to database index
+        if self._client.is_configured:
+            tracks_from_service = await self._search_microservice(query, limit)
 
-            for task in done:
-                try:
-                    result = task.result()
-                except Exception:
-                    result = []
-                if task is svc_task:
-                    tracks_from_service = result
-                elif task is idx_task:
-                    tracks_from_index = result
-
-            for task in pending:
-                task.cancel()
-        else:
-            if getattr(config, "PRIORITIZE_EXTRACTORS", True):
-                tracks_from_service = await self._search_microservice(query, limit)
-                if len(tracks_from_service) < limit:
-                    tracks_from_index = await self._search_index(query, limit)
-            else:
-                tracks_from_index = await self._search_index(query, limit)
-                if len(tracks_from_index) < limit:
-                    tracks_from_service = await self._search_microservice(query, limit)
-
-        tracks = self._dedupe_tracks(tracks_from_service + tracks_from_index, limit)
+        tracks = self._dedupe_tracks(tracks_from_service, limit)
 
         if tracks and len(_background_tasks) < _MAX_BACKGROUND_TASKS:
             task = asyncio.create_task(self._cache_to_index(query, tracks))
