@@ -19,12 +19,6 @@ services:
         sync: false
       - key: MUSIC_MICROSERVICE_URL
         sync: false
-      - key: MUSIC_MICROSERVICE_URLS
-        sync: false
-      - key: MUSIC_MICROSERVICE_TOKEN
-        sync: false
-      - key: MUSIC_MICROSERVICE_TIMEOUT
-        value: 12
       - key: MONGO_URI
         value: sqlite:///./data/bot.db
       - key: SQLITE_CACHE_PATH

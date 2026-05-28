@@ -125,13 +125,6 @@ class Config(BaseSettings):
 
     # Remote music microservice configuration (Render/other cloud)
     MUSIC_MICROSERVICE_URL: Optional[str] = None
-    MUSIC_MICROSERVICE_URLS: Optional[str] = None  # comma-separated failover endpoints
-    MUSIC_MICROSERVICE_TOKEN: Optional[str] = None
-    MUSIC_MICROSERVICE_TOKEN_HEADER: str = "Authorization"
-    MUSIC_MICROSERVICE_SEARCH_PATH: str = "/search"
-    MUSIC_MICROSERVICE_RESOLVE_PATH: str = "/resolve"
-    MUSIC_MICROSERVICE_HEALTH_PATH: str = "/health"
-    MUSIC_MICROSERVICE_TIMEOUT: int = 12
     MUSIC_PROVIDER_PRIORITY: str = "youtube,soundcloud,apple_music"
 
     # Now Playing card auto-clean (seconds)

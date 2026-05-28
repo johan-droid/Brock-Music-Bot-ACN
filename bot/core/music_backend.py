@@ -31,6 +31,10 @@ _UNSUPPORTED_PAGE_DOMAINS = (
     "jiosaavn.com",
     "audiomack.com",
 )
+_MICROSERVICE_SEARCH_PATH = "/search"
+_MICROSERVICE_RESOLVE_PATH = "/resolve"
+_MICROSERVICE_HEALTH_PATH = "/health"
+_MICROSERVICE_TIMEOUT_SECONDS = 12
 
 
 def _get_multi_cache():
@@ -220,19 +224,17 @@ class MusicBackend:
         from config import config
 
         raw_urls = []
-        if getattr(config, "MUSIC_MICROSERVICE_URLS", None):
-            raw_urls.extend([u.strip() for u in str(config.MUSIC_MICROSERVICE_URLS).split(",")])
         if getattr(config, "MUSIC_MICROSERVICE_URL", None):
             raw_urls.append(str(config.MUSIC_MICROSERVICE_URL).strip())
 
         return MusicMicroserviceClient(
             base_urls=raw_urls,
-            search_path=getattr(config, "MUSIC_MICROSERVICE_SEARCH_PATH", "/search"),
-            resolve_path=getattr(config, "MUSIC_MICROSERVICE_RESOLVE_PATH", "/resolve"),
-            health_path=getattr(config, "MUSIC_MICROSERVICE_HEALTH_PATH", "/health"),
-            timeout_seconds=int(getattr(config, "MUSIC_MICROSERVICE_TIMEOUT", 12) or 12),
-            token=getattr(config, "MUSIC_MICROSERVICE_TOKEN", None),
-            token_header=getattr(config, "MUSIC_MICROSERVICE_TOKEN_HEADER", "Authorization"),
+            search_path=_MICROSERVICE_SEARCH_PATH,
+            resolve_path=_MICROSERVICE_RESOLVE_PATH,
+            health_path=_MICROSERVICE_HEALTH_PATH,
+            timeout_seconds=_MICROSERVICE_TIMEOUT_SECONDS,
+            token=None,
+            token_header="Authorization",
         )
 
     async def init(self):
@@ -245,7 +247,7 @@ class MusicBackend:
         await source_health_tracker.register_source("microservice", base_score=1.2)
 
         if not self._client.is_configured:
-            logger.warning("MusicBackend started without MUSIC_MICROSERVICE_URL(S) configured.")
+            logger.warning("MusicBackend started without MUSIC_MICROSERVICE_URL configured.")
         else:
             logger.info("MusicBackend initialized with %d microservice endpoint(s).", len(self._client.base_urls))
 

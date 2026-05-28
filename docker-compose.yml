@@ -24,7 +24,7 @@ services:
         max-file: "3"
 
     # Required:
-    # - MUSIC_MICROSERVICE_URL or MUSIC_MICROSERVICE_URLS in .env
+    # - MUSIC_MICROSERVICE_URL in .env
     #
     # This compose file intentionally does not start a bundled track server.
     # Point the bot at the external service you plan to deploy separately.
