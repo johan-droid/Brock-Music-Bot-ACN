@@ -232,7 +232,32 @@ class MusicMicroserviceClient:
         if not q:
             return []
 
-        # First try with routing hints if provided
+        # Fast path first: plain GET tends to be lighter and more stable on free-tier runtimes.
+        payload = await self._request(
+            "GET",
+            self.search_path,
+            params={"q": q, "limit": max(1, int(limit or 1))},
+            expected=(200,),
+        )
+        if isinstance(payload, dict) and payload.get("delegate"):
+            return payload
+        items = self._extract_items(payload)
+        if items:
+            return items
+
+        fallback_payload = await self._request(
+            "GET",
+            self.search_path,
+            params={"query": q, "limit": max(1, int(limit or 1))},
+            expected=(200,),
+        )
+        if isinstance(fallback_payload, dict) and fallback_payload.get("delegate"):
+            return fallback_payload
+        fallback_items = self._extract_items(fallback_payload)
+        if fallback_items:
+            return fallback_items
+
+        # Routing-aware POST fallback for servers that support provider-pin search behavior.
         if routing:
             routed_payload = await self._request(
                 "POST",
@@ -245,22 +270,9 @@ class MusicMicroserviceClient:
                 expected=(200,),
                 non_fatal_statuses=(404, 405, 501),
             )
-            items = self._extract_items(routed_payload)
-            if items:
-                return items
-
-        # Primary search with 'q' parameter
-        payload = await self._request(
-            "GET",
-            self.search_path,
-            params={"q": q, "limit": max(1, int(limit or 1))},
-            expected=(200,),
-        )
-        items = self._extract_items(payload)
-        if items:
-            return items
-
-        # No fallback - return empty if the configured microservice returns nothing
+            if isinstance(routed_payload, dict) and routed_payload.get("delegate"):
+                return routed_payload
+            return self._extract_items(routed_payload)
         return []
 
     async def resolve(self, track: Dict[str, Any]) -> Optional[Dict[str, Any]]:
@@ -270,6 +282,10 @@ class MusicMicroserviceClient:
             json_payload=track or {},
             expected=(200,),
         )
+        # If the microservice asks us to delegate this request, return the raw payload
+        # containing the delegation instruction so callers can react accordingly.
+        if isinstance(payload, dict) and payload.get("delegate"):
+            return payload
         return self._extract_track(payload)
 
     async def health(self) -> Dict[str, Any]:

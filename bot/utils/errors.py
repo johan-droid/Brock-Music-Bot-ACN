@@ -22,6 +22,18 @@ class CircuitBreakerOpenError(MusicBotError):
 class FallbackExhaustedError(MusicBotError):
     user_message = "Could not find a working stream for this track across all sources."
 
+
+class DelegationRequested(MusicBotError):
+    """Raised when a microservice requests that the client delegate the task elsewhere.
+
+    The `delegate` payload is stored on the exception instance as `.delegate`.
+    """
+    user_message = "Request delegated to another agent."
+
+    def __init__(self, delegate_payload: dict | None = None):
+        super().__init__("Delegation requested")
+        self.delegate = delegate_payload or {}
+
 def format_error_message(e: Exception) -> str:
     """Map HTTP/API errors to user-friendly messages without stack leakage."""
     if isinstance(e, MusicBotError):

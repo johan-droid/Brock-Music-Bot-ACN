@@ -12,7 +12,7 @@ from typing import Any, Dict, List, Optional
 import bot.utils.database as database_module
 from bot.core.microservice_client import MusicMicroserviceClient
 from bot.utils.circuit_breaker import source_health_tracker
-from bot.utils.errors import FallbackExhaustedError
+from bot.utils.errors import FallbackExhaustedError, DelegationRequested
 from bot.utils.title_detector import build_title_routing_hints
 
 logger = logging.getLogger(__name__)
@@ -419,7 +419,13 @@ class MusicBackend:
         routing_hints = build_title_routing_hints(query, limit=limit)
         try:
             raw_results = await self._client.search(query, limit=limit, routing=routing_hints)
+            # If the microservice asked us to delegate, propagate that as an exception
+            if isinstance(raw_results, dict) and raw_results.get("delegate"):
+                raise DelegationRequested(raw_results.get("delegate"))
             await source_health_tracker.record_success("microservice")
+        except DelegationRequested:
+            # Let callers handle delegation
+            raise
         except Exception as exc:
             await source_health_tracker.record_failure("microservice")
             logger.warning("Microservice search failed for %r: %s", query, exc)
@@ -433,6 +439,27 @@ class MusicBackend:
             tracks.append(track)
             if len(tracks) >= limit:
                 break
+        if tracks:
+            return tracks
+
+        # Retry once with a cleaned query for services that are strict about noisy titles.
+        clean_query = self._clean_search_query(query)
+        if clean_query and clean_query != query:
+            try:
+                raw_results_clean = await self._client.search(clean_query, limit=limit, routing=routing_hints)
+                if isinstance(raw_results_clean, dict) and raw_results_clean.get("delegate"):
+                    raise DelegationRequested(raw_results_clean.get("delegate"))
+                for item in raw_results_clean or []:
+                    track = self._item_to_track(item, item.get("source", "external"))
+                    if not track:
+                        continue
+                    tracks.append(track)
+                    if len(tracks) >= limit:
+                        break
+            except DelegationRequested:
+                raise
+            except Exception as exc:
+                logger.debug("Clean-query microservice retry failed for %r: %s", clean_query, exc)
         return tracks
 
     @staticmethod
@@ -581,10 +608,44 @@ class MusicBackend:
             raise FallbackExhaustedError("Unsupported source URL.")
 
         if self._client.is_configured:
-            resolved = await self._client.resolve(self._track_to_resolve_payload(track))
+            # First, try a normal resolve using the microservice's routing hints.
+            resolve_payload = self._track_to_resolve_payload(track)
+            resolved = await self._client.resolve(resolve_payload)
+            if isinstance(resolved, dict) and resolved.get("delegate"):
+                raise DelegationRequested(resolved.get("delegate"))
             payload = self._resolved_to_payload(track, resolved or {}, fallback_source=source)
             if payload and payload.get("url"):
                 return payload
+
+            # If the default resolve didn't yield a usable URL, attempt provider-specific
+            # resolves by pinning the routing to each provider from the routing hints.
+            try:
+                routing_hints = resolve_payload.get("routing") or build_title_routing_hints(
+                    f"{track.title} {track.artist}".strip(), limit=3
+                )
+                provider_priority = routing_hints.get("provider_priority") or []
+            except Exception:
+                provider_priority = []
+
+            for provider in provider_priority:
+                try:
+                    # Skip if this provider matches the inferred source (we already tried general resolve)
+                    if provider and _normalize_source(provider) == _normalize_source(source):
+                        continue
+
+                    pinned = dict(resolve_payload)
+                    pinned_routing = dict(routing_hints) if isinstance(routing_hints, dict) else {}
+                    pinned_routing["provider_priority"] = [provider]
+                    pinned["routing"] = pinned_routing
+
+                    resolved = await self._client.resolve(pinned)
+                    if isinstance(resolved, dict) and resolved.get("delegate"):
+                        raise DelegationRequested(resolved.get("delegate"))
+                    payload = self._resolved_to_payload(track, resolved or {}, fallback_source=provider)
+                    if payload and payload.get("url"):
+                        return payload
+                except Exception:
+                    continue
 
         # Fallback: search by text and re-resolve one of the results.
         if self._client.is_configured and track.title:
@@ -594,6 +655,8 @@ class MusicBackend:
             search_results = await self._search_microservice(search_query, limit=3)
             for candidate in search_results:
                 resolved = await self._client.resolve(self._track_to_resolve_payload(candidate))
+                if isinstance(resolved, dict) and resolved.get("delegate"):
+                    raise DelegationRequested(resolved.get("delegate"))
                 payload = self._resolved_to_payload(track, resolved or {}, fallback_source=candidate.source)
                 if payload and payload.get("url"):
                     return payload
