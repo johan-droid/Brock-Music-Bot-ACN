@@ -78,9 +78,9 @@ class NowPlayingUI:
         
         # Source emoji
         source_emoji = {
-            "VK": "🟦",
-            "DEEZER": "🎧",
             "TELEGRAM": "📱",
+            "DIRECT": "🌐",
+            "EXTERNAL": "🌐",
         }.get(source, "🎵")
         
         # Status emoji

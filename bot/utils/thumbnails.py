@@ -126,9 +126,9 @@ class ThumbnailGenerator:
             
             # Source emoji/icon
             source_emoji = {
-                "vk": "🟦 VK Music",
-                "deezer": "🎧 Deezer",
                 "telegram": "✈️ Telegram",
+                "direct": "🌐 Direct Stream",
+                "external": "🌐 External Server",
             }.get((source or "").lower(), "🎵 Music")
             
             # Draw source badge

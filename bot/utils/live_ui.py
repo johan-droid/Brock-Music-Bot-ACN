@@ -47,9 +47,9 @@ SOUL_KING_VIBES = {
 }
 
 SOURCE_BADGES = {
-    "vk": ("🟦 VK Music", "#0077FF"),
-    "deezer": ("🎧 Deezer", "#00C7F2"),
     "telegram": ("✈️ Telegram", "#0088CC"),
+    "direct": ("🌐 Direct Stream", "#1D4ED8"),
+    "external": ("🌐 External Server", "#1D4ED8"),
 }
 
 

@@ -67,10 +67,10 @@ def _next_quote() -> str:
 
 # Source badges
 _SOURCE_BADGE = {
-    "vk": "🟦 VK Music",
-    "deezer": "🎧 Deezer",
     "telegram": "✈️ Telegram",
     "direct": "🌐 Direct",
+    "external": "🌐 External",
+    "global_index": "🗂 Global Index",
     "unknown": "🎵 Stream",
 }
 
@@ -81,9 +81,10 @@ _progress_tasks: dict = {}
 _autoclean_tasks: dict = {}
 
 _SOURCE_PRIORITY = {
-    "vk": 1,
-    "deezer": 2,
-    "telegram": 3,
+    "telegram": 1,
+    "direct": 2,
+    "external": 3,
+    "global_index": 4,
 }
 
 
@@ -123,12 +124,6 @@ async def persist_playback_state(
         logger.debug("Failed to persist playback state for %s: %s", chat_id, exc)
 
 
-_SUPPORTED_PAGE_URL_RX = re.compile(
-    r"^(?:https?://)?(?:www\.)?(?:vk\.com|m\.vk\.com|vkvideo\.ru|deezer\.com|deezer\.page\.link)(?:[/?#].*)?$",
-    re.IGNORECASE,
-)
-
-
 def _cancel_task(task_dict: dict, chat_id: int) -> None:
     task = task_dict.pop(chat_id, None)
     if task and not task.done():
@@ -148,13 +143,6 @@ async def _is_aggressive_play_enabled(chat_id: int) -> bool:
     except Exception as exc:
         logger.debug("Failed to read aggressive_play setting for %s: %s", chat_id, exc)
         return False
-
-
-def _looks_like_supported_page_url(url: str) -> bool:
-    value = (url or "").strip()
-    if not value:
-        return False
-    return bool(_SUPPORTED_PAGE_URL_RX.match(value))
 
 
 def _rank_candidates_for_selection(query: str, candidates: list) -> list:
@@ -568,36 +556,6 @@ async def start_playback(chat_id: int, prefetched_track: Optional[Dict[str, Any]
                     pass
         # ----------------------------
 
-        # Never pass page URLs to py-tgcalls, otherwise it may trigger a probing fallback.
-        if _looks_like_supported_page_url(url):
-            logger.warning(
-                f"Direct stream unresolved for '{track.get('title', 'unknown')}' in {chat_id}; attempting shared-backend fallback"
-            )
-
-            preplay_payload = await music_backend._resolve_fallback_payload(Track(
-                title=track.get("title", ""),
-                artist=track.get("uploader", ""),
-                duration=track.get("duration", 0),
-                stream_url=url,
-                source=track.get("source", "unknown"),
-                track_id=track.get("id")
-            ))
-
-            preplay_url = (preplay_payload or {}).get("url")
-            if preplay_url and not _looks_like_supported_page_url(preplay_url):
-                url = preplay_url
-                preplay_headers = preplay_payload.get("headers")
-                if preplay_headers is not None:
-                    headers = preplay_headers
-                preplay_source = preplay_payload.get("source")
-                if preplay_source:
-                    track["source"] = preplay_source
-                logger.info(
-                    f"Pre-play fallback resolved direct stream for '{track.get('title', 'unknown')}' in {chat_id}"
-                )
-            else:
-                raise RuntimeError("Could not resolve a direct stream URL right now. Please retry in a few seconds.")
-
         # Use consolidated play method
         try:
             if call.call_manager:
@@ -660,7 +618,7 @@ async def start_playback(chat_id: int, prefetched_track: Optional[Dict[str, Any]
                     raise RuntimeError("No alternative sources found for this song.")
             else:
                 # Retry with fallback resolver pipeline for other errors
-                fallback_payload = await music_backend._resolve_fallback_payload(Track(
+                fallback_payload = await music_backend.get_stream_payload(Track(
                     title=track.get("title", ""),
                     artist=track.get("uploader", ""),
                     duration=track.get("duration", 0),
@@ -670,7 +628,7 @@ async def start_playback(chat_id: int, prefetched_track: Optional[Dict[str, Any]
                 ))
 
                 fallback_url = (fallback_payload or {}).get("url")
-                if fallback_url and not _looks_like_supported_page_url(fallback_url):
+                if fallback_url:
                     fallback_headers = fallback_payload.get("headers")
                     fallback_source = fallback_payload.get("source")
                     if fallback_source:
@@ -1054,9 +1012,10 @@ _pending_conflicts: dict = {}  # chat_id → {token → {tracks, original_msg, u
 # Source number emojis for a clean numbered list
 _NUM_EMOJI = ["1️⃣", "2️⃣", "3️⃣", "4️⃣", "5️⃣"]
 _SOURCE_ICON = {
-    "vk":         "🟦",
-    "deezer":     "🎧",
     "telegram":   "✈️",
+    "direct":     "🌐",
+    "external":   "🌐",
+    "global_index": "🗂",
 }
 
 
@@ -1242,8 +1201,8 @@ async def resolve_conflict(chat_id: int, user_id: int, index: int, message: Mess
     else:
         track = dict(raw)
 
-    # For supported sources, try to fill in missing metadata via the shared resolver.
-    if track.get("source", "unknown") in {"vk", "deezer"} and track.get("duration", 0) == 0:
+    # For externally resolved sources, try to fill in missing metadata via the shared resolver.
+    if track.get("source", "unknown") not in {"telegram", "local", "song_hunter"} and track.get("duration", 0) == 0:
         try:
             payload = await asyncio.wait_for(
                 music_backend.get_stream_payload(

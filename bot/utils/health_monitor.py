@@ -246,34 +246,4 @@ def register_default_health_checks():
     health_checker.register_check("music_microservice", check_music_microservice)
     health_checker.register_check("database", check_database)
 
-    for name in ["deezer", "vk"]:
-
-        async def check_cb(name=name):
-            cb = CircuitBreakerRegistry.get(name)
-            if not cb:
-                return HealthCheckResult(
-                    service=f"circuit_breaker_{name}",
-                    status=HealthStatus.UNKNOWN,
-                    response_time_ms=0,
-                    message="Circuit breaker not registered",
-                )
-
-            status = cb.get_status()
-            if status["is_healthy"]:
-                return HealthCheckResult(
-                    service=f"circuit_breaker_{name}",
-                    status=HealthStatus.HEALTHY,
-                    response_time_ms=0,
-                    message=f"State: {status['state']}, Failures: {status['failure_count']}",
-                )
-
-            return HealthCheckResult(
-                service=f"circuit_breaker_{name}",
-                status=HealthStatus.DEGRADED,
-                response_time_ms=0,
-                message=f"State: {status['state']}, Failures: {status['failure_count']}",
-            )
-
-        health_checker.register_check(f"circuit_breaker_{name}", check_cb)
-
     logger.info("Default health checks registered")

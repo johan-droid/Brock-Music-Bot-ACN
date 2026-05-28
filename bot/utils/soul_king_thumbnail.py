@@ -184,7 +184,7 @@ class SoulKingThumbnailGenerator:
             duration: Total duration in seconds
             position: Current position in seconds
             thumbnail_url: Optional song artwork URL
-            source: Music source (vk, deezer, telegram, etc.)
+            source: Music source (telegram, direct, external, etc.)
             width: Card width
             height: Card height
             
@@ -265,9 +265,9 @@ class SoulKingThumbnailGenerator:
             # Source badge
             content_y += 60
             source_badges = {
-                "vk": "🟦 VK Music",
-                "deezer": "🎧 Deezer",
                 "telegram": "✈️ Telegram",
+                "direct": "🌐 Direct Stream",
+                "external": "🌐 External Server",
             }
             source_text = source_badges.get(source.lower(), f"🎵 {source}")
             draw.text(
