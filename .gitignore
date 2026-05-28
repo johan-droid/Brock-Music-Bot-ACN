@@ -1,1 +1,7 @@
-Nothing should be ignored based on the provided file changes. The only modified file is 'bot/plugins/play.py', which is a source code file and should not be added to .gitignore.
+# Local secrets and runtime artifacts
+.env
+bot/.env.local
+sessions/
+*.session
+data/*.db
+youtube-wrapper/cookies.txt
