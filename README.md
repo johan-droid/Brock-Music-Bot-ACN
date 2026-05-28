@@ -42,7 +42,7 @@ Brook can:
    pip install -r requirements.txt
    ```
 
-3. Add your Telegram credentials and your music server URL to `.env`
+3. Copy `.env.example` to `.env`, then add your Telegram credentials, assistant session, and music server URL
 
 4. Start the bot
    ```bash
@@ -72,10 +72,11 @@ This bot leans hard into the Soul King mood:
 
 - The bot expects a separate music server URL in `MUSIC_MICROSERVICE_URL`
 - `docker-compose.yml` is set up for the bot itself, not a bundled music backend
-- Full engineering docs are still in the repo if you need them later:
+- The docs in this repo now match the current client-bot stage of the project:
   - [System Design Specification](SYSTEM_DESIGN_SPECIFICATION.md)
   - [Operational Engineering Guide](OPERATIONAL_ENGINEERING_GUIDE.md)
   - [Research & Performance Analysis](RESEARCH_AND_PERFORMANCE_ANALYSIS.md)
+- There is also a more detailed `.env.example` now, so users can follow the setup step by step instead of guessing env names
 
 ---
 *Yohohoho! Built for crews who like their music bots with a little more soul.*
