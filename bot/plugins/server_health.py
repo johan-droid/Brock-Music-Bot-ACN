@@ -18,7 +18,7 @@ async def serverhealth_cmd(client: Client, message: Message):
     if not health.get("configured"):
         await message.reply_text(
             "💀 The Tone Dial to the music server is not configured.\n"
-            "Set `MUSIC_MICROSERVICE_URL` or `MUSIC_MICROSERVICE_URLS`, then call Brook back to the stage."
+            "Set `MUSIC_MICROSERVICE_URL`, then call Brook back to the stage."
         )
         return
 

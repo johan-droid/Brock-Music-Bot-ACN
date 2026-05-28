@@ -77,9 +77,9 @@ Several runtime choices improve reliability in day-to-day use.
 
 The bot accepts multiple response shapes from the external music server. This reduces breakage when users connect custom services that return slightly different JSON envelopes.
 
-### 5.2 URL Failover Support
+### 5.2 Stable URL-Only Contract
 
-The bot can use `MUSIC_MICROSERVICE_URLS` for multiple endpoints. That gives operators a straightforward way to add redundancy without redesigning the bot.
+The bot now relies on a single `MUSIC_MICROSERVICE_URL` input while keeping endpoint paths (`/search`, `/resolve`, `/health`) fixed in code. This simplifies configuration and reduces misconfiguration risk.
 
 ### 5.3 Local Storage Fallbacks
 

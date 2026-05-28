@@ -51,7 +51,7 @@ Recommended when the bot and music service are hosted independently:
 
 - deploy the bot on Render, Docker, or a VPS
 - deploy the track server wherever you prefer
-- set `MUSIC_MICROSERVICE_URL` or `MUSIC_MICROSERVICE_URLS`
+- set `MUSIC_MICROSERVICE_URL`
 - optionally add Redis and a hosted database
 
 ### 3.3 Higher-Reliability Setup
@@ -61,7 +61,6 @@ Recommended for busier groups:
 - multiple assistant sessions
 - Redis or Upstash Redis for faster cache behavior
 - Supabase or Neon for hosted persistence
-- multiple music server URLs for failover
 - metrics endpoint enabled
 
 ## 4. Environment Variable Strategy
@@ -110,17 +109,10 @@ Recommended behavior from the server side:
 - search endpoint available at `/search`
 - resolve endpoint available at `/resolve`
 - health endpoint available at `/health`
-- bearer-token or equivalent auth if the service is private
 
 Bot-side controls:
 
 - `MUSIC_MICROSERVICE_URL`
-- `MUSIC_MICROSERVICE_URLS`
-- `MUSIC_MICROSERVICE_TOKEN`
-- `MUSIC_MICROSERVICE_TOKEN_HEADER`
-- `MUSIC_MICROSERVICE_TIMEOUT`
-
-If you operate multiple endpoints, put them in `MUSIC_MICROSERVICE_URLS` as a comma-separated list. The bot can fail over between them.
 
 ## 7. Storage and Cache Choices
 
@@ -207,8 +199,7 @@ Likely causes:
 
 - `MUSIC_MICROSERVICE_URL` is missing
 - the music server is down
-- the auth token/header is wrong
-- the server path differs from the default `/search` or `/resolve`
+- the server path differs from the expected `/search` or `/resolve`
 
 ### 11.2 Bot Does Not Join Voice Chat
 

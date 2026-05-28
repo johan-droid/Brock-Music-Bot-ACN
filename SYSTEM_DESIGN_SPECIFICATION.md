@@ -64,16 +64,10 @@ The internal music backend no longer acts like a local multi-provider extractor.
 - call the configured external music service
 - send search requests
 - resolve stored track references back into playable metadata
-- fail over across multiple configured service URLs when available
 
 Important configuration:
 
 - `MUSIC_MICROSERVICE_URL`
-- `MUSIC_MICROSERVICE_URLS`
-- `MUSIC_MICROSERVICE_TOKEN`
-- `MUSIC_MICROSERVICE_SEARCH_PATH`
-- `MUSIC_MICROSERVICE_RESOLVE_PATH`
-- `MUSIC_MICROSERVICE_HEALTH_PATH`
 
 ### 4.3 Voice Chat Manager
 
