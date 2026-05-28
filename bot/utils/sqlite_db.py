@@ -437,7 +437,7 @@ class SQLiteDatabase:
                 "stream_url": row["audio_url"] or "",
                 "thumbnail": row["thumbnail_url"],
                 "source": "global_index",
-                "origin_source": "jamendo" or "unknown",
+                "origin_source": metadata.get("source") or "unknown",
                 "id": row["jamendo_track_id"],
                 "track_id": row["jamendo_track_id"],
                 "metadata": metadata,

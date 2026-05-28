@@ -1,10 +1,14 @@
+"""Mood and discovery commands backed by the external track service."""
+
 import json
 import logging
 import math
 import re
-from typing import Any, Dict, List
+from typing import Any, Dict, List, cast
 
 from pyrogram import Client, filters
+
+Client = cast(Any, Client)
 from pyrogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, Message
 
 from bot.core.music_backend import music_backend
@@ -26,10 +30,10 @@ async def _ensure_allowed_message(message: Message) -> bool:
     chat_id = message.chat.id
     user_id = message.from_user.id if message.from_user else None
     if config.BOUND_GROUP_ID is not None and chat_id != config.BOUND_GROUP_ID:
-        await message.reply("⛔ This bot is bound to a different group and cannot be used here.")
+        await message.reply("This bot is bound to a different group and cannot be used here.")
         return False
     if not user_id or await get_permission_level(user_id, chat_id) < 1:
-        await message.reply("⛔ You are not allowed to use this bot.")
+        await message.reply("You are not allowed to use this bot.")
         return False
     return True
 
@@ -41,10 +45,10 @@ async def _ensure_allowed_callback(query: CallbackQuery) -> bool:
     chat_id = query.message.chat.id
     user_id = query.from_user.id if query.from_user else None
     if config.BOUND_GROUP_ID is not None and chat_id != config.BOUND_GROUP_ID:
-        await query.answer("⛔ This bot is bound to a different group.", show_alert=True)
+        await query.answer("This bot is bound to a different group.", show_alert=True)
         return False
     if not user_id or await get_permission_level(user_id, chat_id) < 1:
-        await query.answer("⛔ You are not allowed to use this bot.", show_alert=True)
+        await query.answer("You are not allowed to use this bot.", show_alert=True)
         return False
     return True
 
@@ -77,7 +81,7 @@ def map_keywords_to_tags(query: str, vocabulary: List[str]) -> List[str]:
     if not vocabulary:
         return [word.lower() for word in re.findall(r"\b\w+\b", query) if len(word) > 2][:3]
 
-    words = [w.lower() for w in re.findall(r"\b\w+\b", query)]
+    words = [word.lower() for word in re.findall(r"\b\w+\b", query)]
     matched_tags = []
 
     for word in words:
@@ -156,9 +160,9 @@ def build_results_keyboard(tracks: List[Dict[str, Any]], page: int, query_id: st
 
     nav_buttons = []
     if page > 1:
-        nav_buttons.append(InlineKeyboardButton("⬅️ Prev", callback_data=f"jpage:{query_id}:{page - 1}:{tags_str}"))
+        nav_buttons.append(InlineKeyboardButton("Prev", callback_data=f"moodpage:{query_id}:{page - 1}:{tags_str}"))
     if page < total_pages:
-        nav_buttons.append(InlineKeyboardButton("More ➡️", callback_data=f"jpage:{query_id}:{page + 1}:{tags_str}"))
+        nav_buttons.append(InlineKeyboardButton("More", callback_data=f"moodpage:{query_id}:{page + 1}:{tags_str}"))
     if nav_buttons:
         buttons.append(nav_buttons)
 
@@ -173,35 +177,34 @@ async def moodsearch_cmd(client: Client, message: Message):
 
     if len(message.command) < 2:
         await message.reply(
-            "🧠 **AI Mood Search**\n\n"
-            "Describe a mood, tempo, or instrument and I will find matching tracks.\n"
-            "**Usage:** `/moodsearch <description>`\n"
-            "**Example:** `/moodsearch upbeat acoustic guitar for a sunny morning`"
+            "🎻 Describe a mood, tempo, instrument, or late-night feeling and Brook will search the external music sea for it.\n"
+            "Usage: `/moodsearch <description>`\n"
+            "Example: `/moodsearch upbeat acoustic guitar for a sunny morning`"
         )
         return
 
     query = message.text.split(maxsplit=1)[1]
-    msg = await message.reply("🔍 *Analyzing mood and searching tracks...*")
+    msg = await message.reply("💀 Brook is listening for the shape of that feeling... Yohohoho!")
 
     tags = map_keywords_to_tags(query, DEFAULT_TAGS)
     if not tags:
-        await msg.edit("❌ Could not infer useful mood tags. Try different wording.")
+        await msg.edit("💀 Brook could not hear a clear mood in that request. Try different wording.")
         return
 
     tracks = await search_tracks_by_tags(tags)
     if not tracks:
-        await msg.edit(f"❌ No tracks found for inferred tags: `{', '.join(tags)}`")
+        await msg.edit(f"💀 No songs answered Brook's call for: `{', '.join(tags)}`")
         return
 
     tags_str = "_".join(tags)[:20]
     text = (
-        "🎧 **Mood Search Results**\n"
-        f"**Interpreted Tags:** `{', '.join(tags)}`\n"
-        f"**Found:** `{len(tracks)} tracks`\n\n"
-        "Tap a result to inject it into chat input and play it."
+        "🎧 Brook's mood search results\n"
+        f"Felt like: `{', '.join(tags)}`\n"
+        f"Found: `{len(tracks)} tracks`\n\n"
+        "Tap a result to drop it into chat and let the Soul King perform it."
     )
     keyboard = build_results_keyboard(tracks, page=1, query_id="ms", tags_str=tags_str)
-    await cache.set(f"jresults_ms_{tags_str}", json.dumps(tracks), ex=1800)
+    await cache.set(f"mood_results_ms_{tags_str}", json.dumps(tracks), ex=1800)
     await msg.edit(text, reply_markup=keyboard)
 
 
@@ -224,7 +227,7 @@ async def mooddiscovery_cmd(client: Client, message: Message):
     buttons = []
     row = []
     for mood in MOOD_CATEGORIES.keys():
-        row.append(InlineKeyboardButton(mood, callback_data=f"jmood:{mood}"))
+        row.append(InlineKeyboardButton(mood, callback_data=f"mood:{mood}"))
         if len(row) == 2:
             buttons.append(row)
             row = []
@@ -232,12 +235,12 @@ async def mooddiscovery_cmd(client: Client, message: Message):
         buttons.append(row)
 
     await message.reply(
-        "✨ **Discover Music by Mood** ✨\n\nSelect a primary mood:",
+        "✨ Brook's mood parlor is open. Choose the feeling for tonight's performance:",
         reply_markup=InlineKeyboardMarkup(buttons),
     )
 
 
-@Client.on_callback_query(filters.regex(r"^jmood:(.+)$"))
+@Client.on_callback_query(filters.regex(r"^mood:(.+)$"))
 async def mood_callback(client: Client, query: CallbackQuery):
     if not await _ensure_allowed_callback(query):
         return
@@ -251,21 +254,21 @@ async def mood_callback(client: Client, query: CallbackQuery):
     buttons = []
     row = []
     for tag in tags:
-        row.append(InlineKeyboardButton(tag.capitalize(), callback_data=f"jtag:{tag}"))
+        row.append(InlineKeyboardButton(tag.capitalize(), callback_data=f"moodtag:{tag}"))
         if len(row) == 2:
             buttons.append(row)
             row = []
     if row:
         buttons.append(row)
-    buttons.append([InlineKeyboardButton("🔙 Back to Moods", callback_data="jmood_back")])
+    buttons.append([InlineKeyboardButton("Back", callback_data="mood_back")])
 
     await query.message.edit_text(
-        f"✨ **{mood} Vibes** ✨\n\nSelect a flavor:",
+        f"🎻 {mood} vibes\n\nChoose the flavor Brook should chase:",
         reply_markup=InlineKeyboardMarkup(buttons),
     )
 
 
-@Client.on_callback_query(filters.regex(r"^jmood_back$"))
+@Client.on_callback_query(filters.regex(r"^mood_back$"))
 async def mood_back_callback(client: Client, query: CallbackQuery):
     if not await _ensure_allowed_callback(query):
         return
@@ -273,7 +276,7 @@ async def mood_back_callback(client: Client, query: CallbackQuery):
     buttons = []
     row = []
     for mood in MOOD_CATEGORIES.keys():
-        row.append(InlineKeyboardButton(mood, callback_data=f"jmood:{mood}"))
+        row.append(InlineKeyboardButton(mood, callback_data=f"mood:{mood}"))
         if len(row) == 2:
             buttons.append(row)
             row = []
@@ -281,12 +284,12 @@ async def mood_back_callback(client: Client, query: CallbackQuery):
         buttons.append(row)
 
     await query.message.edit_text(
-        "✨ **Discover Music by Mood** ✨\n\nSelect a primary mood:",
+        "✨ Brook's mood parlor is open. Choose the feeling for tonight's performance:",
         reply_markup=InlineKeyboardMarkup(buttons),
     )
 
 
-@Client.on_callback_query(filters.regex(r"^jtag:(.+)$"))
+@Client.on_callback_query(filters.regex(r"^moodtag:(.+)$"))
 async def tag_callback(client: Client, query: CallbackQuery):
     if not await _ensure_allowed_callback(query):
         return
@@ -297,26 +300,26 @@ async def tag_callback(client: Client, query: CallbackQuery):
 
     if not tracks:
         await query.message.edit_text(
-            f"❌ No tracks found for `{tag}`.",
-            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Back", callback_data="jmood_back")]]),
+            f"💀 Brook could not find any songs for `{tag}`.",
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("Back", callback_data="mood_back")]]),
         )
         return
 
     text = (
-        f"🎧 **Mood Discovery: {tag.capitalize()}**\n"
-        f"**Found:** `{len(tracks)} tracks`\n\n"
-        "Tap a result to inject it into chat input and play it."
+        f"🎧 Brook's {tag.capitalize()} selection\n"
+        f"Found: `{len(tracks)} tracks`\n\n"
+        "Tap a result to drop it into chat and let Brook take the stage."
     )
 
-    await cache.set(f"jresults_md_{tag}", json.dumps(tracks), ex=1800)
+    await cache.set(f"mood_results_md_{tag}", json.dumps(tracks), ex=1800)
     keyboard = build_results_keyboard(tracks, page=1, query_id="md", tags_str=tag)
     kb_list = list(keyboard.inline_keyboard)
-    kb_list.append([InlineKeyboardButton("🔙 Back to Moods", callback_data="jmood_back")])
+    kb_list.append([InlineKeyboardButton("Back", callback_data="mood_back")])
 
     await query.message.edit_text(text, reply_markup=InlineKeyboardMarkup(kb_list))
 
 
-@Client.on_callback_query(filters.regex(r"^jpage:(.+):(\d+):(.+)$"))
+@Client.on_callback_query(filters.regex(r"^moodpage:(.+):(\d+):(.+)$"))
 async def page_callback(client: Client, query: CallbackQuery):
     if not await _ensure_allowed_callback(query):
         return
@@ -325,7 +328,7 @@ async def page_callback(client: Client, query: CallbackQuery):
     page = int(query.matches[0].group(2))
     tags_str = query.matches[0].group(3)
 
-    cached = await cache.get(f"jresults_{query_id}_{tags_str}")
+    cached = await cache.get(f"mood_results_{query_id}_{tags_str}")
     if not cached:
         await query.answer("Search results expired. Please search again.", show_alert=True)
         return
@@ -337,15 +340,15 @@ async def page_callback(client: Client, query: CallbackQuery):
         return
 
     text = (
-        f"🎧 **Search Results** (Page {page})\n"
-        f"**Tags:** `{tags_str.replace('_', ', ')}`\n"
-        f"**Total Found:** `{len(tracks)} tracks`"
+        f"🎼 Brook's search ledger (page {page})\n"
+        f"Tags: `{tags_str.replace('_', ', ')}`\n"
+        f"Total: `{len(tracks)} tracks`"
     )
     keyboard = build_results_keyboard(tracks, page=page, query_id=query_id, tags_str=tags_str)
 
     if query_id == "md":
         kb_list = list(keyboard.inline_keyboard)
-        kb_list.append([InlineKeyboardButton("🔙 Back to Moods", callback_data="jmood_back")])
+        kb_list.append([InlineKeyboardButton("Back", callback_data="mood_back")])
         keyboard = InlineKeyboardMarkup(kb_list)
 
     await query.message.edit_text(text, reply_markup=keyboard)

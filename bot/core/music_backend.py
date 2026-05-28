@@ -231,8 +231,6 @@ class MusicBackend:
             raw_urls.extend([u.strip() for u in str(config.MUSIC_MICROSERVICE_URLS).split(",")])
         if getattr(config, "MUSIC_MICROSERVICE_URL", None):
             raw_urls.append(str(config.MUSIC_MICROSERVICE_URL).strip())
-        if getattr(config, "VK_API_BASE_URL", None):
-            raw_urls.append(str(config.VK_API_BASE_URL).strip())
 
         return MusicMicroserviceClient(
             base_urls=raw_urls,
@@ -251,6 +249,8 @@ class MusicBackend:
 
         await source_health_tracker.register_source("vk", base_score=1.0)
         await source_health_tracker.register_source("deezer", base_score=0.95)
+        await source_health_tracker.register_source("telegram", base_score=1.05)
+        await source_health_tracker.register_source("direct", base_score=1.1)
         await source_health_tracker.register_source("microservice", base_score=1.2)
 
         if not self._client.is_configured:
@@ -612,23 +612,6 @@ class MusicBackend:
             payload = self._resolved_to_payload(track, resolved or {}, fallback_source=source)
             if payload and payload.get("url"):
                 return payload
-
-        # Fallback: try source-specific guesses when only ID is known.
-        if self._client.is_configured and track.track_id and source not in {"vk", "deezer"}:
-            for guessed_source in ("vk", "deezer"):
-                guessed = Track(
-                    title=track.title,
-                    artist=track.artist,
-                    duration=track.duration,
-                    stream_url=track.stream_url,
-                    source=guessed_source,
-                    track_id=track.track_id,
-                    thumbnail=track.thumbnail,
-                )
-                resolved = await self._client.resolve(self._track_to_resolve_payload(guessed))
-                payload = self._resolved_to_payload(track, resolved or {}, fallback_source=guessed_source)
-                if payload and payload.get("url"):
-                    return payload
 
         # Fallback: search by text and re-resolve one of the results.
         if self._client.is_configured and track.title:

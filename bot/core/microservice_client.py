@@ -76,6 +76,31 @@ class MusicMicroserviceClient:
             headers[self.token_header] = self.token
         return headers
 
+    @staticmethod
+    def _extract_items(payload: Any) -> List[Dict[str, Any]]:
+        if isinstance(payload, list):
+            return [item for item in payload if isinstance(item, dict)]
+
+        if not isinstance(payload, dict):
+            return []
+
+        for key in ("items", "results", "tracks", "data"):
+            value = payload.get(key)
+            if isinstance(value, list):
+                return [item for item in value if isinstance(item, dict)]
+
+        return []
+
+    @staticmethod
+    def _extract_track(payload: Any) -> Optional[Dict[str, Any]]:
+        if isinstance(payload, dict):
+            for key in ("item", "track", "result", "data"):
+                value = payload.get(key)
+                if isinstance(value, dict):
+                    return value
+            return payload
+        return None
+
     async def _request(
         self,
         method: str,
@@ -143,13 +168,17 @@ class MusicMicroserviceClient:
             params={"q": q, "limit": max(1, int(limit or 1))},
             expected=(200,),
         )
-        if not payload:
-            return []
+        items = self._extract_items(payload)
+        if items:
+            return items
 
-        items = payload.get("items") if isinstance(payload, dict) else payload
-        if not isinstance(items, list):
-            return []
-        return [item for item in items if isinstance(item, dict)]
+        fallback_payload = await self._request(
+            "GET",
+            self.search_path,
+            params={"query": q, "limit": max(1, int(limit or 1))},
+            expected=(200,),
+        )
+        return self._extract_items(fallback_payload)
 
     async def resolve(self, track: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         payload = await self._request(
@@ -158,9 +187,7 @@ class MusicMicroserviceClient:
             json_payload=track or {},
             expected=(200,),
         )
-        if isinstance(payload, dict):
-            return payload
-        return None
+        return self._extract_track(payload)
 
     async def health(self) -> Dict[str, Any]:
         if not self.base_urls:

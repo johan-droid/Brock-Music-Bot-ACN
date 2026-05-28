@@ -2,6 +2,9 @@
 
 import logging
 from pyrogram import Client, filters
+from typing import Any, cast
+
+Client = cast(Any, Client)
 from pyrogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton
 from bot.utils.permissions import require_admin, require_member, rate_limit, get_permission_level
 from bot.utils.formatters import format_queue_list, format_duration, truncate_text

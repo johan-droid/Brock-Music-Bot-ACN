@@ -1,5 +1,8 @@
 import logging
 from pyrogram import Client, filters
+from typing import Any, cast
+
+Client = cast(Any, Client)
 from pyrogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton
 from pyrogram.enums import ParseMode
 

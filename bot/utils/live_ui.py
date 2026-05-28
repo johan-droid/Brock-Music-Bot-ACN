@@ -322,7 +322,7 @@ class SoulKingLiveUI:
             "last_update": datetime.now(),
             "user_level": user_level,
             "last_position": 0,
-            "last_jamendo_track_id": None,
+            "last_track_id": None,
         }
         
         # Start update loop

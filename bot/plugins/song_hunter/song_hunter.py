@@ -5,6 +5,9 @@ from typing import Any, Dict, List
 
 import bot.utils.database as app_db
 from pyrogram import Client, filters
+from typing import Any, cast
+
+Client = cast(Any, Client)
 from pyrogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, Message
 
 from bot.core import call

@@ -235,11 +235,9 @@ class TimeManager:
 
                 added_count = 0
                 for t in tracks:
-                    track_ref = t.get("jamendo_track_id")
-                    results = await music_backend.search(str(track_ref), limit=1)
-                    if results:
-                        track = results[0]
-                        track_dict = track.to_dict()
+                    track_ref = t.get("track_id") or t.get("id") or t.get("jamendo_track_id")
+                    track_dict = await music_backend.resolve(str(track_ref))
+                    if track_dict:
                         track_dict["requested_by"] = show.get("host_user_id")
                         await queue_manager.add_to_queue(
                             chat_id=chat_id,

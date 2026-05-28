@@ -61,6 +61,8 @@ def _build_bot_commands() -> list[BotCommand]:
     """Build the bot command menu shown in Telegram clients."""
     return [
         BotCommand("play", "Play music or add to queue"),
+        BotCommand("moodsearch", "Ask Brook for a mood-based search"),
+        BotCommand("mooddiscovery", "Browse Brook's mood suggestions"),
         BotCommand("next", "Skip to the next track"),
         BotCommand("prev", "Play the previous track"),
         BotCommand("ping", "Check bot latency"),
@@ -81,6 +83,11 @@ def _build_bot_commands() -> list[BotCommand]:
         BotCommand("shuffle", "Shuffle the queue"),
         BotCommand("loop", "Toggle loop mode"),
         BotCommand("setaggressive", "Toggle aggressive play mode"),
+        BotCommand("plcreate", "Create a Soul King setlist"),
+        BotCommand("pllist", "List your saved setlists"),
+        BotCommand("pladd", "Add a track to a setlist"),
+        BotCommand("plplay", "Perform a saved setlist"),
+        BotCommand("serverhealth", "Check Brook's music relay"),
         BotCommand("userbotjoin", "Join or create the voice chat"),
         BotCommand("vcdebug", "Inspect voice chat state"),
         BotCommand("addsudo", "Grant sudo access"),
