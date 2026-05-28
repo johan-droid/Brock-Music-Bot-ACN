@@ -1,1 +1,5 @@
 ffmpeg
+# Additional audio/system packages that improve compatibility on Heroku
+# (kept minimal to avoid large slug size)
+libsndfile1
+libav-tools
