@@ -38,6 +38,7 @@ psutil>=6.1.0
 supervisor>=4.2.5
 
 # Media Extraction
+yt-dlp>=2025.1.15
 
 # Neon Database (PostgreSQL)
 psycopg2-binary>=2.9.0
