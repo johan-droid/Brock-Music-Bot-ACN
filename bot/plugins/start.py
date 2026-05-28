@@ -2,6 +2,7 @@
 
 import os
 import logging
+import asyncio
 from pyrogram import Client, filters
 from typing import Any, cast
 
@@ -14,10 +15,21 @@ import bot.utils.database as app_db
 logger = logging.getLogger(__name__)
 
 # Cache Telegram file_id after first upload to avoid re-uploading every time
-_START_IMAGE_FILE_ID: str = None
+_START_MEDIA_FILE_ID: str = None
+_START_MEDIA_KIND: str = None
 
-# Path to the local Brook welcome image
-_LOCAL_IMAGE_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "assets", "brook_start.png")
+_ASSETS_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "assets")
+_START_MEDIA_CANDIDATES = (
+    ("animation", os.path.join(_ASSETS_DIR, "brook_start.mp4")),
+    ("animation", os.path.join(_ASSETS_DIR, "brook_start.gif")),
+    ("animation", os.path.join(_ASSETS_DIR, "brook_start.webm")),
+    ("photo", os.path.join(_ASSETS_DIR, "brook_start.png")),
+)
+_BROOK_STAGE_FRAMES = (
+    "🎶 <i>Brook tunes his violin... yohohoho...</i>",
+    "🎵 <i>The Soul King sways with the rhythm of the Grand Line...</i>",
+    "💀 <i>The stage is set. Let the concert begin!</i>",
+)
 
 
 def _build_start_text(mention: str) -> str:
@@ -60,48 +72,106 @@ def _build_group_buttons() -> InlineKeyboardMarkup:
     ])
 
 
+def _resolve_start_media() -> tuple[str, str] | tuple[None, None]:
+    for media_kind, path in _START_MEDIA_CANDIDATES:
+        if os.path.exists(path):
+            return media_kind, path
+    return None, None
+
+
+def _with_stage_frame(text: str, frame: str) -> str:
+    return f"{text}\n\n{frame}"
+
+
+async def _animate_sent_start_message(sent: Message, base_text: str, buttons: InlineKeyboardMarkup) -> None:
+    for idx, frame in enumerate(_BROOK_STAGE_FRAMES):
+        try:
+            await asyncio.sleep(0.9 if idx == 0 else 0.8)
+            animated_text = _with_stage_frame(base_text, frame)
+            if sent.photo or sent.animation or sent.video:
+                await sent.edit_caption(
+                    caption=animated_text,
+                    reply_markup=buttons,
+                    parse_mode=ParseMode.HTML,
+                )
+            else:
+                await sent.edit_text(
+                    text=animated_text,
+                    reply_markup=buttons,
+                    parse_mode=ParseMode.HTML,
+                )
+        except Exception as e:
+            logger.debug(f"Brook intro animation ended early: {e}")
+            return
+
+
 async def _send_with_image(message: Message, text: str, buttons: InlineKeyboardMarkup):
-    """Send the start message. Uses cached file_id → local file → text fallback."""
-    global _START_IMAGE_FILE_ID
+    """Send the start message. Uses cached media → local asset → text fallback."""
+    global _START_MEDIA_FILE_ID, _START_MEDIA_KIND
 
     # 1. Try cached Telegram file_id (instant, no re-upload)
-    if _START_IMAGE_FILE_ID:
+    if _START_MEDIA_FILE_ID and _START_MEDIA_KIND:
         try:
-            sent = await message.reply_photo(
-                photo=_START_IMAGE_FILE_ID,
-                caption=text,
-                reply_markup=buttons,
-                parse_mode=ParseMode.HTML,
-            )
-            return
-        except Exception as e:
-            logger.warning(f"Cached file_id send failed, re-uploading: {e}")
-            _START_IMAGE_FILE_ID = None
-
-    # 2. Try local file upload (forces bytes upload — avoids WEBPAGE_MEDIA_EMPTY)
-    if os.path.exists(_LOCAL_IMAGE_PATH):
-        try:
-            with open(_LOCAL_IMAGE_PATH, "rb") as img:
-                sent = await message.reply_photo(
-                    photo=img,
+            if _START_MEDIA_KIND == "animation":
+                sent = await message.reply_animation(
+                    animation=_START_MEDIA_FILE_ID,
                     caption=text,
                     reply_markup=buttons,
                     parse_mode=ParseMode.HTML,
                 )
-            # Cache the file_id for future /start calls
-            if sent.photo:
-                _START_IMAGE_FILE_ID = sent.photo.file_id
-                logger.info("Brook start image uploaded and file_id cached.")
+            else:
+                sent = await message.reply_photo(
+                    photo=_START_MEDIA_FILE_ID,
+                    caption=text,
+                    reply_markup=buttons,
+                    parse_mode=ParseMode.HTML,
+                )
+            asyncio.create_task(_animate_sent_start_message(sent, text, buttons))
             return
         except Exception as e:
-            logger.warning(f"Local image upload failed: {e}")
+            logger.warning(f"Cached Brook media send failed, retrying local asset: {e}")
+            _START_MEDIA_FILE_ID = None
+            _START_MEDIA_KIND = None
+
+    # 2. Try local asset upload (prefer animation, then fallback image)
+    media_kind, media_path = _resolve_start_media()
+    if media_kind and media_path:
+        try:
+            with open(media_path, "rb") as media:
+                if media_kind == "animation":
+                    sent = await message.reply_animation(
+                        animation=media,
+                        caption=text,
+                        reply_markup=buttons,
+                        parse_mode=ParseMode.HTML,
+                    )
+                else:
+                    sent = await message.reply_photo(
+                        photo=media,
+                        caption=text,
+                        reply_markup=buttons,
+                        parse_mode=ParseMode.HTML,
+                    )
+            if sent.animation:
+                _START_MEDIA_FILE_ID = sent.animation.file_id
+                _START_MEDIA_KIND = "animation"
+            elif sent.photo:
+                _START_MEDIA_FILE_ID = sent.photo.file_id
+                _START_MEDIA_KIND = "photo"
+            if _START_MEDIA_FILE_ID:
+                logger.info("Brook start media uploaded and file_id cached.")
+            asyncio.create_task(_animate_sent_start_message(sent, text, buttons))
+            return
+        except Exception as e:
+            logger.warning(f"Local Brook media upload failed: {e}")
 
     # 3. Final fallback: text only
-    await message.reply_text(
+    sent = await message.reply_text(
         text=text,
         reply_markup=buttons,
         parse_mode=ParseMode.HTML,
     )
+    asyncio.create_task(_animate_sent_start_message(sent, text, buttons))
 
 
 @Client.on_message(filters.command("start") & filters.private)
