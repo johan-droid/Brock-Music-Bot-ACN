@@ -116,8 +116,8 @@ class Config(BaseSettings):
 
     # Source policy settings
     LEGAL_SOURCES_FIRST: bool = True
-    PRIORITIZE_EXTRACTORS: bool = True     # Use high-quality extractors before cached DB index
-    PARALLEL_SEARCH: bool = True          # Search all sources at once for speed
+    PRIORITIZE_EXTRACTORS: bool = False     # Disabled - only use configured microservice
+    PARALLEL_SEARCH: bool = False          # Disabled - only use configured microservice
 
     # Remote music microservice configuration (Render/other cloud)
     MUSIC_MICROSERVICE_URL: Optional[str] = None
