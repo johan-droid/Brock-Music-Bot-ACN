@@ -42,6 +42,7 @@ class MusicMicroserviceClient:
         resolve_path: str = "/resolve",
         health_path: str = "/health",
         timeout_seconds: int = 12,
+        cold_start_timeout_seconds: int = 50,
         token: Optional[str] = None,
         token_header: str = "Authorization",
     ) -> None:
@@ -50,6 +51,7 @@ class MusicMicroserviceClient:
         self.resolve_path = self._normalize_path(resolve_path, default="/resolve")
         self.health_path = self._normalize_path(health_path, default="/health")
         self.timeout_seconds = max(4, int(timeout_seconds or 12))
+        self.cold_start_timeout_seconds = max(self.timeout_seconds, int(cold_start_timeout_seconds or 50))
         self.token = (token or "").strip() or None
         self.token_header = (token_header or "Authorization").strip() or "Authorization"
         self._endpoint_state: Dict[str, Dict[str, Any]] = {
@@ -126,6 +128,22 @@ class MusicMicroserviceClient:
         state["cooldown_until"] = time.time() + cooldown_seconds
 
     @staticmethod
+    def _is_render_endpoint(base_url: str) -> bool:
+        return "onrender.com" in (base_url or "").lower()
+
+    def _allow_cold_start_retry(self, base_url: str) -> bool:
+        if not self._is_render_endpoint(base_url):
+            return False
+        state = self._endpoint_state.get(base_url, {})
+        return int(state.get("successes") or 0) == 0 and int(state.get("failures") or 0) == 0
+
+    def is_initial_render_cold_start(self) -> bool:
+        for base_url in self.base_urls:
+            if self._allow_cold_start_retry(base_url):
+                return True
+        return False
+
+    @staticmethod
     def _extract_items(payload: Any) -> List[Dict[str, Any]]:
         if isinstance(payload, list):
             return [item for item in payload if isinstance(item, dict)]
@@ -170,48 +188,63 @@ class MusicMicroserviceClient:
 
         for idx, base_url in enumerate(ordered_urls):
             url = f"{base_url}{path}"
-            started = time.time()
-            try:
-                session = await HTTPConnectionPool.get_session()
-                timeout = aiohttp.ClientTimeout(total=self.timeout_seconds)
-                async with session.request(
-                    method.upper(),
-                    url,
-                    params=params,
-                    json=json_payload,
-                    headers=headers,
-                    timeout=timeout,
-                ) as response:
-                    if response.status not in expected:
-                        body = await response.text()
-                        last_error = f"HTTP {response.status}: {body[:200]}"
-                        if response.status not in non_fatal_statuses:
+            retry_cold_start = self._allow_cold_start_retry(base_url)
+            timeout_attempts = [self.timeout_seconds]
+            if retry_cold_start and self.cold_start_timeout_seconds > self.timeout_seconds:
+                timeout_attempts.append(self.cold_start_timeout_seconds)
+
+            for attempt_idx, attempt_timeout in enumerate(timeout_attempts):
+                started = time.time()
+                is_last_attempt = attempt_idx == len(timeout_attempts) - 1
+                try:
+                    session = await HTTPConnectionPool.get_session()
+                    timeout = aiohttp.ClientTimeout(total=attempt_timeout)
+                    async with session.request(
+                        method.upper(),
+                        url,
+                        params=params,
+                        json=json_payload,
+                        headers=headers,
+                        timeout=timeout,
+                    ) as response:
+                        if response.status not in expected:
+                            body = await response.text()
+                            last_error = f"HTTP {response.status}: {body[:200]}"
+                            if response.status not in non_fatal_statuses:
+                                self._record_endpoint_failure(base_url, last_error)
+                            logger.warning("Microservice request failed %s %s (%s)", method, url, last_error)
+                            break
+                        try:
+                            payload = await response.json(content_type=None)
+                            self._record_endpoint_success(base_url, (time.time() - started) * 1000.0)
+                            return payload
+                        except Exception as exc:
+                            last_error = f"invalid-json: {exc}"
                             self._record_endpoint_failure(base_url, last_error)
-                        logger.warning("Microservice request failed %s %s (%s)", method, url, last_error)
+                            logger.warning("Microservice returned invalid JSON for %s %s: %s", method, url, exc)
+                            break
+                except asyncio.TimeoutError:
+                    last_error = "timeout"
+                    if not is_last_attempt:
+                        logger.warning(
+                            "Microservice cold-start retry for %s %s after %ss timeout.",
+                            method,
+                            url,
+                            attempt_timeout,
+                        )
                         continue
-                    try:
-                        payload = await response.json(content_type=None)
-                        self._record_endpoint_success(base_url, (time.time() - started) * 1000.0)
-                        return payload
-                    except Exception as exc:
-                        last_error = f"invalid-json: {exc}"
-                        self._record_endpoint_failure(base_url, last_error)
-                        logger.warning("Microservice returned invalid JSON for %s %s: %s", method, url, exc)
-                        continue
-            except asyncio.TimeoutError:
-                last_error = "timeout"
-                self._record_endpoint_failure(base_url, last_error)
-                logger.warning("Microservice request timed out for %s %s", method, url)
-                continue
-            except Exception as exc:
-                last_error = str(exc)
-                self._record_endpoint_failure(base_url, last_error)
-                logger.warning("Microservice request error for %s %s: %s", method, url, exc)
-                continue
-            finally:
-                # Keep loop deterministic and avoid hammering all failed endpoints at once.
-                if idx < len(ordered_urls) - 1:
-                    await asyncio.sleep(0.05)
+                    self._record_endpoint_failure(base_url, last_error)
+                    logger.warning("Microservice request timed out for %s %s", method, url)
+                    break
+                except Exception as exc:
+                    last_error = str(exc)
+                    self._record_endpoint_failure(base_url, last_error)
+                    logger.warning("Microservice request error for %s %s: %s", method, url, exc)
+                    break
+
+            # Keep loop deterministic and avoid hammering all failed endpoints at once.
+            if idx < len(ordered_urls) - 1:
+                await asyncio.sleep(0.05)
 
         if last_error:
             logger.debug("All microservice endpoints failed for %s %s: %s", method, path, last_error)

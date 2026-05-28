@@ -34,7 +34,10 @@ _UNSUPPORTED_PAGE_DOMAINS = (
 _MICROSERVICE_SEARCH_PATH = "/search"
 _MICROSERVICE_RESOLVE_PATH = "/resolve"
 _MICROSERVICE_HEALTH_PATH = "/health"
-_MICROSERVICE_TIMEOUT_SECONDS = 12
+_MICROSERVICE_TIMEOUT_SECONDS = 18
+_MICROSERVICE_COLD_START_TIMEOUT_SECONDS = 55
+_PARALLEL_SEARCH_WAIT_SECONDS = 30
+_PARALLEL_SEARCH_WAIT_COLD_START_SECONDS = 70
 
 
 def _get_multi_cache():
@@ -233,6 +236,7 @@ class MusicBackend:
             resolve_path=_MICROSERVICE_RESOLVE_PATH,
             health_path=_MICROSERVICE_HEALTH_PATH,
             timeout_seconds=_MICROSERVICE_TIMEOUT_SECONDS,
+            cold_start_timeout_seconds=_MICROSERVICE_COLD_START_TIMEOUT_SECONDS,
             token=None,
             token_header="Authorization",
         )
@@ -539,7 +543,10 @@ class MusicBackend:
         if getattr(config, "PARALLEL_SEARCH", True):
             svc_task = asyncio.create_task(self._search_microservice(query, limit))
             idx_task = asyncio.create_task(self._search_index(query, limit))
-            done, pending = await asyncio.wait({svc_task, idx_task}, timeout=30)
+            wait_timeout = _PARALLEL_SEARCH_WAIT_SECONDS
+            if self._client.is_initial_render_cold_start():
+                wait_timeout = _PARALLEL_SEARCH_WAIT_COLD_START_SECONDS
+            done, pending = await asyncio.wait({svc_task, idx_task}, timeout=wait_timeout)
 
             for task in done:
                 try:
