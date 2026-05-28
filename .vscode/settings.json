@@ -1,0 +1,17 @@
+{
+  "python.defaultInterpreterPath": "${workspaceFolder}/.venv/Scripts/python.exe",
+  "python.terminal.activateEnvInCurrentTerminal": true,
+  "python.analysis.extraPaths": [
+    "${workspaceFolder}/.venv/Lib/site-packages",
+    "d:/Music bot/.venv/Lib/site-packages"
+  ],
+  "python.analysis.autoSearchPaths": true,
+  "python.analysis.useImportHeuristic": true,
+  "python.analysis.diagnosticMode": "workspace",
+  "python.analysis.typeCheckingMode": "basic",
+  "python.languageServer": "Pylance",
+  "files.associations": {
+    "supabase_setup.sql": "postgresql"
+  },
+  "mssql.intelliSense.enableErrorChecking": false
+}

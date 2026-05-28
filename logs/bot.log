@@ -1,0 +1,2472 @@
+2026-03-30 20:16:10 - root - INFO - Logging setup complete
+2026-03-30 20:16:10 - __main__ - INFO - Starting Music Bot...
+2026-03-30 20:16:10 - bot.utils.sqlite_db - INFO - SQLite database initialized at ./data/bot.db
+2026-03-30 20:16:10 - bot.utils.database - INFO - Using SQLite (zero-cost mode)
+2026-03-30 20:16:10 - __main__ - INFO - Database connected
+2026-03-30 20:16:10 - bot.utils.sqlite_cache - INFO - SQLite cache initialized at ./data/cache.db
+2026-03-30 20:16:10 - bot.utils.cache - INFO - Using SQLite cache (zero-cost mode)
+2026-03-30 20:16:10 - __main__ - INFO - Redis connected
+2026-03-30 20:16:10 - __main__ - INFO - Queue manager initialized
+2026-03-30 20:16:10 - __main__ - ERROR - Failed to start bot
+Traceback (most recent call last):
+  File "D:\Music bot\bot\__main__.py", line 39, in main
+    userbots = await init_userbots()
+               ^^^^^^^^^^^^^^^^^^^^^
+  File "D:\Music bot\bot\core\userbot.py", line 25, in init_userbots
+    raise RuntimeError("API_ID and API_HASH are required when TELEGRAM_ENABLED is true")
+RuntimeError: API_ID and API_HASH are required when TELEGRAM_ENABLED is true
+2026-03-30 20:18:37 - root - INFO - Logging setup complete
+2026-03-30 20:18:37 - __main__ - INFO - Starting Music Bot...
+2026-03-30 20:18:37 - bot.utils.sqlite_db - INFO - SQLite database initialized at ./data/bot.db
+2026-03-30 20:18:37 - bot.utils.database - INFO - Using SQLite (zero-cost mode)
+2026-03-30 20:18:37 - __main__ - INFO - Database connected
+2026-03-30 20:18:37 - bot.utils.sqlite_cache - INFO - SQLite cache initialized at ./data/cache.db
+2026-03-30 20:18:37 - bot.utils.cache - INFO - Using SQLite cache (zero-cost mode)
+2026-03-30 20:18:37 - __main__ - INFO - Redis connected
+2026-03-30 20:18:37 - __main__ - INFO - Queue manager initialized
+2026-03-30 20:18:37 - bot.core.userbot - INFO - TELEGRAM_ENABLED is false; skipping userbot initialization
+2026-03-30 20:18:37 - __main__ - INFO - Initialized 0 userbot(s)
+2026-03-30 20:18:37 - __main__ - INFO - TELEGRAM_ENABLED is false; skipping calls and bot startup
+2026-03-30 20:19:13 - root - INFO - Logging setup complete
+2026-03-30 20:19:13 - __main__ - INFO - Starting Music Bot...
+2026-03-30 20:19:13 - bot.utils.sqlite_db - INFO - SQLite database initialized at ./data/bot.db
+2026-03-30 20:19:13 - bot.utils.database - INFO - Using SQLite (zero-cost mode)
+2026-03-30 20:19:13 - __main__ - INFO - Database connected
+2026-03-30 20:19:13 - bot.utils.sqlite_cache - INFO - SQLite cache initialized at ./data/cache.db
+2026-03-30 20:19:13 - bot.utils.cache - INFO - Using SQLite cache (zero-cost mode)
+2026-03-30 20:19:13 - __main__ - INFO - Redis connected
+2026-03-30 20:19:13 - __main__ - INFO - Queue manager initialized
+2026-03-30 20:19:13 - __main__ - ERROR - Failed to start bot
+Traceback (most recent call last):
+  File "D:\Music bot\bot\__main__.py", line 39, in main
+    userbots = await init_userbots()
+               ^^^^^^^^^^^^^^^^^^^^^
+  File "D:\Music bot\bot\core\userbot.py", line 25, in init_userbots
+    raise RuntimeError("API_ID and API_HASH are required when TELEGRAM_ENABLED is true")
+RuntimeError: API_ID and API_HASH are required when TELEGRAM_ENABLED is true
+2026-03-30 20:26:01 - root - INFO - Logging setup complete
+2026-03-30 20:26:01 - __main__ - INFO - Starting Music Bot...
+2026-03-30 20:26:01 - bot.utils.sqlite_db - INFO - SQLite database initialized at ./data/bot.db
+2026-03-30 20:26:01 - bot.utils.database - INFO - Using SQLite (zero-cost mode)
+2026-03-30 20:26:01 - __main__ - INFO - Database connected
+2026-03-30 20:26:01 - bot.utils.sqlite_cache - INFO - SQLite cache initialized at ./data/cache.db
+2026-03-30 20:26:01 - bot.utils.cache - INFO - Using SQLite cache (zero-cost mode)
+2026-03-30 20:26:01 - __main__ - INFO - Redis connected
+2026-03-30 20:26:01 - __main__ - INFO - Queue manager initialized
+2026-03-30 20:26:01 - __main__ - ERROR - Failed to start bot
+Traceback (most recent call last):
+  File "D:\Music bot\bot\__main__.py", line 39, in main
+    userbots = await init_userbots()
+               ^^^^^^^^^^^^^^^^^^^^^
+  File "D:\Music bot\bot\core\userbot.py", line 25, in init_userbots
+    raise RuntimeError("API_ID and API_HASH are required when TELEGRAM_ENABLED is true")
+RuntimeError: API_ID and API_HASH are required when TELEGRAM_ENABLED is true
+2026-03-30 20:27:56 - root - INFO - Logging setup complete
+2026-03-30 20:27:56 - __main__ - INFO - Starting Music Bot...
+2026-03-30 20:27:56 - bot.utils.sqlite_db - INFO - SQLite database initialized at ./data/bot.db
+2026-03-30 20:27:56 - bot.utils.database - INFO - Using SQLite (zero-cost mode)
+2026-03-30 20:27:56 - __main__ - INFO - Database connected
+2026-03-30 20:27:56 - bot.utils.sqlite_cache - INFO - SQLite cache initialized at ./data/cache.db
+2026-03-30 20:27:56 - bot.utils.cache - INFO - Using SQLite cache (zero-cost mode)
+2026-03-30 20:27:56 - __main__ - INFO - Redis connected
+2026-03-30 20:27:56 - __main__ - INFO - Queue manager initialized
+2026-03-30 20:27:56 - __main__ - ERROR - Failed to start bot
+Traceback (most recent call last):
+  File "D:\Music bot\bot\__main__.py", line 39, in main
+    userbots = await init_userbots()
+               ^^^^^^^^^^^^^^^^^^^^^
+  File "D:\Music bot\bot\core\userbot.py", line 25, in init_userbots
+    raise RuntimeError("API_ID and API_HASH are required when TELEGRAM_ENABLED is true")
+RuntimeError: API_ID and API_HASH are required when TELEGRAM_ENABLED is true
+2026-03-30 20:28:52 - root - INFO - Logging setup complete
+2026-03-30 20:28:52 - __main__ - INFO - Starting Music Bot...
+2026-03-30 20:28:52 - bot.utils.sqlite_db - INFO - SQLite database initialized at ./data/bot.db
+2026-03-30 20:28:52 - bot.utils.database - INFO - Using SQLite (zero-cost mode)
+2026-03-30 20:28:52 - __main__ - INFO - Database connected
+2026-03-30 20:28:52 - bot.utils.sqlite_cache - INFO - SQLite cache initialized at ./data/cache.db
+2026-03-30 20:28:52 - bot.utils.cache - INFO - Using SQLite cache (zero-cost mode)
+2026-03-30 20:28:52 - __main__ - INFO - Redis connected
+2026-03-30 20:28:52 - __main__ - INFO - Queue manager initialized
+2026-03-30 20:28:52 - bot.core.userbot - INFO - TELEGRAM_ENABLED is false; skipping userbot initialization
+2026-03-30 20:28:52 - __main__ - INFO - Initialized 0 userbot(s)
+2026-03-30 20:28:52 - __main__ - INFO - TELEGRAM_ENABLED is false; skipping calls and bot startup
+2026-03-30 20:38:25 - root - INFO - Logging setup complete
+2026-03-30 20:38:25 - __main__ - INFO - Starting Music Bot...
+2026-03-30 20:38:25 - bot.utils.supabase_db - WARNING - supabase package not installed. Run: pip install supabase
+2026-03-30 20:38:25 - bot.utils.database - WARNING - Supabase connection failed: supabase package required. Install with: pip install supabase
+2026-03-30 20:38:25 - bot.utils.sqlite_db - INFO - SQLite database initialized at ./data/bot.db
+2026-03-30 20:38:25 - bot.utils.database - INFO - Using SQLite (zero-cost mode)
+2026-03-30 20:38:25 - __main__ - INFO - Database connected
+2026-03-30 20:38:25 - bot.utils.sqlite_cache - INFO - SQLite cache initialized at ./data/cache.db
+2026-03-30 20:38:25 - bot.utils.cache - INFO - Using SQLite cache (zero-cost mode)
+2026-03-30 20:38:25 - __main__ - INFO - Redis connected
+2026-03-30 20:38:25 - __main__ - INFO - Queue manager initialized
+2026-03-30 20:38:25 - bot.core.userbot - ERROR - Failed to start userbot 1: unpack requires a buffer of 271 bytes
+2026-03-30 20:38:25 - __main__ - ERROR - Failed to start bot
+Traceback (most recent call last):
+  File "D:\Music bot\bot\core\userbot.py", line 41, in init_userbots
+    await client.start()
+  File "D:\Music bot\.venv\Lib\site-packages\pyrogram\methods\utilities\start.py", line 58, in start
+    is_authorized = await self.connect()
+                    ^^^^^^^^^^^^^^^^^^^^
+  File "D:\Music bot\.venv\Lib\site-packages\pyrogram\methods\auth\connect.py", line 40, in connect
+    await self.load_session()
+  File "D:\Music bot\.venv\Lib\site-packages\pyrogram\client.py", line 616, in load_session
+    await self.storage.open()
+  File "D:\Music bot\.venv\Lib\site-packages\pyrogram\storage\memory_storage.py", line 59, in open
+    dc_id, api_id, test_mode, auth_key, user_id, is_bot = struct.unpack(
+                                                          ^^^^^^^^^^^^^^
+struct.error: unpack requires a buffer of 271 bytes
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "D:\Music bot\bot\__main__.py", line 39, in main
+    userbots = await init_userbots()
+               ^^^^^^^^^^^^^^^^^^^^^
+  File "D:\Music bot\bot\core\userbot.py", line 50, in init_userbots
+    raise RuntimeError(f"Required userbot 1 failed to start: {e}")
+RuntimeError: Required userbot 1 failed to start: unpack requires a buffer of 271 bytes
+2026-03-30 20:43:37 - root - INFO - Logging setup complete
+2026-03-30 20:43:37 - __main__ - INFO - Starting Music Bot...
+2026-03-30 20:43:37 - bot.utils.supabase_db - WARNING - supabase package not installed. Run: pip install supabase
+2026-03-30 20:43:37 - bot.utils.database - WARNING - Supabase connection failed: supabase package required. Install with: pip install supabase
+2026-03-30 20:43:37 - bot.utils.sqlite_db - INFO - SQLite database initialized at ./data/bot.db
+2026-03-30 20:43:37 - bot.utils.database - INFO - Using SQLite (zero-cost mode)
+2026-03-30 20:43:37 - __main__ - INFO - Database connected
+2026-03-30 20:43:37 - bot.utils.sqlite_cache - INFO - SQLite cache initialized at ./data/cache.db
+2026-03-30 20:43:37 - bot.utils.cache - INFO - Using SQLite cache (zero-cost mode)
+2026-03-30 20:43:37 - __main__ - INFO - Redis connected
+2026-03-30 20:43:37 - __main__ - INFO - Queue manager initialized
+2026-03-30 20:43:37 - bot.core.userbot - ERROR - Failed to start userbot 1: unpack requires a buffer of 271 bytes
+2026-03-30 20:43:37 - __main__ - ERROR - Failed to start bot
+Traceback (most recent call last):
+  File "D:\Music bot\bot\core\userbot.py", line 41, in init_userbots
+    await client.start()
+  File "D:\Music bot\.venv\Lib\site-packages\pyrogram\methods\utilities\start.py", line 58, in start
+    is_authorized = await self.connect()
+                    ^^^^^^^^^^^^^^^^^^^^
+  File "D:\Music bot\.venv\Lib\site-packages\pyrogram\methods\auth\connect.py", line 40, in connect
+    await self.load_session()
+  File "D:\Music bot\.venv\Lib\site-packages\pyrogram\client.py", line 616, in load_session
+    await self.storage.open()
+  File "D:\Music bot\.venv\Lib\site-packages\pyrogram\storage\memory_storage.py", line 59, in open
+    dc_id, api_id, test_mode, auth_key, user_id, is_bot = struct.unpack(
+                                                          ^^^^^^^^^^^^^^
+struct.error: unpack requires a buffer of 271 bytes
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "D:\Music bot\bot\__main__.py", line 39, in main
+    userbots = await init_userbots()
+               ^^^^^^^^^^^^^^^^^^^^^
+  File "D:\Music bot\bot\core\userbot.py", line 50, in init_userbots
+    raise RuntimeError(f"Required userbot 1 failed to start: {e}")
+RuntimeError: Required userbot 1 failed to start: unpack requires a buffer of 271 bytes
+2026-03-30 20:56:08 - root - INFO - Logging setup complete
+2026-03-30 20:56:08 - __main__ - INFO - Starting Music Bot...
+2026-03-30 20:56:08 - bot.utils.supabase_db - WARNING - supabase package not installed. Run: pip install supabase
+2026-03-30 20:56:08 - bot.utils.database - WARNING - Supabase connection failed: supabase package required. Install with: pip install supabase
+2026-03-30 20:56:08 - bot.utils.sqlite_db - INFO - SQLite database initialized at ./data/bot.db
+2026-03-30 20:56:08 - bot.utils.database - INFO - Using SQLite (zero-cost mode)
+2026-03-30 20:56:08 - __main__ - INFO - Database connected
+2026-03-30 20:56:08 - bot.utils.sqlite_cache - INFO - SQLite cache initialized at ./data/cache.db
+2026-03-30 20:56:08 - bot.utils.cache - INFO - Using SQLite cache (zero-cost mode)
+2026-03-30 20:56:08 - __main__ - INFO - Redis connected
+2026-03-30 20:56:08 - __main__ - INFO - Queue manager initialized
+2026-03-30 20:56:10 - bot.core.userbot - INFO - Userbot 1 started: @Scrapper123456_bot
+2026-03-30 20:56:10 - __main__ - INFO - Initialized 1 userbot(s)
+2026-03-30 20:56:10 - __main__ - ERROR - Failed to start bot
+Traceback (most recent call last):
+  File "D:\Music bot\bot\__main__.py", line 44, in main
+    await init_calls(userbots)
+  File "D:\Music bot\bot\core\call.py", line 222, in init_calls
+    await call_manager.init()
+  File "D:\Music bot\bot\core\call.py", line 30, in init
+    call = PyTgCalls(userbot)
+           ^^^^^^^^^^^^^^^^^^
+  File "D:\Music bot\.venv\Lib\site-packages\pytgcalls\statictypes.py", line 101, in wrapper
+    return func(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "D:\Music bot\.venv\Lib\site-packages\pytgcalls\pytgcalls.py", line 30, in __init__
+    self._app = MtProtoClient(
+                ^^^^^^^^^^^^^^
+  File "D:\Music bot\.venv\Lib\site-packages\pytgcalls\mtproto\mtproto_client.py", line 23, in __init__
+    from .pyrogram_client import PyrogramClient
+  File "D:\Music bot\.venv\Lib\site-packages\pytgcalls\mtproto\pyrogram_client.py", line 15, in <module>
+    from pyrogram.errors import GroupcallForbidden
+ImportError: cannot import name 'GroupcallForbidden' from 'pyrogram.errors' (D:\Music bot\.venv\Lib\site-packages\pyrogram\errors\__init__.py)
+2026-03-30 21:14:39 - root - INFO - Logging setup complete
+2026-03-30 21:14:39 - __main__ - INFO - Starting Music Bot...
+2026-03-30 21:14:39 - bot.utils.supabase_db - WARNING - supabase package not installed. Run: pip install supabase
+2026-03-30 21:14:39 - bot.utils.database - WARNING - Supabase connection failed: supabase package required. Install with: pip install supabase
+2026-03-30 21:14:39 - bot.utils.sqlite_db - INFO - SQLite database initialized at ./data/bot.db
+2026-03-30 21:14:39 - bot.utils.database - INFO - Using SQLite (zero-cost mode)
+2026-03-30 21:14:39 - __main__ - INFO - Database connected
+2026-03-30 21:14:39 - bot.utils.sqlite_cache - INFO - SQLite cache initialized at ./data/cache.db
+2026-03-30 21:14:39 - bot.utils.cache - INFO - Using SQLite cache (zero-cost mode)
+2026-03-30 21:14:39 - __main__ - INFO - Redis connected
+2026-03-30 21:14:39 - __main__ - INFO - Queue manager initialized
+2026-03-30 21:14:41 - bot.core.userbot - INFO - Userbot 1 started: @Scrapper123456_bot
+2026-03-30 21:14:41 - __main__ - INFO - Initialized 1 userbot(s)
+2026-03-30 21:14:41 - __main__ - ERROR - Failed to start bot
+Traceback (most recent call last):
+  File "D:\Music bot\bot\__main__.py", line 44, in main
+    await init_calls(userbots)
+  File "D:\Music bot\bot\core\call.py", line 222, in init_calls
+    await call_manager.init()
+  File "D:\Music bot\bot\core\call.py", line 30, in init
+    call = PyTgCalls(userbot)
+           ^^^^^^^^^^^^^^^^^^
+  File "D:\Music bot\.venv\Lib\site-packages\pytgcalls\statictypes.py", line 101, in wrapper
+    return func(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "D:\Music bot\.venv\Lib\site-packages\pytgcalls\pytgcalls.py", line 30, in __init__
+    self._app = MtProtoClient(
+                ^^^^^^^^^^^^^^
+  File "D:\Music bot\.venv\Lib\site-packages\pytgcalls\mtproto\mtproto_client.py", line 23, in __init__
+    from .pyrogram_client import PyrogramClient
+  File "D:\Music bot\.venv\Lib\site-packages\pytgcalls\mtproto\pyrogram_client.py", line 15, in <module>
+    from pyrogram.errors import GroupcallForbidden
+ImportError: cannot import name 'GroupcallForbidden' from 'pyrogram.errors' (D:\Music bot\.venv\Lib\site-packages\pyrogram\errors\__init__.py)
+2026-03-30 21:17:47 - root - INFO - Logging setup complete
+2026-03-30 21:17:47 - __main__ - INFO - Starting Music Bot...
+2026-03-30 21:17:47 - bot.utils.supabase_db - WARNING - supabase package not installed. Run: pip install supabase
+2026-03-30 21:17:47 - bot.utils.database - WARNING - Supabase connection failed: supabase package required. Install with: pip install supabase
+2026-03-30 21:17:47 - bot.utils.sqlite_db - INFO - SQLite database initialized at ./data/bot.db
+2026-03-30 21:17:47 - bot.utils.database - INFO - Using SQLite (zero-cost mode)
+2026-03-30 21:17:47 - __main__ - INFO - Database connected
+2026-03-30 21:17:47 - bot.utils.sqlite_cache - INFO - SQLite cache initialized at ./data/cache.db
+2026-03-30 21:17:47 - bot.utils.cache - INFO - Using SQLite cache (zero-cost mode)
+2026-03-30 21:17:47 - __main__ - INFO - Redis connected
+2026-03-30 21:17:47 - __main__ - INFO - Queue manager initialized
+2026-03-30 21:17:49 - bot.core.userbot - INFO - Userbot 1 started: @Scrapper123456_bot
+2026-03-30 21:17:49 - __main__ - INFO - Initialized 1 userbot(s)
+2026-03-30 21:17:49 - __main__ - ERROR - Failed to start bot
+Traceback (most recent call last):
+  File "D:\Music bot\bot\__main__.py", line 44, in main
+    await init_calls(userbots)
+  File "D:\Music bot\bot\core\call.py", line 222, in init_calls
+    await call_manager.init()
+  File "D:\Music bot\bot\core\call.py", line 30, in init
+    call = PyTgCalls(userbot)
+           ^^^^^^^^^^^^^^^^^^
+  File "D:\Music bot\.venv\Lib\site-packages\pytgcalls\statictypes.py", line 101, in wrapper
+    return func(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "D:\Music bot\.venv\Lib\site-packages\pytgcalls\pytgcalls.py", line 30, in __init__
+    self._app = MtProtoClient(
+                ^^^^^^^^^^^^^^
+  File "D:\Music bot\.venv\Lib\site-packages\pytgcalls\mtproto\mtproto_client.py", line 23, in __init__
+    from .pyrogram_client import PyrogramClient
+  File "D:\Music bot\.venv\Lib\site-packages\pytgcalls\mtproto\pyrogram_client.py", line 15, in <module>
+    from pyrogram.errors import GroupcallForbidden
+ImportError: cannot import name 'GroupcallForbidden' from 'pyrogram.errors' (D:\Music bot\.venv\Lib\site-packages\pyrogram\errors\__init__.py)
+2026-03-30 21:32:25 - root - INFO - Logging setup complete
+2026-03-30 21:32:25 - __main__ - INFO - Starting Music Bot...
+2026-03-30 21:32:25 - bot.utils.supabase_db - WARNING - supabase package not installed. Run: pip install supabase
+2026-03-30 21:32:25 - bot.utils.database - WARNING - Supabase connection failed: supabase package required. Install with: pip install supabase
+2026-03-30 21:32:25 - bot.utils.sqlite_db - INFO - SQLite database initialized at ./data/bot.db
+2026-03-30 21:32:25 - bot.utils.database - INFO - Using SQLite (zero-cost mode)
+2026-03-30 21:32:25 - __main__ - INFO - Database connected
+2026-03-30 21:32:26 - bot.utils.cache - INFO - Upstash Redis cache connected
+2026-03-30 21:32:26 - __main__ - INFO - Redis connected
+2026-03-30 21:32:26 - __main__ - INFO - Queue manager initialized
+2026-03-30 21:32:30 - bot.core.userbot - INFO - Userbot 1 started: @Scrapper123456_bot
+2026-03-30 21:32:30 - __main__ - INFO - Initialized 1 userbot(s)
+2026-03-30 21:32:30 - __main__ - ERROR - Failed to start bot
+Traceback (most recent call last):
+  File "D:\Music bot\bot\__main__.py", line 44, in main
+    await init_calls(userbots)
+  File "D:\Music bot\bot\core\call.py", line 222, in init_calls
+    await call_manager.init()
+  File "D:\Music bot\bot\core\call.py", line 30, in init
+    call = PyTgCalls(userbot)
+           ^^^^^^^^^^^^^^^^^^
+  File "D:\Music bot\.venv\Lib\site-packages\pytgcalls\statictypes.py", line 101, in wrapper
+    return func(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "D:\Music bot\.venv\Lib\site-packages\pytgcalls\pytgcalls.py", line 30, in __init__
+    self._app = MtProtoClient(
+                ^^^^^^^^^^^^^^
+  File "D:\Music bot\.venv\Lib\site-packages\pytgcalls\mtproto\mtproto_client.py", line 23, in __init__
+    from .pyrogram_client import PyrogramClient
+  File "D:\Music bot\.venv\Lib\site-packages\pytgcalls\mtproto\pyrogram_client.py", line 15, in <module>
+    from pyrogram.errors import GroupcallForbidden
+ImportError: cannot import name 'GroupcallForbidden' from 'pyrogram.errors' (D:\Music bot\.venv\Lib\site-packages\pyrogram\errors\__init__.py)
+2026-03-30 21:38:00 - root - INFO - Logging setup complete
+2026-03-30 21:38:00 - __main__ - INFO - Starting Music Bot...
+2026-03-30 21:38:00 - bot.utils.supabase_db - WARNING - supabase package not installed. Run: pip install supabase
+2026-03-30 21:38:00 - bot.utils.database - WARNING - Supabase connection failed: supabase package required. Install with: pip install supabase
+2026-03-30 21:38:00 - bot.utils.sqlite_db - INFO - SQLite database initialized at ./data/bot.db
+2026-03-30 21:38:00 - bot.utils.database - INFO - Using SQLite (zero-cost mode)
+2026-03-30 21:38:00 - __main__ - INFO - Database connected
+2026-03-30 21:38:00 - bot.utils.cache - INFO - Upstash Redis cache connected
+2026-03-30 21:38:00 - __main__ - INFO - Redis connected
+2026-03-30 21:38:00 - __main__ - INFO - Queue manager initialized
+2026-03-30 21:38:05 - bot.core.userbot - INFO - Userbot 1 started: @Scrapper123456_bot
+2026-03-30 21:38:05 - __main__ - INFO - Initialized 1 userbot(s)
+2026-03-30 21:38:07 - __main__ - ERROR - Failed to start bot
+Traceback (most recent call last):
+  File "D:\Music bot\bot\__main__.py", line 53, in main
+    await init_calls(userbots)
+  File "D:\Music bot\bot\core\call.py", line 222, in init_calls
+    await call_manager.init()
+  File "D:\Music bot\bot\core\call.py", line 34, in init
+    call.on_stream_end()(self._on_stream_end)
+    ^^^^^^^^^^^^^^^^^^
+AttributeError: 'PyTgCalls' object has no attribute 'on_stream_end'
+2026-03-30 21:39:37 - root - INFO - Logging setup complete
+2026-03-30 21:39:37 - __main__ - INFO - Starting Music Bot...
+2026-03-30 21:39:37 - bot.utils.supabase_db - WARNING - supabase package not installed. Run: pip install supabase
+2026-03-30 21:39:37 - bot.utils.database - WARNING - Supabase connection failed: supabase package required. Install with: pip install supabase
+2026-03-30 21:39:37 - bot.utils.sqlite_db - INFO - SQLite database initialized at ./data/bot.db
+2026-03-30 21:39:37 - bot.utils.database - INFO - Using SQLite (zero-cost mode)
+2026-03-30 21:39:37 - __main__ - INFO - Database connected
+2026-03-30 21:39:37 - bot.utils.cache - INFO - Upstash Redis cache connected
+2026-03-30 21:39:37 - __main__ - INFO - Redis connected
+2026-03-30 21:39:37 - __main__ - INFO - Queue manager initialized
+2026-03-30 21:39:40 - bot.core.userbot - INFO - Userbot 1 started: @Scrapper123456_bot
+2026-03-30 21:39:40 - __main__ - INFO - Initialized 1 userbot(s)
+2026-03-30 21:39:40 - __main__ - ERROR - Failed to start bot
+Traceback (most recent call last):
+  File "D:\Music bot\bot\__main__.py", line 53, in main
+    await init_calls(userbots)
+  File "D:\Music bot\bot\core\call.py", line 222, in init_calls
+    await call_manager.init()
+  File "D:\Music bot\bot\core\call.py", line 34, in init
+    call.on_stream_end()(self._on_stream_end)
+    ^^^^^^^^^^^^^^^^^^
+AttributeError: 'PyTgCalls' object has no attribute 'on_stream_end'
+2026-03-30 21:46:36 - root - INFO - Logging setup complete
+2026-03-30 21:46:36 - __main__ - INFO - Starting Music Bot...
+2026-03-30 21:46:36 - bot.utils.supabase_db - WARNING - supabase package not installed. Run: pip install supabase
+2026-03-30 21:46:36 - bot.utils.database - WARNING - Supabase connection failed: supabase package required. Install with: pip install supabase
+2026-03-30 21:46:36 - bot.utils.sqlite_db - INFO - SQLite database initialized at ./data/bot.db
+2026-03-30 21:46:36 - bot.utils.database - INFO - Using SQLite (zero-cost mode)
+2026-03-30 21:46:36 - __main__ - INFO - Database connected
+2026-03-30 21:46:37 - bot.utils.cache - INFO - Upstash Redis cache connected
+2026-03-30 21:46:37 - __main__ - INFO - Redis connected
+2026-03-30 21:46:37 - __main__ - INFO - Queue manager initialized
+2026-03-30 21:46:39 - bot.core.userbot - INFO - Userbot 1 started: @Scrapper123456_bot
+2026-03-30 21:46:39 - __main__ - INFO - Initialized 1 userbot(s)
+2026-03-30 21:46:40 - bot.core.call - INFO - py-tgcalls initialized for userbot 1
+2026-03-30 21:46:40 - __main__ - INFO - Call manager initialized
+2026-03-30 21:46:40 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-03-30 21:46:40 - apscheduler.scheduler - INFO - Added job "CleanupScheduler.cleanup_temp_files" to job store "default"
+2026-03-30 21:46:40 - apscheduler.scheduler - INFO - Scheduler started
+2026-03-30 21:46:40 - bot.utils.scheduler - INFO - Cleanup scheduler started
+2026-03-30 21:46:40 - __main__ - INFO - Cleanup scheduler started
+2026-03-30 21:46:40 - __main__ - ERROR - Failed to start bot
+Traceback (most recent call last):
+  File "D:\Music bot\bot\__main__.py", line 61, in main
+    bot = await init_bot()
+          ^^^^^^^^^^^^^^^^
+  File "D:\Music bot\bot\core\bot.py", line 35, in init_bot
+    await bot_client.start()
+  File "D:\Music bot\.venv\Lib\site-packages\pyrogram\methods\utilities\start.py", line 58, in start
+    is_authorized = await self.connect()
+                    ^^^^^^^^^^^^^^^^^^^^
+  File "D:\Music bot\.venv\Lib\site-packages\pyrogram\methods\auth\connect.py", line 40, in connect
+    await self.load_session()
+  File "D:\Music bot\.venv\Lib\site-packages\pyrogram\client.py", line 616, in load_session
+    await self.storage.open()
+  File "D:\Music bot\.venv\Lib\site-packages\pyrogram\storage\file_storage.py", line 58, in open
+    self.conn = sqlite3.connect(str(path), timeout=1, check_same_thread=False)
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+sqlite3.OperationalError: unable to open database file
+2026-03-30 21:50:26 - root - INFO - Logging setup complete
+2026-03-30 21:50:26 - __main__ - INFO - Starting Music Bot...
+2026-03-30 21:50:26 - bot.utils.supabase_db - WARNING - supabase package not installed. Run: pip install supabase
+2026-03-30 21:50:26 - bot.utils.database - WARNING - Supabase connection failed: supabase package required. Install with: pip install supabase
+2026-03-30 21:50:26 - bot.utils.sqlite_db - INFO - SQLite database initialized at ./data/bot.db
+2026-03-30 21:50:26 - bot.utils.database - INFO - Using SQLite (zero-cost mode)
+2026-03-30 21:50:26 - __main__ - INFO - Database connected
+2026-03-30 21:50:26 - bot.utils.cache - INFO - Upstash Redis cache connected
+2026-03-30 21:50:26 - __main__ - INFO - Redis connected
+2026-03-30 21:50:26 - __main__ - INFO - Queue manager initialized
+2026-03-30 21:50:29 - bot.core.userbot - INFO - Userbot 1 started: @Scrapper123456_bot
+2026-03-30 21:50:29 - __main__ - INFO - Initialized 1 userbot(s)
+2026-03-30 21:50:29 - bot.core.call - INFO - py-tgcalls initialized for userbot 1
+2026-03-30 21:50:29 - __main__ - INFO - Call manager initialized
+2026-03-30 21:50:29 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-03-30 21:50:29 - apscheduler.scheduler - INFO - Added job "CleanupScheduler.cleanup_temp_files" to job store "default"
+2026-03-30 21:50:29 - apscheduler.scheduler - INFO - Scheduler started
+2026-03-30 21:50:29 - bot.utils.scheduler - INFO - Cleanup scheduler started
+2026-03-30 21:50:29 - __main__ - INFO - Cleanup scheduler started
+2026-03-30 21:50:37 - bot.core.bot - INFO - Bot started: @Scrapper123456_bot
+2026-03-30 21:50:37 - __main__ - ERROR - Failed to start bot
+Traceback (most recent call last):
+  File "D:\Music bot\bot\__main__.py", line 61, in main
+    bot = await init_bot()
+          ^^^^^^^^^^^^^^^^
+  File "D:\Music bot\bot\core\bot.py", line 39, in init_bot
+    await bot_client.idle()
+          ^^^^^^^^^^^^^^^
+AttributeError: 'Client' object has no attribute 'idle'
+2026-03-30 21:51:02 - root - INFO - Logging setup complete
+2026-03-30 21:51:02 - __main__ - INFO - Starting Music Bot...
+2026-03-30 21:51:02 - bot.utils.supabase_db - WARNING - supabase package not installed. Run: pip install supabase
+2026-03-30 21:51:02 - bot.utils.database - WARNING - Supabase connection failed: supabase package required. Install with: pip install supabase
+2026-03-30 21:51:02 - bot.utils.sqlite_db - INFO - SQLite database initialized at ./data/bot.db
+2026-03-30 21:51:02 - bot.utils.database - INFO - Using SQLite (zero-cost mode)
+2026-03-30 21:51:02 - __main__ - INFO - Database connected
+2026-03-30 21:51:03 - bot.utils.cache - INFO - Upstash Redis cache connected
+2026-03-30 21:51:03 - __main__ - INFO - Redis connected
+2026-03-30 21:51:03 - __main__ - INFO - Queue manager initialized
+2026-03-30 21:51:05 - bot.core.userbot - INFO - Userbot 1 started: @Scrapper123456_bot
+2026-03-30 21:51:05 - __main__ - INFO - Initialized 1 userbot(s)
+2026-03-30 21:51:05 - bot.core.call - INFO - py-tgcalls initialized for userbot 1
+2026-03-30 21:51:05 - __main__ - INFO - Call manager initialized
+2026-03-30 21:51:05 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-03-30 21:51:05 - apscheduler.scheduler - INFO - Added job "CleanupScheduler.cleanup_temp_files" to job store "default"
+2026-03-30 21:51:05 - apscheduler.scheduler - INFO - Scheduler started
+2026-03-30 21:51:05 - bot.utils.scheduler - INFO - Cleanup scheduler started
+2026-03-30 21:51:05 - __main__ - INFO - Cleanup scheduler started
+2026-03-30 21:51:07 - bot.core.bot - INFO - Bot started: @Scrapper123456_bot
+2026-03-30 21:51:41 - root - INFO - Stop signal received (SIGINT). Exiting...
+2026-03-30 21:51:41 - __main__ - INFO - Bot started successfully
+2026-03-30 21:52:43 - root - INFO - Logging setup complete
+2026-03-30 21:52:43 - __main__ - INFO - Starting Music Bot...
+2026-03-30 21:52:43 - bot.utils.supabase_db - WARNING - supabase package not installed. Run: pip install supabase
+2026-03-30 21:52:43 - bot.utils.database - WARNING - Supabase connection failed: supabase package required. Install with: pip install supabase
+2026-03-30 21:52:43 - bot.utils.sqlite_db - INFO - SQLite database initialized at ./data/bot.db
+2026-03-30 21:52:43 - bot.utils.database - INFO - Using SQLite (zero-cost mode)
+2026-03-30 21:52:43 - __main__ - INFO - Database connected
+2026-03-30 21:52:43 - bot.utils.cache - INFO - Upstash Redis cache connected
+2026-03-30 21:52:43 - __main__ - INFO - Redis connected
+2026-03-30 21:52:43 - __main__ - INFO - Queue manager initialized
+2026-03-30 21:52:46 - bot.core.userbot - INFO - Userbot 1 started: @Scrapper123456_bot
+2026-03-30 21:52:46 - __main__ - INFO - Initialized 1 userbot(s)
+2026-03-30 21:52:47 - bot.core.call - INFO - py-tgcalls initialized for userbot 1
+2026-03-30 21:52:47 - __main__ - INFO - Call manager initialized
+2026-03-30 21:52:47 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-03-30 21:52:47 - apscheduler.scheduler - INFO - Added job "CleanupScheduler.cleanup_temp_files" to job store "default"
+2026-03-30 21:52:47 - apscheduler.scheduler - INFO - Scheduler started
+2026-03-30 21:52:47 - bot.utils.scheduler - INFO - Cleanup scheduler started
+2026-03-30 21:52:47 - __main__ - INFO - Cleanup scheduler started
+2026-03-30 21:52:48 - bot.core.bot - INFO - Bot started: @Scrapper123456_bot
+2026-03-30 22:01:23 - root - INFO - Stop signal received (SIGINT). Exiting...
+2026-03-30 22:01:23 - __main__ - INFO - Bot started successfully
+2026-03-30 22:01:39 - root - INFO - Logging setup complete
+2026-03-30 22:01:39 - __main__ - INFO - Starting Music Bot...
+2026-03-30 22:01:39 - bot.utils.supabase_db - WARNING - supabase package not installed. Run: pip install supabase
+2026-03-30 22:01:39 - bot.utils.database - WARNING - Supabase connection failed: supabase package required. Install with: pip install supabase
+2026-03-30 22:01:39 - bot.utils.sqlite_db - INFO - SQLite database initialized at ./data/bot.db
+2026-03-30 22:01:39 - bot.utils.database - INFO - Using SQLite (zero-cost mode)
+2026-03-30 22:01:39 - __main__ - INFO - Database connected
+2026-03-30 22:01:40 - bot.utils.cache - INFO - Upstash Redis cache connected
+2026-03-30 22:01:40 - __main__ - INFO - Redis connected
+2026-03-30 22:01:40 - __main__ - INFO - Queue manager initialized
+2026-03-30 22:01:42 - bot.core.userbot - INFO - Userbot 1 started: @Scrapper123456_bot
+2026-03-30 22:01:42 - __main__ - INFO - Initialized 1 userbot(s)
+2026-03-30 22:01:43 - bot.core.call - INFO - py-tgcalls initialized for userbot 1
+2026-03-30 22:01:43 - __main__ - INFO - Call manager initialized
+2026-03-30 22:01:43 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-03-30 22:01:43 - apscheduler.scheduler - INFO - Added job "CleanupScheduler.cleanup_temp_files" to job store "default"
+2026-03-30 22:01:43 - apscheduler.scheduler - INFO - Scheduler started
+2026-03-30 22:01:43 - bot.utils.scheduler - INFO - Cleanup scheduler started
+2026-03-30 22:01:43 - __main__ - INFO - Cleanup scheduler started
+2026-03-30 22:01:45 - bot.platforms.spotify - WARNING - spotipy not installed, Spotify features limited
+2026-03-30 22:01:45 - __main__ - ERROR - Failed to start bot
+Traceback (most recent call last):
+  File "D:\Music bot\bot\__main__.py", line 61, in main
+    bot = await init_bot()
+          ^^^^^^^^^^^^^^^^
+  File "D:\Music bot\bot\core\bot.py", line 36, in init_bot
+    await bot_client.start()
+  File "D:\Music bot\.venv\Lib\site-packages\pyrogram\methods\utilities\start.py", line 74, in start
+    await self.initialize()
+  File "D:\Music bot\.venv\Lib\site-packages\pyrogram\methods\auth\initialize.py", line 46, in initialize
+    self.load_plugins()
+  File "D:\Music bot\.venv\Lib\site-packages\pyrogram\client.py", line 689, in load_plugins
+    module = import_module(module_path)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\sahoo\AppData\Roaming\uv\python\cpython-3.12.12-windows-x86_64-none\Lib\importlib\__init__.py", line 90, in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "<frozen importlib._bootstrap>", line 1387, in _gcd_import
+  File "<frozen importlib._bootstrap>", line 1360, in _find_and_load
+  File "<frozen importlib._bootstrap>", line 1331, in _find_and_load_unlocked
+  File "<frozen importlib._bootstrap>", line 935, in _load_unlocked
+  File "<frozen importlib._bootstrap_external>", line 999, in exec_module
+  File "<frozen importlib._bootstrap>", line 488, in _call_with_frames_removed
+  File "D:\Music bot\bot\plugins\play.py", line 17, in <module>
+    from pytgcalls.types import AudioPiped, AudioParameters
+ImportError: cannot import name 'AudioPiped' from 'pytgcalls.types' (D:\Music bot\.venv\Lib\site-packages\pytgcalls\types\__init__.py)
+2026-03-30 22:02:06 - root - INFO - Logging setup complete
+2026-03-30 22:02:06 - __main__ - INFO - Starting Music Bot...
+2026-03-30 22:02:06 - bot.utils.supabase_db - WARNING - supabase package not installed. Run: pip install supabase
+2026-03-30 22:02:06 - bot.utils.database - WARNING - Supabase connection failed: supabase package required. Install with: pip install supabase
+2026-03-30 22:02:06 - bot.utils.sqlite_db - INFO - SQLite database initialized at ./data/bot.db
+2026-03-30 22:02:06 - bot.utils.database - INFO - Using SQLite (zero-cost mode)
+2026-03-30 22:02:06 - __main__ - INFO - Database connected
+2026-03-30 22:02:07 - bot.utils.cache - INFO - Upstash Redis cache connected
+2026-03-30 22:02:07 - __main__ - INFO - Redis connected
+2026-03-30 22:02:07 - __main__ - INFO - Queue manager initialized
+2026-03-30 22:02:10 - bot.core.userbot - INFO - Userbot 1 started: @Scrapper123456_bot
+2026-03-30 22:02:10 - __main__ - INFO - Initialized 1 userbot(s)
+2026-03-30 22:02:10 - bot.core.call - INFO - py-tgcalls initialized for userbot 1
+2026-03-30 22:02:10 - __main__ - INFO - Call manager initialized
+2026-03-30 22:02:10 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-03-30 22:02:10 - apscheduler.scheduler - INFO - Added job "CleanupScheduler.cleanup_temp_files" to job store "default"
+2026-03-30 22:02:10 - apscheduler.scheduler - INFO - Scheduler started
+2026-03-30 22:02:10 - bot.utils.scheduler - INFO - Cleanup scheduler started
+2026-03-30 22:02:10 - __main__ - INFO - Cleanup scheduler started
+2026-03-30 22:02:12 - bot.platforms.spotify - WARNING - spotipy not installed, Spotify features limited
+2026-03-30 22:02:12 - __main__ - ERROR - Failed to start bot
+Traceback (most recent call last):
+  File "D:\Music bot\bot\__main__.py", line 61, in main
+    bot = await init_bot()
+          ^^^^^^^^^^^^^^^^
+  File "D:\Music bot\bot\core\bot.py", line 36, in init_bot
+    await bot_client.start()
+  File "D:\Music bot\.venv\Lib\site-packages\pyrogram\methods\utilities\start.py", line 74, in start
+    await self.initialize()
+  File "D:\Music bot\.venv\Lib\site-packages\pyrogram\methods\auth\initialize.py", line 46, in initialize
+    self.load_plugins()
+  File "D:\Music bot\.venv\Lib\site-packages\pyrogram\client.py", line 689, in load_plugins
+    module = import_module(module_path)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\sahoo\AppData\Roaming\uv\python\cpython-3.12.12-windows-x86_64-none\Lib\importlib\__init__.py", line 90, in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "<frozen importlib._bootstrap>", line 1387, in _gcd_import
+  File "<frozen importlib._bootstrap>", line 1360, in _find_and_load
+  File "<frozen importlib._bootstrap>", line 1331, in _find_and_load_unlocked
+  File "<frozen importlib._bootstrap>", line 935, in _load_unlocked
+  File "<frozen importlib._bootstrap_external>", line 999, in exec_module
+  File "<frozen importlib._bootstrap>", line 488, in _call_with_frames_removed
+  File "D:\Music bot\bot\plugins\play.py", line 17, in <module>
+    from pytgcalls.types import AudioPiped, AudioParameters
+ImportError: cannot import name 'AudioPiped' from 'pytgcalls.types' (D:\Music bot\.venv\Lib\site-packages\pytgcalls\types\__init__.py)
+2026-03-30 22:02:30 - root - INFO - Logging setup complete
+2026-03-30 22:02:30 - __main__ - INFO - Starting Music Bot...
+2026-03-30 22:02:30 - bot.utils.supabase_db - WARNING - supabase package not installed. Run: pip install supabase
+2026-03-30 22:02:30 - bot.utils.database - WARNING - Supabase connection failed: supabase package required. Install with: pip install supabase
+2026-03-30 22:02:30 - bot.utils.sqlite_db - INFO - SQLite database initialized at ./data/bot.db
+2026-03-30 22:02:30 - bot.utils.database - INFO - Using SQLite (zero-cost mode)
+2026-03-30 22:02:30 - __main__ - INFO - Database connected
+2026-03-30 22:02:30 - bot.utils.cache - INFO - Upstash Redis cache connected
+2026-03-30 22:02:30 - __main__ - INFO - Redis connected
+2026-03-30 22:02:30 - __main__ - INFO - Queue manager initialized
+2026-03-30 22:02:32 - bot.core.userbot - INFO - Userbot 1 started: @Scrapper123456_bot
+2026-03-30 22:02:32 - __main__ - INFO - Initialized 1 userbot(s)
+2026-03-30 22:02:33 - bot.core.call - INFO - py-tgcalls initialized for userbot 1
+2026-03-30 22:02:33 - __main__ - INFO - Call manager initialized
+2026-03-30 22:02:33 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-03-30 22:02:33 - apscheduler.scheduler - INFO - Added job "CleanupScheduler.cleanup_temp_files" to job store "default"
+2026-03-30 22:02:33 - apscheduler.scheduler - INFO - Scheduler started
+2026-03-30 22:02:33 - bot.utils.scheduler - INFO - Cleanup scheduler started
+2026-03-30 22:02:33 - __main__ - INFO - Cleanup scheduler started
+2026-03-30 22:02:35 - bot.platforms.spotify - WARNING - spotipy not installed, Spotify features limited
+2026-03-30 22:02:35 - __main__ - ERROR - Failed to start bot
+Traceback (most recent call last):
+  File "D:\Music bot\bot\__main__.py", line 61, in main
+    bot = await init_bot()
+          ^^^^^^^^^^^^^^^^
+  File "D:\Music bot\bot\core\bot.py", line 36, in init_bot
+    await bot_client.start()
+  File "D:\Music bot\.venv\Lib\site-packages\pyrogram\methods\utilities\start.py", line 74, in start
+    await self.initialize()
+  File "D:\Music bot\.venv\Lib\site-packages\pyrogram\methods\auth\initialize.py", line 46, in initialize
+    self.load_plugins()
+  File "D:\Music bot\.venv\Lib\site-packages\pyrogram\client.py", line 689, in load_plugins
+    module = import_module(module_path)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\sahoo\AppData\Roaming\uv\python\cpython-3.12.12-windows-x86_64-none\Lib\importlib\__init__.py", line 90, in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "<frozen importlib._bootstrap>", line 1387, in _gcd_import
+  File "<frozen importlib._bootstrap>", line 1360, in _find_and_load
+  File "<frozen importlib._bootstrap>", line 1331, in _find_and_load_unlocked
+  File "<frozen importlib._bootstrap>", line 935, in _load_unlocked
+  File "<frozen importlib._bootstrap_external>", line 999, in exec_module
+  File "<frozen importlib._bootstrap>", line 488, in _call_with_frames_removed
+  File "D:\Music bot\bot\plugins\play.py", line 17, in <module>
+    from pytgcalls.types import AudioPiped, AudioParameters
+ImportError: cannot import name 'AudioPiped' from 'pytgcalls.types' (D:\Music bot\.venv\Lib\site-packages\pytgcalls\types\__init__.py)
+2026-03-30 22:03:52 - root - INFO - Logging setup complete
+2026-03-30 22:03:52 - __main__ - INFO - Starting Music Bot...
+2026-03-30 22:03:52 - bot.utils.supabase_db - WARNING - supabase package not installed. Run: pip install supabase
+2026-03-30 22:03:52 - bot.utils.database - WARNING - Supabase connection failed: supabase package required. Install with: pip install supabase
+2026-03-30 22:03:52 - bot.utils.sqlite_db - INFO - SQLite database initialized at ./data/bot.db
+2026-03-30 22:03:52 - bot.utils.database - INFO - Using SQLite (zero-cost mode)
+2026-03-30 22:03:52 - __main__ - INFO - Database connected
+2026-03-30 22:03:52 - bot.utils.cache - INFO - Upstash Redis cache connected
+2026-03-30 22:03:52 - __main__ - INFO - Redis connected
+2026-03-30 22:03:52 - __main__ - INFO - Queue manager initialized
+2026-03-30 22:03:55 - bot.core.userbot - INFO - Userbot 1 started: @Scrapper123456_bot
+2026-03-30 22:03:55 - __main__ - INFO - Initialized 1 userbot(s)
+2026-03-30 22:03:55 - bot.core.call - INFO - py-tgcalls initialized for userbot 1
+2026-03-30 22:03:55 - __main__ - INFO - Call manager initialized
+2026-03-30 22:03:55 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-03-30 22:03:55 - apscheduler.scheduler - INFO - Added job "CleanupScheduler.cleanup_temp_files" to job store "default"
+2026-03-30 22:03:55 - apscheduler.scheduler - INFO - Scheduler started
+2026-03-30 22:03:55 - bot.utils.scheduler - INFO - Cleanup scheduler started
+2026-03-30 22:03:55 - __main__ - INFO - Cleanup scheduler started
+2026-03-30 22:03:56 - bot.platforms.spotify - WARNING - spotipy not installed, Spotify features limited
+2026-03-30 22:03:56 - bot.core.bot - INFO - Bot started: @Scrapper123456_bot
+2026-03-30 22:05:57 - root - INFO - Logging setup complete
+2026-03-30 22:05:57 - __main__ - INFO - Starting Music Bot...
+2026-03-30 22:05:57 - bot.utils.supabase_db - WARNING - supabase package not installed. Run: pip install supabase
+2026-03-30 22:05:57 - bot.utils.database - WARNING - Supabase connection failed: supabase package required. Install with: pip install supabase
+2026-03-30 22:05:57 - bot.utils.sqlite_db - INFO - SQLite database initialized at ./data/bot.db
+2026-03-30 22:05:57 - bot.utils.database - INFO - Using SQLite (zero-cost mode)
+2026-03-30 22:05:57 - __main__ - INFO - Database connected
+2026-03-30 22:05:58 - bot.utils.cache - INFO - Upstash Redis cache connected
+2026-03-30 22:05:58 - __main__ - INFO - Redis connected
+2026-03-30 22:05:58 - __main__ - INFO - Queue manager initialized
+2026-03-30 22:06:00 - bot.core.userbot - INFO - Userbot 1 started: @Scrapper123456_bot
+2026-03-30 22:06:00 - __main__ - INFO - Initialized 1 userbot(s)
+2026-03-30 22:06:01 - bot.core.call - INFO - py-tgcalls initialized for userbot 1
+2026-03-30 22:06:01 - __main__ - INFO - Call manager initialized
+2026-03-30 22:06:01 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-03-30 22:06:01 - apscheduler.scheduler - INFO - Added job "CleanupScheduler.cleanup_temp_files" to job store "default"
+2026-03-30 22:06:01 - apscheduler.scheduler - INFO - Scheduler started
+2026-03-30 22:06:01 - bot.utils.scheduler - INFO - Cleanup scheduler started
+2026-03-30 22:06:01 - __main__ - INFO - Cleanup scheduler started
+2026-03-30 22:06:03 - bot.platforms.spotify - WARNING - spotipy not installed, Spotify features limited
+2026-03-30 22:06:03 - bot.core.bot - INFO - Bot started: @Scrapper123456_bot
+2026-03-30 22:06:52 - root - INFO - Logging setup complete
+2026-03-30 22:06:52 - __main__ - INFO - Starting Music Bot...
+2026-03-30 22:06:52 - bot.utils.supabase_db - WARNING - supabase package not installed. Run: pip install supabase
+2026-03-30 22:06:52 - bot.utils.database - WARNING - Supabase connection failed: supabase package required. Install with: pip install supabase
+2026-03-30 22:06:52 - bot.utils.sqlite_db - INFO - SQLite database initialized at ./data/bot.db
+2026-03-30 22:06:52 - bot.utils.database - INFO - Using SQLite (zero-cost mode)
+2026-03-30 22:06:52 - __main__ - INFO - Database connected
+2026-03-30 22:06:53 - bot.utils.cache - INFO - Upstash Redis cache connected
+2026-03-30 22:06:53 - __main__ - INFO - Redis connected
+2026-03-30 22:06:53 - __main__ - INFO - Queue manager initialized
+2026-03-30 22:06:55 - bot.core.userbot - INFO - Userbot 1 started: @Scrapper123456_bot
+2026-03-30 22:06:55 - __main__ - INFO - Initialized 1 userbot(s)
+2026-03-30 22:06:57 - bot.core.call - INFO - py-tgcalls initialized for userbot 1
+2026-03-30 22:06:57 - __main__ - INFO - Call manager initialized
+2026-03-30 22:06:57 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-03-30 22:06:57 - apscheduler.scheduler - INFO - Added job "CleanupScheduler.cleanup_temp_files" to job store "default"
+2026-03-30 22:06:57 - apscheduler.scheduler - INFO - Scheduler started
+2026-03-30 22:06:57 - bot.utils.scheduler - INFO - Cleanup scheduler started
+2026-03-30 22:06:57 - __main__ - INFO - Cleanup scheduler started
+2026-03-30 22:06:58 - bot.platforms.spotify - WARNING - spotipy not installed, Spotify features limited
+2026-03-30 22:06:58 - bot.core.bot - INFO - Bot started: @Scrapper123456_bot
+2026-03-30 22:07:20 - pyrogram.dispatcher - ERROR - 'NoneType' object has no attribute 'get'
+Traceback (most recent call last):
+  File "D:\Music bot\.venv\Lib\site-packages\pyrogram\dispatcher.py", line 240, in handler_worker
+    await handler.callback(self.client, *args)
+  File "D:\Music bot\bot\utils\permissions.py", line 284, in wrapper
+    if not await cache.check_cooldown(user_id, cmd, config.COMMAND_COOLDOWN):
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\Music bot\bot\utils\cache.py", line 167, in check_cooldown
+    val = await sqlite_cache.get(key)
+                ^^^^^^^^^^^^^^^^
+AttributeError: 'NoneType' object has no attribute 'get'
+2026-03-30 22:07:27 - pyrogram.dispatcher - ERROR - 'NoneType' object has no attribute 'get'
+Traceback (most recent call last):
+  File "D:\Music bot\.venv\Lib\site-packages\pyrogram\dispatcher.py", line 240, in handler_worker
+    await handler.callback(self.client, *args)
+  File "D:\Music bot\bot\utils\permissions.py", line 284, in wrapper
+    if not await cache.check_cooldown(user_id, cmd, config.COMMAND_COOLDOWN):
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\Music bot\bot\utils\cache.py", line 167, in check_cooldown
+    val = await sqlite_cache.get(key)
+                ^^^^^^^^^^^^^^^^
+AttributeError: 'NoneType' object has no attribute 'get'
+2026-03-30 22:09:45 - root - INFO - Logging setup complete
+2026-03-30 22:09:45 - __main__ - INFO - Starting Music Bot...
+2026-03-30 22:09:45 - bot.utils.supabase_db - WARNING - supabase package not installed. Run: pip install supabase
+2026-03-30 22:09:45 - bot.utils.database - WARNING - Supabase connection failed: supabase package required. Install with: pip install supabase
+2026-03-30 22:09:45 - bot.utils.sqlite_db - INFO - SQLite database initialized at ./data/bot.db
+2026-03-30 22:09:45 - bot.utils.database - INFO - Using SQLite (zero-cost mode)
+2026-03-30 22:09:45 - __main__ - INFO - Database connected
+2026-03-30 22:09:46 - bot.utils.cache - INFO - Upstash Redis cache connected
+2026-03-30 22:09:46 - __main__ - INFO - Redis connected
+2026-03-30 22:09:46 - __main__ - INFO - Queue manager initialized
+2026-03-30 22:09:48 - bot.core.userbot - INFO - Userbot 1 started: @Scrapper123456_bot
+2026-03-30 22:09:48 - __main__ - INFO - Initialized 1 userbot(s)
+2026-03-30 22:09:49 - bot.core.call - INFO - py-tgcalls initialized for userbot 1
+2026-03-30 22:09:49 - __main__ - INFO - Call manager initialized
+2026-03-30 22:09:49 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-03-30 22:09:49 - apscheduler.scheduler - INFO - Added job "CleanupScheduler.cleanup_temp_files" to job store "default"
+2026-03-30 22:09:49 - apscheduler.scheduler - INFO - Scheduler started
+2026-03-30 22:09:49 - bot.utils.scheduler - INFO - Cleanup scheduler started
+2026-03-30 22:09:49 - __main__ - INFO - Cleanup scheduler started
+2026-03-30 22:09:50 - bot.platforms.spotify - WARNING - spotipy not installed, Spotify features limited
+2026-03-30 22:09:50 - bot.core.bot - INFO - Bot started: @Scrapper123456_bot
+2026-03-30 22:10:39 - pyrogram.dispatcher - ERROR - 'NoneType' object has no attribute 'is_gbanned'
+Traceback (most recent call last):
+  File "D:\Music bot\.venv\Lib\site-packages\pyrogram\dispatcher.py", line 240, in handler_worker
+    await handler.callback(self.client, *args)
+  File "D:\Music bot\bot\plugins\callbacks.py", line 31, in callback_handler
+    level = await get_permission_level(user_id, chat_id)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\Music bot\bot\utils\permissions.py", line 169, in get_permission_level
+    if await is_gbanned(user_id):
+       ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\Music bot\bot\utils\permissions.py", line 92, in is_gbanned
+    banned = await db.is_gbanned(user_id)
+                   ^^^^^^^^^^^^^
+AttributeError: 'NoneType' object has no attribute 'is_gbanned'
+2026-03-30 22:10:42 - pyrogram.dispatcher - ERROR - 'NoneType' object has no attribute 'is_gbanned'
+Traceback (most recent call last):
+  File "D:\Music bot\.venv\Lib\site-packages\pyrogram\dispatcher.py", line 240, in handler_worker
+    await handler.callback(self.client, *args)
+  File "D:\Music bot\bot\plugins\callbacks.py", line 31, in callback_handler
+    level = await get_permission_level(user_id, chat_id)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\Music bot\bot\utils\permissions.py", line 169, in get_permission_level
+    if await is_gbanned(user_id):
+       ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\Music bot\bot\utils\permissions.py", line 92, in is_gbanned
+    banned = await db.is_gbanned(user_id)
+                   ^^^^^^^^^^^^^
+AttributeError: 'NoneType' object has no attribute 'is_gbanned'
+2026-03-30 22:13:16 - pyrogram.dispatcher - ERROR - Invalid parse mode "html"
+Traceback (most recent call last):
+  File "D:\Music bot\.venv\Lib\site-packages\pyrogram\dispatcher.py", line 240, in handler_worker
+    await handler.callback(self.client, *args)
+  File "D:\Music bot\bot\plugins\start.py", line 58, in start_group_handler
+    await message.reply_text(
+  File "D:\Music bot\.venv\Lib\site-packages\pyrogram\types\messages_and_media\message.py", line 970, in reply_text
+    return await self._client.send_message(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\Music bot\.venv\Lib\site-packages\pyrogram\methods\messages\send_message.py", line 124, in send_message
+    message, entities = (await utils.parse_text_entities(self, text, parse_mode, entities)).values()
+                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\Music bot\.venv\Lib\site-packages\pyrogram\utils.py", line 354, in parse_text_entities
+    text, entities = (await client.parser.parse(text, parse_mode)).values()
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\Music bot\.venv\Lib\site-packages\pyrogram\parser\parser.py", line 54, in parse
+    raise ValueError(f'Invalid parse mode "{mode}"')
+ValueError: Invalid parse mode "html"
+2026-03-30 22:14:06 - pyrogram.dispatcher - ERROR - Invalid parse mode "html"
+Traceback (most recent call last):
+  File "D:\Music bot\.venv\Lib\site-packages\pyrogram\dispatcher.py", line 240, in handler_worker
+    await handler.callback(self.client, *args)
+  File "D:\Music bot\bot\plugins\start.py", line 58, in start_group_handler
+    await message.reply_text(
+  File "D:\Music bot\.venv\Lib\site-packages\pyrogram\types\messages_and_media\message.py", line 970, in reply_text
+    return await self._client.send_message(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\Music bot\.venv\Lib\site-packages\pyrogram\methods\messages\send_message.py", line 124, in send_message
+    message, entities = (await utils.parse_text_entities(self, text, parse_mode, entities)).values()
+                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\Music bot\.venv\Lib\site-packages\pyrogram\utils.py", line 354, in parse_text_entities
+    text, entities = (await client.parser.parse(text, parse_mode)).values()
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\Music bot\.venv\Lib\site-packages\pyrogram\parser\parser.py", line 54, in parse
+    raise ValueError(f'Invalid parse mode "{mode}"')
+ValueError: Invalid parse mode "html"
+2026-03-30 22:14:50 - root - INFO - Logging setup complete
+2026-03-30 22:14:50 - __main__ - INFO - Starting Music Bot...
+2026-03-30 22:14:50 - bot.utils.supabase_db - WARNING - supabase package not installed. Run: pip install supabase
+2026-03-30 22:14:50 - bot.utils.database - WARNING - Supabase connection failed: supabase package required. Install with: pip install supabase
+2026-03-30 22:14:50 - bot.utils.sqlite_db - INFO - SQLite database initialized at ./data/bot.db
+2026-03-30 22:14:50 - bot.utils.database - INFO - Using SQLite (zero-cost mode)
+2026-03-30 22:14:50 - __main__ - INFO - Database connected
+2026-03-30 22:14:50 - bot.utils.cache - INFO - Upstash Redis cache connected
+2026-03-30 22:14:50 - __main__ - INFO - Redis connected
+2026-03-30 22:14:50 - __main__ - INFO - Queue manager initialized
+2026-03-30 22:14:53 - bot.core.userbot - INFO - Userbot 1 started: @Scrapper123456_bot
+2026-03-30 22:14:53 - __main__ - INFO - Initialized 1 userbot(s)
+2026-03-30 22:14:53 - bot.core.call - INFO - py-tgcalls initialized for userbot 1
+2026-03-30 22:14:53 - __main__ - INFO - Call manager initialized
+2026-03-30 22:14:53 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-03-30 22:14:53 - apscheduler.scheduler - INFO - Added job "CleanupScheduler.cleanup_temp_files" to job store "default"
+2026-03-30 22:14:53 - apscheduler.scheduler - INFO - Scheduler started
+2026-03-30 22:14:53 - bot.utils.scheduler - INFO - Cleanup scheduler started
+2026-03-30 22:14:53 - __main__ - INFO - Cleanup scheduler started
+2026-03-30 22:14:55 - bot.platforms.spotify - WARNING - spotipy not installed, Spotify features limited
+2026-03-30 22:14:55 - bot.core.bot - INFO - Bot started: @Scrapper123456_bot
+2026-03-30 22:15:12 - pyrogram.dispatcher - ERROR - Invalid parse mode "html"
+Traceback (most recent call last):
+  File "D:\Music bot\.venv\Lib\site-packages\pyrogram\dispatcher.py", line 240, in handler_worker
+    await handler.callback(self.client, *args)
+  File "D:\Music bot\bot\plugins\start.py", line 76, in start_group_handler
+    await message.reply_text(
+  File "D:\Music bot\.venv\Lib\site-packages\pyrogram\types\messages_and_media\message.py", line 970, in reply_text
+    return await self._client.send_message(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\Music bot\.venv\Lib\site-packages\pyrogram\methods\messages\send_message.py", line 124, in send_message
+    message, entities = (await utils.parse_text_entities(self, text, parse_mode, entities)).values()
+                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\Music bot\.venv\Lib\site-packages\pyrogram\utils.py", line 354, in parse_text_entities
+    text, entities = (await client.parser.parse(text, parse_mode)).values()
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\Music bot\.venv\Lib\site-packages\pyrogram\parser\parser.py", line 54, in parse
+    raise ValueError(f'Invalid parse mode "{mode}"')
+ValueError: Invalid parse mode "html"
+2026-03-30 22:15:29 - root - INFO - Logging setup complete
+2026-03-30 22:15:29 - __main__ - INFO - Starting Music Bot...
+2026-03-30 22:15:29 - bot.utils.supabase_db - WARNING - supabase package not installed. Run: pip install supabase
+2026-03-30 22:15:29 - bot.utils.database - WARNING - Supabase connection failed: supabase package required. Install with: pip install supabase
+2026-03-30 22:15:29 - bot.utils.sqlite_db - INFO - SQLite database initialized at ./data/bot.db
+2026-03-30 22:15:29 - bot.utils.database - INFO - Using SQLite (zero-cost mode)
+2026-03-30 22:15:29 - __main__ - INFO - Database connected
+2026-03-30 22:15:29 - bot.utils.cache - INFO - Upstash Redis cache connected
+2026-03-30 22:15:29 - __main__ - INFO - Redis connected
+2026-03-30 22:15:29 - __main__ - INFO - Queue manager initialized
+2026-03-30 22:15:32 - bot.core.userbot - INFO - Userbot 1 started: @Scrapper123456_bot
+2026-03-30 22:15:32 - __main__ - INFO - Initialized 1 userbot(s)
+2026-03-30 22:15:33 - bot.core.call - INFO - py-tgcalls initialized for userbot 1
+2026-03-30 22:15:33 - __main__ - INFO - Call manager initialized
+2026-03-30 22:15:33 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-03-30 22:15:33 - apscheduler.scheduler - INFO - Added job "CleanupScheduler.cleanup_temp_files" to job store "default"
+2026-03-30 22:15:33 - apscheduler.scheduler - INFO - Scheduler started
+2026-03-30 22:15:33 - bot.utils.scheduler - INFO - Cleanup scheduler started
+2026-03-30 22:15:33 - __main__ - INFO - Cleanup scheduler started
+2026-03-30 22:15:34 - bot.platforms.spotify - WARNING - spotipy not installed, Spotify features limited
+2026-03-30 22:15:34 - bot.core.bot - INFO - Bot started: @Scrapper123456_bot
+2026-03-30 22:15:58 - pyrogram.dispatcher - ERROR - Invalid parse mode "html"
+Traceback (most recent call last):
+  File "D:\Music bot\.venv\Lib\site-packages\pyrogram\dispatcher.py", line 240, in handler_worker
+    await handler.callback(self.client, *args)
+  File "D:\Music bot\bot\plugins\start.py", line 76, in start_group_handler
+    await message.reply_text(
+  File "D:\Music bot\.venv\Lib\site-packages\pyrogram\types\messages_and_media\message.py", line 970, in reply_text
+    return await self._client.send_message(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\Music bot\.venv\Lib\site-packages\pyrogram\methods\messages\send_message.py", line 124, in send_message
+    message, entities = (await utils.parse_text_entities(self, text, parse_mode, entities)).values()
+                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\Music bot\.venv\Lib\site-packages\pyrogram\utils.py", line 354, in parse_text_entities
+    text, entities = (await client.parser.parse(text, parse_mode)).values()
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\Music bot\.venv\Lib\site-packages\pyrogram\parser\parser.py", line 54, in parse
+    raise ValueError(f'Invalid parse mode "{mode}"')
+ValueError: Invalid parse mode "html"
+2026-03-30 22:16:27 - pyrogram.dispatcher - ERROR - 'NoneType' object has no attribute 'is_gbanned'
+Traceback (most recent call last):
+  File "D:\Music bot\.venv\Lib\site-packages\pyrogram\dispatcher.py", line 240, in handler_worker
+    await handler.callback(self.client, *args)
+  File "D:\Music bot\bot\plugins\callbacks.py", line 31, in callback_handler
+    level = await get_permission_level(user_id, chat_id)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\Music bot\bot\utils\permissions.py", line 169, in get_permission_level
+    if await is_gbanned(user_id):
+       ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\Music bot\bot\utils\permissions.py", line 92, in is_gbanned
+    banned = await db.is_gbanned(user_id)
+                   ^^^^^^^^^^^^^
+AttributeError: 'NoneType' object has no attribute 'is_gbanned'
+2026-03-30 22:17:41 - pyrogram.dispatcher - ERROR - Invalid parse mode "html"
+Traceback (most recent call last):
+  File "D:\Music bot\.venv\Lib\site-packages\pyrogram\dispatcher.py", line 240, in handler_worker
+    await handler.callback(self.client, *args)
+  File "D:\Music bot\bot\plugins\start.py", line 76, in start_group_handler
+    await message.reply_text(
+  File "D:\Music bot\.venv\Lib\site-packages\pyrogram\types\messages_and_media\message.py", line 970, in reply_text
+    return await self._client.send_message(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\Music bot\.venv\Lib\site-packages\pyrogram\methods\messages\send_message.py", line 124, in send_message
+    message, entities = (await utils.parse_text_entities(self, text, parse_mode, entities)).values()
+                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\Music bot\.venv\Lib\site-packages\pyrogram\utils.py", line 354, in parse_text_entities
+    text, entities = (await client.parser.parse(text, parse_mode)).values()
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\Music bot\.venv\Lib\site-packages\pyrogram\parser\parser.py", line 54, in parse
+    raise ValueError(f'Invalid parse mode "{mode}"')
+ValueError: Invalid parse mode "html"
+2026-03-30 22:19:25 - pyrogram.dispatcher - ERROR - Invalid parse mode "html"
+Traceback (most recent call last):
+  File "D:\Music bot\.venv\Lib\site-packages\pyrogram\dispatcher.py", line 240, in handler_worker
+    await handler.callback(self.client, *args)
+  File "D:\Music bot\bot\plugins\start.py", line 76, in start_group_handler
+    await message.reply_text(
+  File "D:\Music bot\.venv\Lib\site-packages\pyrogram\types\messages_and_media\message.py", line 970, in reply_text
+    return await self._client.send_message(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\Music bot\.venv\Lib\site-packages\pyrogram\methods\messages\send_message.py", line 124, in send_message
+    message, entities = (await utils.parse_text_entities(self, text, parse_mode, entities)).values()
+                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\Music bot\.venv\Lib\site-packages\pyrogram\utils.py", line 354, in parse_text_entities
+    text, entities = (await client.parser.parse(text, parse_mode)).values()
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\Music bot\.venv\Lib\site-packages\pyrogram\parser\parser.py", line 54, in parse
+    raise ValueError(f'Invalid parse mode "{mode}"')
+ValueError: Invalid parse mode "html"
+2026-03-30 22:22:22 - root - INFO - Logging setup complete
+2026-03-30 22:22:22 - __main__ - INFO - Starting Music Bot...
+2026-03-30 22:22:22 - bot.utils.supabase_db - WARNING - supabase package not installed. Run: pip install supabase
+2026-03-30 22:22:22 - bot.utils.database - WARNING - Supabase connection failed: supabase package required. Install with: pip install supabase
+2026-03-30 22:22:22 - bot.utils.sqlite_db - INFO - SQLite database initialized at ./data/bot.db
+2026-03-30 22:22:22 - bot.utils.database - INFO - Using SQLite (zero-cost mode)
+2026-03-30 22:22:22 - __main__ - INFO - Database connected
+2026-03-30 22:22:23 - bot.utils.cache - INFO - Upstash Redis cache connected
+2026-03-30 22:22:23 - __main__ - INFO - Redis connected
+2026-03-30 22:22:23 - __main__ - INFO - Queue manager initialized
+2026-03-30 22:22:25 - bot.core.userbot - INFO - Userbot 1 started: @Scrapper123456_bot
+2026-03-30 22:22:25 - __main__ - INFO - Initialized 1 userbot(s)
+2026-03-30 22:22:26 - bot.core.call - INFO - py-tgcalls initialized for userbot 1
+2026-03-30 22:22:26 - __main__ - INFO - Call manager initialized
+2026-03-30 22:22:26 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-03-30 22:22:26 - apscheduler.scheduler - INFO - Added job "CleanupScheduler.cleanup_temp_files" to job store "default"
+2026-03-30 22:22:26 - apscheduler.scheduler - INFO - Scheduler started
+2026-03-30 22:22:26 - bot.utils.scheduler - INFO - Cleanup scheduler started
+2026-03-30 22:22:26 - __main__ - INFO - Cleanup scheduler started
+2026-03-30 22:22:27 - __main__ - ERROR - Failed to start bot
+Traceback (most recent call last):
+  File "D:\Music bot\bot\__main__.py", line 61, in main
+    bot = await init_bot()
+          ^^^^^^^^^^^^^^^^
+  File "D:\Music bot\bot\core\bot.py", line 36, in init_bot
+    await bot_client.start()
+  File "D:\Music bot\.venv\Lib\site-packages\pyrogram\methods\utilities\start.py", line 74, in start
+    await self.initialize()
+  File "D:\Music bot\.venv\Lib\site-packages\pyrogram\methods\auth\initialize.py", line 46, in initialize
+    self.load_plugins()
+  File "D:\Music bot\.venv\Lib\site-packages\pyrogram\client.py", line 689, in load_plugins
+    module = import_module(module_path)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\sahoo\AppData\Roaming\uv\python\cpython-3.12.12-windows-x86_64-none\Lib\importlib\__init__.py", line 90, in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "<frozen importlib._bootstrap>", line 1387, in _gcd_import
+  File "<frozen importlib._bootstrap>", line 1360, in _find_and_load
+  File "<frozen importlib._bootstrap>", line 1331, in _find_and_load_unlocked
+  File "<frozen importlib._bootstrap>", line 935, in _load_unlocked
+  File "<frozen importlib._bootstrap_external>", line 999, in exec_module
+  File "<frozen importlib._bootstrap>", line 488, in _call_with_frames_removed
+  File "D:\Music bot\bot\plugins\mentions.py", line 18, in <module>
+    @Client.on_message(filters.mentioned & (filters.group | filters.supergroup))
+                                                            ^^^^^^^^^^^^^^^^^^
+AttributeError: module 'pyrogram.filters' has no attribute 'supergroup'
+2026-03-30 22:34:08 - root - INFO - Logging setup complete
+2026-03-30 22:34:08 - __main__ - INFO - Starting Music Bot...
+2026-03-30 22:34:08 - bot.utils.supabase_db - WARNING - supabase package not installed. Run: pip install supabase
+2026-03-30 22:34:08 - bot.utils.database - WARNING - Supabase connection failed: supabase package required. Install with: pip install supabase
+2026-03-30 22:34:08 - bot.utils.sqlite_db - INFO - SQLite database initialized at ./data/bot.db
+2026-03-30 22:34:08 - bot.utils.database - INFO - Using SQLite (zero-cost mode)
+2026-03-30 22:34:08 - __main__ - INFO - Database connected
+2026-03-30 22:34:09 - bot.utils.cache - INFO - Upstash Redis cache connected
+2026-03-30 22:34:09 - __main__ - INFO - Redis connected
+2026-03-30 22:34:09 - __main__ - INFO - Queue manager initialized
+2026-03-30 22:34:11 - bot.core.userbot - INFO - Userbot 1 started: @Scrapper123456_bot
+2026-03-30 22:34:11 - __main__ - INFO - Initialized 1 userbot(s)
+2026-03-30 22:34:13 - bot.core.call - INFO - py-tgcalls initialized for userbot 1
+2026-03-30 22:34:13 - __main__ - INFO - Call manager initialized
+2026-03-30 22:34:13 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-03-30 22:34:13 - apscheduler.scheduler - INFO - Added job "CleanupScheduler.cleanup_temp_files" to job store "default"
+2026-03-30 22:34:13 - apscheduler.scheduler - INFO - Scheduler started
+2026-03-30 22:34:13 - bot.utils.scheduler - INFO - Cleanup scheduler started
+2026-03-30 22:34:13 - __main__ - INFO - Cleanup scheduler started
+2026-03-30 22:34:14 - __main__ - ERROR - Failed to start bot
+Traceback (most recent call last):
+  File "D:\Music bot\bot\__main__.py", line 61, in main
+    bot = await init_bot()
+          ^^^^^^^^^^^^^^^^
+  File "D:\Music bot\bot\core\bot.py", line 36, in init_bot
+    await bot_client.start()
+  File "D:\Music bot\.venv\Lib\site-packages\pyrogram\methods\utilities\start.py", line 74, in start
+    await self.initialize()
+  File "D:\Music bot\.venv\Lib\site-packages\pyrogram\methods\auth\initialize.py", line 46, in initialize
+    self.load_plugins()
+  File "D:\Music bot\.venv\Lib\site-packages\pyrogram\client.py", line 689, in load_plugins
+    module = import_module(module_path)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\sahoo\AppData\Roaming\uv\python\cpython-3.12.12-windows-x86_64-none\Lib\importlib\__init__.py", line 90, in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "<frozen importlib._bootstrap>", line 1387, in _gcd_import
+  File "<frozen importlib._bootstrap>", line 1360, in _find_and_load
+  File "<frozen importlib._bootstrap>", line 1331, in _find_and_load_unlocked
+  File "<frozen importlib._bootstrap>", line 935, in _load_unlocked
+  File "<frozen importlib._bootstrap_external>", line 999, in exec_module
+  File "<frozen importlib._bootstrap>", line 488, in _call_with_frames_removed
+  File "D:\Music bot\bot\plugins\controls.py", line 15, in <module>
+    @Client.on_message(filters.command("pause") & (filters.group | filters.supergroup))
+                                                                   ^^^^^^^^^^^^^^^^^^
+AttributeError: module 'pyrogram.filters' has no attribute 'supergroup'
+2026-03-30 22:36:34 - root - INFO - Logging setup complete
+2026-03-30 22:36:34 - __main__ - INFO - Starting Music Bot...
+2026-03-30 22:36:34 - bot.utils.supabase_db - WARNING - supabase package not installed. Run: pip install supabase
+2026-03-30 22:36:34 - bot.utils.database - WARNING - Supabase connection failed: supabase package required. Install with: pip install supabase
+2026-03-30 22:36:34 - bot.utils.sqlite_db - INFO - SQLite database initialized at ./data/bot.db
+2026-03-30 22:36:34 - bot.utils.database - INFO - Using SQLite (zero-cost mode)
+2026-03-30 22:36:34 - __main__ - INFO - Database connected
+2026-03-30 22:36:35 - bot.utils.cache - INFO - Upstash Redis cache connected
+2026-03-30 22:36:35 - __main__ - INFO - Redis connected
+2026-03-30 22:36:35 - __main__ - INFO - Queue manager initialized
+2026-03-30 22:36:37 - bot.core.userbot - INFO - Userbot 1 started: @Scrapper123456_bot
+2026-03-30 22:36:37 - __main__ - INFO - Initialized 1 userbot(s)
+2026-03-30 22:36:38 - bot.core.call - INFO - py-tgcalls initialized for userbot 1
+2026-03-30 22:36:38 - __main__ - INFO - Call manager initialized
+2026-03-30 22:36:38 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-03-30 22:36:38 - apscheduler.scheduler - INFO - Added job "CleanupScheduler.cleanup_temp_files" to job store "default"
+2026-03-30 22:36:38 - apscheduler.scheduler - INFO - Scheduler started
+2026-03-30 22:36:38 - bot.utils.scheduler - INFO - Cleanup scheduler started
+2026-03-30 22:36:38 - __main__ - INFO - Cleanup scheduler started
+2026-03-30 22:36:40 - bot.platforms.spotify - WARNING - spotipy not installed, Spotify features limited
+2026-03-30 22:36:40 - __main__ - ERROR - Failed to start bot
+Traceback (most recent call last):
+  File "D:\Music bot\bot\__main__.py", line 61, in main
+    bot = await init_bot()
+          ^^^^^^^^^^^^^^^^
+  File "D:\Music bot\bot\core\bot.py", line 36, in init_bot
+    await bot_client.start()
+  File "D:\Music bot\.venv\Lib\site-packages\pyrogram\methods\utilities\start.py", line 74, in start
+    await self.initialize()
+  File "D:\Music bot\.venv\Lib\site-packages\pyrogram\methods\auth\initialize.py", line 46, in initialize
+    self.load_plugins()
+  File "D:\Music bot\.venv\Lib\site-packages\pyrogram\client.py", line 689, in load_plugins
+    module = import_module(module_path)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\sahoo\AppData\Roaming\uv\python\cpython-3.12.12-windows-x86_64-none\Lib\importlib\__init__.py", line 90, in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "<frozen importlib._bootstrap>", line 1387, in _gcd_import
+  File "<frozen importlib._bootstrap>", line 1360, in _find_and_load
+  File "<frozen importlib._bootstrap>", line 1331, in _find_and_load_unlocked
+  File "<frozen importlib._bootstrap>", line 935, in _load_unlocked
+  File "<frozen importlib._bootstrap_external>", line 999, in exec_module
+  File "<frozen importlib._bootstrap>", line 488, in _call_with_frames_removed
+  File "D:\Music bot\bot\plugins\start.py", line 55, in <module>
+    @Client.on_message(filters.command("start") & (filters.group | filters.supergroup))
+                                                                   ^^^^^^^^^^^^^^^^^^
+AttributeError: module 'pyrogram.filters' has no attribute 'supergroup'
+2026-03-30 22:37:12 - root - INFO - Logging setup complete
+2026-03-30 22:37:12 - __main__ - INFO - Starting Music Bot...
+2026-03-30 22:37:12 - bot.utils.supabase_db - WARNING - supabase package not installed. Run: pip install supabase
+2026-03-30 22:37:12 - bot.utils.database - WARNING - Supabase connection failed: supabase package required. Install with: pip install supabase
+2026-03-30 22:37:12 - bot.utils.sqlite_db - INFO - SQLite database initialized at ./data/bot.db
+2026-03-30 22:37:12 - bot.utils.database - INFO - Using SQLite (zero-cost mode)
+2026-03-30 22:37:12 - __main__ - INFO - Database connected
+2026-03-30 22:37:13 - bot.utils.cache - INFO - Upstash Redis cache connected
+2026-03-30 22:37:13 - __main__ - INFO - Redis connected
+2026-03-30 22:37:13 - __main__ - INFO - Queue manager initialized
+2026-03-30 22:37:16 - bot.core.userbot - INFO - Userbot 1 started: @Scrapper123456_bot
+2026-03-30 22:37:16 - __main__ - INFO - Initialized 1 userbot(s)
+2026-03-30 22:37:16 - bot.core.call - INFO - py-tgcalls initialized for userbot 1
+2026-03-30 22:37:16 - __main__ - INFO - Call manager initialized
+2026-03-30 22:37:16 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-03-30 22:37:16 - apscheduler.scheduler - INFO - Added job "CleanupScheduler.cleanup_temp_files" to job store "default"
+2026-03-30 22:37:16 - apscheduler.scheduler - INFO - Scheduler started
+2026-03-30 22:37:16 - bot.utils.scheduler - INFO - Cleanup scheduler started
+2026-03-30 22:37:16 - __main__ - INFO - Cleanup scheduler started
+2026-03-30 22:37:18 - bot.platforms.spotify - WARNING - spotipy not installed, Spotify features limited
+2026-03-30 22:37:18 - bot.core.bot - INFO - Bot started: @Scrapper123456_bot
+2026-03-30 22:37:41 - pyrogram.dispatcher - ERROR - Invalid parse mode "html"
+Traceback (most recent call last):
+  File "D:\Music bot\.venv\Lib\site-packages\pyrogram\dispatcher.py", line 240, in handler_worker
+    await handler.callback(self.client, *args)
+  File "D:\Music bot\bot\plugins\start.py", line 76, in start_group_handler
+    await message.reply_text(
+  File "D:\Music bot\.venv\Lib\site-packages\pyrogram\types\messages_and_media\message.py", line 970, in reply_text
+    return await self._client.send_message(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\Music bot\.venv\Lib\site-packages\pyrogram\methods\messages\send_message.py", line 124, in send_message
+    message, entities = (await utils.parse_text_entities(self, text, parse_mode, entities)).values()
+                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\Music bot\.venv\Lib\site-packages\pyrogram\utils.py", line 354, in parse_text_entities
+    text, entities = (await client.parser.parse(text, parse_mode)).values()
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\Music bot\.venv\Lib\site-packages\pyrogram\parser\parser.py", line 54, in parse
+    raise ValueError(f'Invalid parse mode "{mode}"')
+ValueError: Invalid parse mode "html"
+2026-03-30 22:37:46 - root - INFO - Stop signal received (SIGINT). Exiting...
+2026-03-30 22:37:46 - __main__ - INFO - Bot started successfully
+2026-03-30 22:39:47 - root - INFO - Logging setup complete
+2026-03-30 22:39:47 - __main__ - INFO - Starting Music Bot...
+2026-03-30 22:39:47 - bot.utils.supabase_db - WARNING - supabase package not installed. Run: pip install supabase
+2026-03-30 22:39:47 - bot.utils.database - WARNING - Supabase connection failed: supabase package required. Install with: pip install supabase
+2026-03-30 22:39:47 - bot.utils.sqlite_db - INFO - SQLite database initialized at ./data/bot.db
+2026-03-30 22:39:47 - bot.utils.database - INFO - Using SQLite (zero-cost mode)
+2026-03-30 22:39:47 - __main__ - INFO - Database connected
+2026-03-30 22:39:47 - bot.utils.cache - INFO - Upstash Redis cache connected
+2026-03-30 22:39:47 - __main__ - INFO - Redis connected
+2026-03-30 22:39:47 - __main__ - INFO - Queue manager initialized
+2026-03-30 22:39:50 - bot.core.userbot - INFO - Userbot 1 started: @Scrapper123456_bot
+2026-03-30 22:39:50 - __main__ - INFO - Initialized 1 userbot(s)
+2026-03-30 22:39:51 - bot.core.call - INFO - py-tgcalls initialized for userbot 1
+2026-03-30 22:39:51 - __main__ - INFO - Call manager initialized
+2026-03-30 22:39:51 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-03-30 22:39:51 - apscheduler.scheduler - INFO - Added job "CleanupScheduler.cleanup_temp_files" to job store "default"
+2026-03-30 22:39:51 - apscheduler.scheduler - INFO - Scheduler started
+2026-03-30 22:39:51 - bot.utils.scheduler - INFO - Cleanup scheduler started
+2026-03-30 22:39:51 - __main__ - INFO - Cleanup scheduler started
+2026-03-30 22:39:53 - bot.platforms.spotify - WARNING - spotipy not installed, Spotify features limited
+2026-03-30 22:39:53 - bot.core.bot - INFO - Bot started: @Scrapper123456_bot
+2026-03-30 22:40:08 - root - INFO - Stop signal received (SIGINT). Exiting...
+2026-03-30 22:40:08 - __main__ - INFO - Bot started successfully
+2026-03-30 22:41:26 - root - INFO - Logging setup complete
+2026-03-30 22:41:26 - __main__ - INFO - Starting Music Bot...
+2026-03-30 22:41:26 - bot.utils.supabase_db - WARNING - supabase package not installed. Run: pip install supabase
+2026-03-30 22:41:26 - bot.utils.database - WARNING - Supabase connection failed: supabase package required. Install with: pip install supabase
+2026-03-30 22:41:26 - bot.utils.sqlite_db - INFO - SQLite database initialized at ./data/bot.db
+2026-03-30 22:41:26 - bot.utils.database - INFO - Using SQLite (zero-cost mode)
+2026-03-30 22:41:26 - __main__ - INFO - Database connected
+2026-03-30 22:41:27 - bot.utils.cache - INFO - Upstash Redis cache connected
+2026-03-30 22:41:27 - __main__ - INFO - Redis connected
+2026-03-30 22:41:27 - __main__ - INFO - Queue manager initialized
+2026-03-30 22:41:30 - bot.core.userbot - INFO - Userbot 1 started: @Scrapper123456_bot
+2026-03-30 22:41:30 - __main__ - INFO - Initialized 1 userbot(s)
+2026-03-30 22:41:30 - bot.core.call - INFO - py-tgcalls initialized for userbot 1
+2026-03-30 22:41:30 - __main__ - INFO - Call manager initialized
+2026-03-30 22:41:30 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-03-30 22:41:30 - apscheduler.scheduler - INFO - Added job "CleanupScheduler.cleanup_temp_files" to job store "default"
+2026-03-30 22:41:30 - apscheduler.scheduler - INFO - Scheduler started
+2026-03-30 22:41:30 - bot.utils.scheduler - INFO - Cleanup scheduler started
+2026-03-30 22:41:30 - __main__ - INFO - Cleanup scheduler started
+2026-03-30 22:41:32 - bot.platforms.spotify - WARNING - spotipy not installed, Spotify features limited
+2026-03-30 22:41:32 - bot.core.bot - INFO - Bot started: @Scrapper123456_bot
+2026-03-30 22:41:40 - pyrogram.dispatcher - ERROR - Telegram says: [400 WEBPAGE_CURL_FAILED] - Telegram server could not fetch the provided URL (caused by "messages.SendMedia")
+Traceback (most recent call last):
+  File "D:\Music bot\.venv\Lib\site-packages\pyrogram\dispatcher.py", line 240, in handler_worker
+    await handler.callback(self.client, *args)
+  File "D:\Music bot\bot\plugins\start.py", line 49, in start_handler
+    await message.reply_photo(
+  File "D:\Music bot\.venv\Lib\site-packages\pyrogram\types\messages_and_media\message.py", line 2000, in reply_photo
+    return await self._client.send_photo(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\Music bot\.venv\Lib\site-packages\pyrogram\methods\messages\send_photo.py", line 177, in send_photo
+    r = await self.invoke(
+        ^^^^^^^^^^^^^^^^^^
+  File "D:\Music bot\.venv\Lib\site-packages\pyrogram\methods\advanced\invoke.py", line 79, in invoke
+    r = await self.session.invoke(
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\Music bot\.venv\Lib\site-packages\pyrogram\session\session.py", line 389, in invoke
+    return await self.send(query, timeout=timeout)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\Music bot\.venv\Lib\site-packages\pyrogram\session\session.py", line 357, in send
+    RPCError.raise_it(result, type(data))
+  File "D:\Music bot\.venv\Lib\site-packages\pyrogram\errors\rpc_error.py", line 91, in raise_it
+    raise getattr(
+pyrogram.errors.exceptions.bad_request_400.WebpageCurlFailed: Telegram says: [400 WEBPAGE_CURL_FAILED] - Telegram server could not fetch the provided URL (caused by "messages.SendMedia")
+2026-03-30 22:43:10 - root - INFO - Logging setup complete
+2026-03-30 22:43:10 - __main__ - INFO - Starting Music Bot...
+2026-03-30 22:43:10 - bot.utils.supabase_db - WARNING - supabase package not installed. Run: pip install supabase
+2026-03-30 22:43:10 - bot.utils.database - WARNING - Supabase connection failed: supabase package required. Install with: pip install supabase
+2026-03-30 22:43:10 - bot.utils.sqlite_db - INFO - SQLite database initialized at ./data/bot.db
+2026-03-30 22:43:10 - bot.utils.database - INFO - Using SQLite (zero-cost mode)
+2026-03-30 22:43:10 - __main__ - INFO - Database connected
+2026-03-30 22:43:11 - bot.utils.cache - INFO - Upstash Redis cache connected
+2026-03-30 22:43:11 - __main__ - INFO - Redis connected
+2026-03-30 22:43:11 - __main__ - INFO - Queue manager initialized
+2026-03-30 22:43:14 - bot.core.userbot - INFO - Userbot 1 started: @Scrapper123456_bot
+2026-03-30 22:43:14 - __main__ - INFO - Initialized 1 userbot(s)
+2026-03-30 22:43:15 - bot.core.call - INFO - py-tgcalls initialized for userbot 1
+2026-03-30 22:43:15 - __main__ - INFO - Call manager initialized
+2026-03-30 22:43:15 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-03-30 22:43:15 - apscheduler.scheduler - INFO - Added job "CleanupScheduler.cleanup_temp_files" to job store "default"
+2026-03-30 22:43:15 - apscheduler.scheduler - INFO - Scheduler started
+2026-03-30 22:43:15 - bot.utils.scheduler - INFO - Cleanup scheduler started
+2026-03-30 22:43:15 - __main__ - INFO - Cleanup scheduler started
+2026-03-30 22:43:16 - __main__ - ERROR - Failed to start bot
+Traceback (most recent call last):
+  File "D:\Music bot\bot\__main__.py", line 61, in main
+    bot = await init_bot()
+          ^^^^^^^^^^^^^^^^
+  File "D:\Music bot\bot\core\bot.py", line 36, in init_bot
+    await bot_client.start()
+  File "D:\Music bot\.venv\Lib\site-packages\pyrogram\methods\utilities\start.py", line 58, in start
+    is_authorized = await self.connect()
+                    ^^^^^^^^^^^^^^^^^^^^
+  File "D:\Music bot\.venv\Lib\site-packages\pyrogram\methods\auth\connect.py", line 40, in connect
+    await self.load_session()
+  File "D:\Music bot\.venv\Lib\site-packages\pyrogram\client.py", line 616, in load_session
+    await self.storage.open()
+  File "D:\Music bot\.venv\Lib\site-packages\pyrogram\storage\file_storage.py", line 63, in open
+    self.update()
+  File "D:\Music bot\.venv\Lib\site-packages\pyrogram\storage\file_storage.py", line 52, in update
+    self.version(version)
+  File "D:\Music bot\.venv\Lib\site-packages\pyrogram\storage\sqlite_storage.py", line 219, in version
+    self.conn.execute(
+sqlite3.OperationalError: database is locked
+2026-03-30 22:43:59 - root - INFO - Logging setup complete
+2026-03-30 22:43:59 - __main__ - INFO - Starting Music Bot...
+2026-03-30 22:43:59 - bot.utils.supabase_db - WARNING - supabase package not installed. Run: pip install supabase
+2026-03-30 22:43:59 - bot.utils.database - WARNING - Supabase connection failed: supabase package required. Install with: pip install supabase
+2026-03-30 22:43:59 - bot.utils.sqlite_db - INFO - SQLite database initialized at ./data/bot.db
+2026-03-30 22:43:59 - bot.utils.database - INFO - Using SQLite (zero-cost mode)
+2026-03-30 22:43:59 - __main__ - INFO - Database connected
+2026-03-30 22:44:00 - bot.utils.cache - INFO - Upstash Redis cache connected
+2026-03-30 22:44:00 - __main__ - INFO - Redis connected
+2026-03-30 22:44:00 - __main__ - INFO - Queue manager initialized
+2026-03-30 22:44:03 - bot.core.userbot - INFO - Userbot 1 started: @Scrapper123456_bot
+2026-03-30 22:44:03 - __main__ - INFO - Initialized 1 userbot(s)
+2026-03-30 22:44:03 - bot.core.call - INFO - py-tgcalls initialized for userbot 1
+2026-03-30 22:44:03 - __main__ - INFO - Call manager initialized
+2026-03-30 22:44:03 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-03-30 22:44:03 - apscheduler.scheduler - INFO - Added job "CleanupScheduler.cleanup_temp_files" to job store "default"
+2026-03-30 22:44:03 - apscheduler.scheduler - INFO - Scheduler started
+2026-03-30 22:44:03 - bot.utils.scheduler - INFO - Cleanup scheduler started
+2026-03-30 22:44:03 - __main__ - INFO - Cleanup scheduler started
+2026-03-30 22:44:05 - bot.platforms.spotify - WARNING - spotipy not installed, Spotify features limited
+2026-03-30 22:44:05 - bot.core.bot - INFO - Bot started: @Scrapper123456_bot
+2026-03-30 22:44:13 - bot.plugins.start - WARNING - Failed to send start image (telegram curl failed?): Telegram says: [400 WEBPAGE_MEDIA_EMPTY] - The URL doesn't contain any valid media (caused by "messages.SendMedia")
+2026-03-30 22:44:27 - bot.plugins.start - WARNING - Failed to send start image (telegram curl failed?): Telegram says: [400 WEBPAGE_MEDIA_EMPTY] - The URL doesn't contain any valid media (caused by "messages.SendMedia")
+2026-03-30 22:44:58 - pyrogram.dispatcher - ERROR - 'NoneType' object has no attribute 'is_gbanned'
+Traceback (most recent call last):
+  File "D:\Music bot\.venv\Lib\site-packages\pyrogram\dispatcher.py", line 240, in handler_worker
+    await handler.callback(self.client, *args)
+  File "D:\Music bot\bot\plugins\callbacks.py", line 31, in callback_handler
+    level = await get_permission_level(user_id, chat_id)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\Music bot\bot\utils\permissions.py", line 169, in get_permission_level
+    if await is_gbanned(user_id):
+       ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\Music bot\bot\utils\permissions.py", line 92, in is_gbanned
+    banned = await db.is_gbanned(user_id)
+                   ^^^^^^^^^^^^^
+AttributeError: 'NoneType' object has no attribute 'is_gbanned'
+2026-03-30 22:46:48 - pyrogram.dispatcher - ERROR - 'NoneType' object has no attribute 'is_gbanned'
+Traceback (most recent call last):
+  File "D:\Music bot\.venv\Lib\site-packages\pyrogram\dispatcher.py", line 240, in handler_worker
+    await handler.callback(self.client, *args)
+  File "D:\Music bot\bot\plugins\callbacks.py", line 31, in callback_handler
+    level = await get_permission_level(user_id, chat_id)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\Music bot\bot\utils\permissions.py", line 169, in get_permission_level
+    if await is_gbanned(user_id):
+       ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\Music bot\bot\utils\permissions.py", line 92, in is_gbanned
+    banned = await db.is_gbanned(user_id)
+                   ^^^^^^^^^^^^^
+AttributeError: 'NoneType' object has no attribute 'is_gbanned'
+2026-03-30 22:47:00 - bot.plugins.start - WARNING - Failed to send start image (telegram curl failed?): Telegram says: [400 WEBPAGE_MEDIA_EMPTY] - The URL doesn't contain any valid media (caused by "messages.SendMedia")
+2026-03-30 22:50:30 - bot.plugins.start - WARNING - Failed to send start image (telegram curl failed?): Telegram says: [400 WEBPAGE_MEDIA_EMPTY] - The URL doesn't contain any valid media (caused by "messages.SendMedia")
+2026-03-30 22:52:21 - bot.plugins.start - WARNING - Failed to send start image (telegram curl failed?): Telegram says: [400 WEBPAGE_MEDIA_EMPTY] - The URL doesn't contain any valid media (caused by "messages.SendMedia")
+2026-03-30 22:54:44 - root - INFO - Stop signal received (SIGINT). Exiting...
+2026-03-30 22:54:44 - __main__ - INFO - Bot started successfully
+2026-03-30 22:56:04 - root - INFO - Logging setup complete
+2026-03-30 22:56:04 - __main__ - INFO - Starting Music Bot...
+2026-03-30 22:56:06 - bot.utils.supabase_db - INFO - Supabase tables initialized (create tables via Supabase dashboard)
+2026-03-30 22:56:08 - bot.utils.supabase_db - ERROR - Error initializing Supabase storage: {'statusCode': 400, 'error': Error, 'message': body/name must be string}
+2026-03-30 22:56:08 - bot.utils.supabase_db - INFO - Supabase database initialized
+2026-03-30 22:56:08 - bot.utils.database - INFO - Supabase connected
+2026-03-30 22:56:08 - __main__ - INFO - Database connected
+2026-03-30 22:56:08 - bot.utils.cache - INFO - Upstash Redis cache connected
+2026-03-30 22:56:08 - __main__ - INFO - Redis connected
+2026-03-30 22:56:08 - __main__ - INFO - Queue manager initialized
+2026-03-30 22:56:10 - bot.core.userbot - INFO - Userbot 1 started: @Scrapper123456_bot
+2026-03-30 22:56:10 - __main__ - INFO - Initialized 1 userbot(s)
+2026-03-30 22:56:10 - bot.core.call - INFO - py-tgcalls initialized for userbot 1
+2026-03-30 22:56:10 - __main__ - INFO - Call manager initialized
+2026-03-30 22:56:10 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-03-30 22:56:10 - apscheduler.scheduler - INFO - Added job "CleanupScheduler.cleanup_temp_files" to job store "default"
+2026-03-30 22:56:10 - apscheduler.scheduler - INFO - Scheduler started
+2026-03-30 22:56:10 - bot.utils.scheduler - INFO - Cleanup scheduler started
+2026-03-30 22:56:10 - __main__ - INFO - Cleanup scheduler started
+2026-03-30 22:56:11 - bot.core.bot - INFO - Bot started: @Scrapper123456_bot
+2026-03-30 22:56:33 - bot.plugins.start - WARNING - Failed to send start image (telegram curl failed?): Telegram says: [400 WEBPAGE_MEDIA_EMPTY] - The URL doesn't contain any valid media (caused by "messages.SendMedia")
+2026-03-30 22:57:52 - pyrogram.dispatcher - ERROR - 'NoneType' object has no attribute 'is_gbanned'
+Traceback (most recent call last):
+  File "D:\Music bot\.venv\Lib\site-packages\pyrogram\dispatcher.py", line 240, in handler_worker
+    await handler.callback(self.client, *args)
+  File "D:\Music bot\bot\utils\permissions.py", line 287, in wrapper
+    return await func(client, message)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\Music bot\bot\plugins\play.py", line 39, in play_cmd
+    level = await get_permission_level(user_id, chat_id, check_vc=True)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\Music bot\bot\utils\permissions.py", line 169, in get_permission_level
+    if await is_gbanned(user_id):
+       ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\Music bot\bot\utils\permissions.py", line 92, in is_gbanned
+    banned = await db.is_gbanned(user_id)
+                   ^^^^^^^^^^^^^
+AttributeError: 'NoneType' object has no attribute 'is_gbanned'
+2026-03-30 23:00:26 - bot.plugins.start - WARNING - Failed to send start image (telegram curl failed?): Telegram says: [400 WEBPAGE_MEDIA_EMPTY] - The URL doesn't contain any valid media (caused by "messages.SendMedia")
+2026-03-30 23:01:19 - bot.plugins.start - WARNING - Failed to send start image (telegram curl failed?): Telegram says: [400 WEBPAGE_MEDIA_EMPTY] - The URL doesn't contain any valid media (caused by "messages.SendMedia")
+2026-03-30 23:02:21 - root - INFO - Logging setup complete
+2026-03-30 23:02:21 - __main__ - INFO - Starting Music Bot...
+2026-03-30 23:02:22 - bot.utils.supabase_db - INFO - Supabase tables initialized (create tables via Supabase dashboard)
+2026-03-30 23:02:23 - bot.utils.supabase_db - INFO - Successfully uploaded Brook start image to Supabase storage
+2026-03-30 23:02:23 - bot.utils.supabase_db - INFO - Supabase database initialized
+2026-03-30 23:02:23 - bot.utils.database - INFO - Supabase connected
+2026-03-30 23:02:23 - __main__ - INFO - Database connected
+2026-03-30 23:02:24 - bot.utils.cache - INFO - Upstash Redis cache connected
+2026-03-30 23:02:24 - __main__ - INFO - Redis connected
+2026-03-30 23:02:24 - __main__ - INFO - Queue manager initialized
+2026-03-30 23:02:25 - bot.core.userbot - INFO - Userbot 1 started: @Scrapper123456_bot
+2026-03-30 23:02:25 - __main__ - INFO - Initialized 1 userbot(s)
+2026-03-30 23:02:26 - bot.core.call - INFO - py-tgcalls initialized for userbot 1
+2026-03-30 23:02:26 - __main__ - INFO - Call manager initialized
+2026-03-30 23:02:26 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-03-30 23:02:26 - apscheduler.scheduler - INFO - Added job "CleanupScheduler.cleanup_temp_files" to job store "default"
+2026-03-30 23:02:26 - apscheduler.scheduler - INFO - Scheduler started
+2026-03-30 23:02:26 - bot.utils.scheduler - INFO - Cleanup scheduler started
+2026-03-30 23:02:26 - __main__ - INFO - Cleanup scheduler started
+2026-03-30 23:02:27 - __main__ - ERROR - Failed to start bot
+Traceback (most recent call last):
+  File "D:\Music bot\bot\__main__.py", line 61, in main
+    bot = await init_bot()
+          ^^^^^^^^^^^^^^^^
+  File "D:\Music bot\bot\core\bot.py", line 36, in init_bot
+    await bot_client.start()
+  File "D:\Music bot\.venv\Lib\site-packages\pyrogram\methods\utilities\start.py", line 58, in start
+    is_authorized = await self.connect()
+                    ^^^^^^^^^^^^^^^^^^^^
+  File "D:\Music bot\.venv\Lib\site-packages\pyrogram\methods\auth\connect.py", line 40, in connect
+    await self.load_session()
+  File "D:\Music bot\.venv\Lib\site-packages\pyrogram\client.py", line 616, in load_session
+    await self.storage.open()
+  File "D:\Music bot\.venv\Lib\site-packages\pyrogram\storage\file_storage.py", line 63, in open
+    self.update()
+  File "D:\Music bot\.venv\Lib\site-packages\pyrogram\storage\file_storage.py", line 52, in update
+    self.version(version)
+  File "D:\Music bot\.venv\Lib\site-packages\pyrogram\storage\sqlite_storage.py", line 219, in version
+    self.conn.execute(
+sqlite3.OperationalError: database is locked
+2026-03-30 23:02:56 - bot.plugins.start - WARNING - Failed to send start image (telegram curl failed?): Telegram says: [400 WEBPAGE_MEDIA_EMPTY] - The URL doesn't contain any valid media (caused by "messages.SendMedia")
+2026-03-30 23:03:35 - root - INFO - Logging setup complete
+2026-03-30 23:03:35 - __main__ - INFO - Starting Music Bot...
+2026-03-30 23:03:36 - bot.utils.supabase_db - INFO - Supabase tables initialized (create tables via Supabase dashboard)
+2026-03-30 23:03:37 - bot.utils.supabase_db - INFO - Supabase database initialized
+2026-03-30 23:03:37 - bot.utils.database - INFO - Supabase connected
+2026-03-30 23:03:37 - __main__ - INFO - Database connected
+2026-03-30 23:03:37 - bot.utils.cache - INFO - Upstash Redis cache connected
+2026-03-30 23:03:37 - __main__ - INFO - Redis connected
+2026-03-30 23:03:37 - __main__ - INFO - Queue manager initialized
+2026-03-30 23:03:39 - bot.core.userbot - INFO - Userbot 1 started: @Scrapper123456_bot
+2026-03-30 23:03:39 - __main__ - INFO - Initialized 1 userbot(s)
+2026-03-30 23:03:39 - bot.core.call - INFO - py-tgcalls initialized for userbot 1
+2026-03-30 23:03:39 - __main__ - INFO - Call manager initialized
+2026-03-30 23:03:39 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-03-30 23:03:39 - apscheduler.scheduler - INFO - Added job "CleanupScheduler.cleanup_temp_files" to job store "default"
+2026-03-30 23:03:39 - apscheduler.scheduler - INFO - Scheduler started
+2026-03-30 23:03:39 - bot.utils.scheduler - INFO - Cleanup scheduler started
+2026-03-30 23:03:39 - __main__ - INFO - Cleanup scheduler started
+2026-03-30 23:03:40 - bot.core.bot - INFO - Bot started: @Scrapper123456_bot
+2026-03-30 23:03:54 - bot.plugins.start - WARNING - Failed to send start image (telegram curl failed?): Telegram says: [400 WEBPAGE_MEDIA_EMPTY] - The URL doesn't contain any valid media (caused by "messages.SendMedia")
+2026-03-30 23:05:20 - bot.plugins.start - WARNING - Failed to send start image (telegram curl failed?): Telegram says: [400 WEBPAGE_MEDIA_EMPTY] - The URL doesn't contain any valid media (caused by "messages.SendMedia")
+2026-03-30 23:05:44 - bot.plugins.start - WARNING - Failed to send start image (telegram curl failed?): Telegram says: [400 WEBPAGE_MEDIA_EMPTY] - The URL doesn't contain any valid media (caused by "messages.SendMedia")
+2026-03-30 23:06:04 - pyrogram.dispatcher - ERROR - 'NoneType' object has no attribute 'is_gbanned'
+Traceback (most recent call last):
+  File "D:\Music bot\.venv\Lib\site-packages\pyrogram\dispatcher.py", line 240, in handler_worker
+    await handler.callback(self.client, *args)
+  File "D:\Music bot\bot\utils\permissions.py", line 287, in wrapper
+    return await func(client, message)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\Music bot\bot\plugins\play.py", line 39, in play_cmd
+    level = await get_permission_level(user_id, chat_id, check_vc=True)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\Music bot\bot\utils\permissions.py", line 169, in get_permission_level
+    if await is_gbanned(user_id):
+       ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\Music bot\bot\utils\permissions.py", line 92, in is_gbanned
+    banned = await db.is_gbanned(user_id)
+                   ^^^^^^^^^^^^^
+AttributeError: 'NoneType' object has no attribute 'is_gbanned'
+2026-03-30 23:06:46 - pyrogram.dispatcher - ERROR - 'NoneType' object has no attribute 'is_gbanned'
+Traceback (most recent call last):
+  File "D:\Music bot\.venv\Lib\site-packages\pyrogram\dispatcher.py", line 240, in handler_worker
+    await handler.callback(self.client, *args)
+  File "D:\Music bot\bot\plugins\callbacks.py", line 31, in callback_handler
+    level = await get_permission_level(user_id, chat_id)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\Music bot\bot\utils\permissions.py", line 169, in get_permission_level
+    if await is_gbanned(user_id):
+       ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\Music bot\bot\utils\permissions.py", line 92, in is_gbanned
+    banned = await db.is_gbanned(user_id)
+                   ^^^^^^^^^^^^^
+AttributeError: 'NoneType' object has no attribute 'is_gbanned'
+2026-03-30 23:07:13 - pyrogram.dispatcher - ERROR - 'NoneType' object has no attribute 'is_gbanned'
+Traceback (most recent call last):
+  File "D:\Music bot\.venv\Lib\site-packages\pyrogram\dispatcher.py", line 240, in handler_worker
+    await handler.callback(self.client, *args)
+  File "D:\Music bot\bot\utils\permissions.py", line 287, in wrapper
+    return await func(client, message)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\Music bot\bot\plugins\play.py", line 39, in play_cmd
+    level = await get_permission_level(user_id, chat_id, check_vc=True)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\Music bot\bot\utils\permissions.py", line 169, in get_permission_level
+    if await is_gbanned(user_id):
+       ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\Music bot\bot\utils\permissions.py", line 92, in is_gbanned
+    banned = await db.is_gbanned(user_id)
+                   ^^^^^^^^^^^^^
+AttributeError: 'NoneType' object has no attribute 'is_gbanned'
+2026-03-30 23:07:34 - pyrogram.dispatcher - ERROR - 'NoneType' object has no attribute 'is_gbanned'
+Traceback (most recent call last):
+  File "D:\Music bot\.venv\Lib\site-packages\pyrogram\dispatcher.py", line 240, in handler_worker
+    await handler.callback(self.client, *args)
+  File "D:\Music bot\bot\plugins\callbacks.py", line 31, in callback_handler
+    level = await get_permission_level(user_id, chat_id)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\Music bot\bot\utils\permissions.py", line 169, in get_permission_level
+    if await is_gbanned(user_id):
+       ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\Music bot\bot\utils\permissions.py", line 92, in is_gbanned
+    banned = await db.is_gbanned(user_id)
+                   ^^^^^^^^^^^^^
+AttributeError: 'NoneType' object has no attribute 'is_gbanned'
+2026-03-30 23:07:37 - pyrogram.dispatcher - ERROR - 'NoneType' object has no attribute 'is_gbanned'
+Traceback (most recent call last):
+  File "D:\Music bot\.venv\Lib\site-packages\pyrogram\dispatcher.py", line 240, in handler_worker
+    await handler.callback(self.client, *args)
+  File "D:\Music bot\bot\utils\permissions.py", line 287, in wrapper
+    return await func(client, message)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\Music bot\bot\plugins\play.py", line 39, in play_cmd
+    level = await get_permission_level(user_id, chat_id, check_vc=True)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\Music bot\bot\utils\permissions.py", line 169, in get_permission_level
+    if await is_gbanned(user_id):
+       ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\Music bot\bot\utils\permissions.py", line 92, in is_gbanned
+    banned = await db.is_gbanned(user_id)
+                   ^^^^^^^^^^^^^
+AttributeError: 'NoneType' object has no attribute 'is_gbanned'
+2026-03-30 23:07:40 - pyrogram.dispatcher - ERROR - 'NoneType' object has no attribute 'is_gbanned'
+Traceback (most recent call last):
+  File "D:\Music bot\.venv\Lib\site-packages\pyrogram\dispatcher.py", line 240, in handler_worker
+    await handler.callback(self.client, *args)
+  File "D:\Music bot\bot\utils\permissions.py", line 287, in wrapper
+    return await func(client, message)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\Music bot\bot\plugins\play.py", line 39, in play_cmd
+    level = await get_permission_level(user_id, chat_id, check_vc=True)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\Music bot\bot\utils\permissions.py", line 169, in get_permission_level
+    if await is_gbanned(user_id):
+       ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\Music bot\bot\utils\permissions.py", line 92, in is_gbanned
+    banned = await db.is_gbanned(user_id)
+                   ^^^^^^^^^^^^^
+AttributeError: 'NoneType' object has no attribute 'is_gbanned'
+2026-03-30 23:07:44 - bot.plugins.start - WARNING - Failed to send start image (telegram curl failed?): Telegram says: [400 WEBPAGE_MEDIA_EMPTY] - The URL doesn't contain any valid media (caused by "messages.SendMedia")
+2026-03-30 23:08:19 - pyrogram.dispatcher - ERROR - 'NoneType' object has no attribute 'is_gbanned'
+Traceback (most recent call last):
+  File "D:\Music bot\.venv\Lib\site-packages\pyrogram\dispatcher.py", line 240, in handler_worker
+    await handler.callback(self.client, *args)
+  File "D:\Music bot\bot\utils\permissions.py", line 287, in wrapper
+    return await func(client, message)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\Music bot\bot\plugins\play.py", line 39, in play_cmd
+    level = await get_permission_level(user_id, chat_id, check_vc=True)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\Music bot\bot\utils\permissions.py", line 169, in get_permission_level
+    if await is_gbanned(user_id):
+       ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\Music bot\bot\utils\permissions.py", line 92, in is_gbanned
+    banned = await db.is_gbanned(user_id)
+                   ^^^^^^^^^^^^^
+AttributeError: 'NoneType' object has no attribute 'is_gbanned'
+2026-03-30 23:17:08 - root - INFO - Stop signal received (SIGINT). Exiting...
+2026-03-30 23:17:08 - __main__ - INFO - Bot started successfully
+2026-03-30 23:17:20 - root - INFO - Logging setup complete
+2026-03-30 23:17:20 - __main__ - INFO - Starting Music Bot...
+2026-03-30 23:17:21 - bot.utils.supabase_db - INFO - Supabase tables initialized (create tables via Supabase dashboard)
+2026-03-30 23:17:22 - bot.utils.supabase_db - INFO - Supabase database initialized
+2026-03-30 23:17:22 - bot.utils.database - INFO - Supabase connected
+2026-03-30 23:17:22 - __main__ - INFO - Database connected
+2026-03-30 23:17:22 - bot.utils.cache - INFO - Upstash Redis cache connected
+2026-03-30 23:17:22 - __main__ - INFO - Redis connected
+2026-03-30 23:17:22 - __main__ - INFO - Queue manager initialized
+2026-03-30 23:17:24 - bot.core.userbot - INFO - Userbot 1 started: @Scrapper123456_bot
+2026-03-30 23:17:24 - __main__ - INFO - Initialized 1 userbot(s)
+2026-03-30 23:17:25 - bot.core.call - INFO - py-tgcalls initialized for userbot 1
+2026-03-30 23:17:25 - __main__ - INFO - Call manager initialized
+2026-03-30 23:17:25 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-03-30 23:17:25 - apscheduler.scheduler - INFO - Added job "CleanupScheduler.cleanup_temp_files" to job store "default"
+2026-03-30 23:17:25 - apscheduler.scheduler - INFO - Scheduler started
+2026-03-30 23:17:25 - bot.utils.scheduler - INFO - Cleanup scheduler started
+2026-03-30 23:17:25 - __main__ - INFO - Cleanup scheduler started
+2026-03-30 23:17:26 - bot.core.bot - INFO - Bot started: @Scrapper123456_bot
+2026-03-30 23:17:37 - bot.plugins.start - WARNING - Failed to send start image (telegram curl failed?): Telegram says: [400 WEBPAGE_MEDIA_EMPTY] - The URL doesn't contain any valid media (caused by "messages.SendMedia")
+2026-03-30 23:22:13 - bot.plugins.start - WARNING - Failed to send start image (telegram curl failed?): Telegram says: [400 WEBPAGE_MEDIA_EMPTY] - The URL doesn't contain any valid media (caused by "messages.SendMedia")
+2026-03-30 23:24:04 - root - INFO - Stop signal received (SIGINT). Exiting...
+2026-03-30 23:24:04 - __main__ - INFO - Bot started successfully
+2026-03-30 23:24:22 - root - INFO - Logging setup complete
+2026-03-30 23:24:22 - __main__ - INFO - Starting Music Bot...
+2026-03-30 23:24:23 - bot.utils.supabase_db - INFO - Supabase tables initialized (create tables via Supabase dashboard)
+2026-03-30 23:24:24 - bot.utils.supabase_db - INFO - Supabase database initialized
+2026-03-30 23:24:24 - bot.utils.database - INFO - Supabase connected
+2026-03-30 23:24:24 - __main__ - INFO - Database connected
+2026-03-30 23:24:25 - bot.utils.cache - INFO - Upstash Redis cache connected
+2026-03-30 23:24:25 - __main__ - INFO - Redis connected
+2026-03-30 23:24:25 - __main__ - INFO - Queue manager initialized
+2026-03-30 23:24:26 - bot.core.userbot - INFO - Userbot 1 started: @Scrapper123456_bot
+2026-03-30 23:24:26 - __main__ - INFO - Initialized 1 userbot(s)
+2026-03-30 23:24:27 - bot.core.call - INFO - py-tgcalls initialized for userbot 1
+2026-03-30 23:24:27 - __main__ - INFO - Call manager initialized
+2026-03-30 23:24:27 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-03-30 23:24:27 - apscheduler.scheduler - INFO - Added job "CleanupScheduler.cleanup_temp_files" to job store "default"
+2026-03-30 23:24:27 - apscheduler.scheduler - INFO - Scheduler started
+2026-03-30 23:24:27 - bot.utils.scheduler - INFO - Cleanup scheduler started
+2026-03-30 23:24:27 - __main__ - INFO - Cleanup scheduler started
+2026-03-30 23:24:28 - bot.core.bot - INFO - Bot started: @Scrapper123456_bot
+2026-03-30 23:24:54 - root - INFO - Logging setup complete
+2026-03-30 23:24:54 - __main__ - INFO - Starting Music Bot...
+2026-03-30 23:24:55 - bot.utils.supabase_db - INFO - Supabase tables initialized (create tables via Supabase dashboard)
+2026-03-30 23:24:55 - bot.utils.supabase_db - INFO - Supabase database initialized
+2026-03-30 23:24:55 - bot.utils.database - INFO - Supabase connected
+2026-03-30 23:24:55 - __main__ - INFO - Database connected
+2026-03-30 23:26:21 - pyrogram.dispatcher - ERROR - 'NoneType' object has no attribute 'is_gbanned'
+Traceback (most recent call last):
+  File "D:\Music bot\.venv\Lib\site-packages\pyrogram\dispatcher.py", line 240, in handler_worker
+    await handler.callback(self.client, *args)
+  File "D:\Music bot\bot\plugins\callbacks.py", line 31, in callback_handler
+    level = await get_permission_level(user_id, chat_id)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\Music bot\bot\utils\permissions.py", line 170, in get_permission_level
+    if await is_gbanned(user_id):
+       ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\Music bot\bot\utils\permissions.py", line 93, in is_gbanned
+    banned = await app_db.db.is_gbanned(user_id)
+                   ^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'NoneType' object has no attribute 'is_gbanned'
+2026-03-30 23:35:54 - root - INFO - Logging setup complete
+2026-03-30 23:35:54 - __main__ - INFO - Starting Music Bot...
+2026-03-30 23:35:55 - bot.utils.supabase_db - INFO - Supabase tables initialized (create tables via Supabase dashboard)
+2026-03-30 23:35:57 - bot.utils.supabase_db - INFO - Supabase database initialized
+2026-03-30 23:35:57 - bot.utils.database - INFO - Supabase connected
+2026-03-30 23:35:57 - __main__ - INFO - Database connected
+2026-03-30 23:35:57 - bot.utils.cache - INFO - Upstash Redis cache connected
+2026-03-30 23:35:57 - __main__ - INFO - Redis connected
+2026-03-30 23:35:57 - __main__ - INFO - Queue manager initialized
+2026-03-30 23:35:59 - bot.core.userbot - INFO - Userbot 1 started: @Scrapper123456_bot
+2026-03-30 23:35:59 - __main__ - INFO - Initialized 1 userbot(s)
+2026-03-30 23:36:00 - bot.core.call - INFO - py-tgcalls initialized for userbot 1
+2026-03-30 23:36:00 - __main__ - INFO - Call manager initialized
+2026-03-30 23:36:00 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-03-30 23:36:00 - apscheduler.scheduler - INFO - Added job "CleanupScheduler.cleanup_temp_files" to job store "default"
+2026-03-30 23:36:00 - apscheduler.scheduler - INFO - Scheduler started
+2026-03-30 23:36:00 - bot.utils.scheduler - INFO - Cleanup scheduler started
+2026-03-30 23:36:00 - __main__ - INFO - Cleanup scheduler started
+2026-03-30 23:36:01 - bot.core.bot - INFO - Bot started: @Scrapper123456_bot
+2026-03-30 23:39:17 - pyrogram.dispatcher - ERROR - 'NoneType' object has no attribute 'is_gbanned'
+Traceback (most recent call last):
+  File "D:\Music bot\.venv\Lib\site-packages\pyrogram\dispatcher.py", line 240, in handler_worker
+    await handler.callback(self.client, *args)
+  File "D:\Music bot\bot\plugins\callbacks.py", line 31, in callback_handler
+    level = await get_permission_level(user_id, chat_id)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\Music bot\bot\utils\permissions.py", line 170, in get_permission_level
+    if await is_gbanned(user_id):
+       ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\Music bot\bot\utils\permissions.py", line 93, in is_gbanned
+    banned = await app_db.db.is_gbanned(user_id)
+                   ^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'NoneType' object has no attribute 'is_gbanned'
+2026-03-30 23:39:23 - pyrogram.dispatcher - ERROR - 'NoneType' object has no attribute 'is_gbanned'
+Traceback (most recent call last):
+  File "D:\Music bot\.venv\Lib\site-packages\pyrogram\dispatcher.py", line 240, in handler_worker
+    await handler.callback(self.client, *args)
+  File "D:\Music bot\bot\plugins\callbacks.py", line 31, in callback_handler
+    level = await get_permission_level(user_id, chat_id)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\Music bot\bot\utils\permissions.py", line 170, in get_permission_level
+    if await is_gbanned(user_id):
+       ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\Music bot\bot\utils\permissions.py", line 93, in is_gbanned
+    banned = await app_db.db.is_gbanned(user_id)
+                   ^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'NoneType' object has no attribute 'is_gbanned'
+2026-03-30 23:39:32 - pyrogram.dispatcher - ERROR - 'NoneType' object has no attribute 'is_gbanned'
+Traceback (most recent call last):
+  File "D:\Music bot\.venv\Lib\site-packages\pyrogram\dispatcher.py", line 240, in handler_worker
+    await handler.callback(self.client, *args)
+  File "D:\Music bot\bot\plugins\callbacks.py", line 31, in callback_handler
+    level = await get_permission_level(user_id, chat_id)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\Music bot\bot\utils\permissions.py", line 170, in get_permission_level
+    if await is_gbanned(user_id):
+       ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\Music bot\bot\utils\permissions.py", line 93, in is_gbanned
+    banned = await app_db.db.is_gbanned(user_id)
+                   ^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'NoneType' object has no attribute 'is_gbanned'
+2026-03-30 23:48:03 - root - INFO - Stop signal received (SIGINT). Exiting...
+2026-03-30 23:48:03 - __main__ - INFO - Bot started successfully
+2026-03-30 23:49:40 - root - INFO - Logging setup complete
+2026-03-30 23:49:40 - __main__ - INFO - Starting Music Bot...
+2026-03-30 23:49:41 - bot.utils.supabase_db - INFO - Supabase tables initialized (create tables via Supabase dashboard)
+2026-03-30 23:49:42 - bot.utils.supabase_db - INFO - Supabase database initialized
+2026-03-30 23:49:42 - bot.utils.database - INFO - Supabase connected
+2026-03-30 23:49:42 - __main__ - INFO - Database connected
+2026-03-30 23:49:42 - bot.utils.cache - INFO - Upstash Redis cache connected
+2026-03-30 23:49:42 - __main__ - INFO - Redis connected
+2026-03-30 23:49:42 - __main__ - INFO - Queue manager initialized
+2026-03-30 23:49:44 - bot.core.userbot - INFO - Userbot 1 started: @Scrapper123456_bot
+2026-03-30 23:49:44 - __main__ - INFO - Initialized 1 userbot(s)
+2026-03-30 23:49:45 - bot.core.call - INFO - py-tgcalls initialized for userbot 1
+2026-03-30 23:49:45 - __main__ - INFO - Call manager initialized
+2026-03-30 23:49:45 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-03-30 23:49:45 - apscheduler.scheduler - INFO - Added job "CleanupScheduler.cleanup_temp_files" to job store "default"
+2026-03-30 23:49:45 - apscheduler.scheduler - INFO - Scheduler started
+2026-03-30 23:49:45 - bot.utils.scheduler - INFO - Cleanup scheduler started
+2026-03-30 23:49:45 - __main__ - INFO - Cleanup scheduler started
+2026-03-30 23:49:46 - bot.core.bot - INFO - Bot started: @Scrapper123456_bot
+2026-03-30 23:55:52 - root - INFO - Logging setup complete
+2026-03-30 23:55:52 - __main__ - INFO - Starting Music Bot...
+2026-03-30 23:55:53 - bot.utils.supabase_db - INFO - Supabase tables initialized (create tables via Supabase dashboard)
+2026-03-30 23:55:54 - bot.utils.supabase_db - INFO - Supabase database initialized
+2026-03-30 23:55:54 - bot.utils.database - INFO - Supabase connected
+2026-03-30 23:55:54 - __main__ - INFO - Database connected
+2026-03-30 23:55:55 - bot.utils.cache - INFO - Upstash Redis cache connected
+2026-03-30 23:55:55 - __main__ - INFO - Redis connected
+2026-03-30 23:55:55 - __main__ - INFO - Queue manager initialized
+2026-03-30 23:55:56 - bot.core.userbot - INFO - Userbot 1 started: @Scrapper123456_bot
+2026-03-30 23:55:56 - __main__ - INFO - Initialized 1 userbot(s)
+2026-03-30 23:55:57 - bot.core.call - INFO - py-tgcalls initialized for userbot 1
+2026-03-30 23:55:57 - __main__ - INFO - Call manager initialized
+2026-03-30 23:55:57 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-03-30 23:55:57 - apscheduler.scheduler - INFO - Added job "CleanupScheduler.cleanup_temp_files" to job store "default"
+2026-03-30 23:55:57 - apscheduler.scheduler - INFO - Scheduler started
+2026-03-30 23:55:57 - bot.utils.scheduler - INFO - Cleanup scheduler started
+2026-03-30 23:55:57 - __main__ - INFO - Cleanup scheduler started
+2026-03-30 23:55:58 - bot.core.bot - INFO - Bot started: @Scrapper123456_bot
+2026-03-30 23:56:17 - bot.plugins.start - INFO - Brook start image uploaded and file_id cached.
+2026-03-30 23:57:54 - root - INFO - Stop signal received (SIGINT). Exiting...
+2026-03-30 23:57:54 - __main__ - INFO - Bot started successfully
+2026-03-30 23:58:01 - root - INFO - Logging setup complete
+2026-03-30 23:58:01 - __main__ - INFO - Starting Music Bot...
+2026-03-30 23:58:02 - bot.utils.supabase_db - INFO - Supabase tables initialized (create tables via Supabase dashboard)
+2026-03-30 23:58:03 - bot.utils.supabase_db - INFO - Supabase database initialized
+2026-03-30 23:58:03 - bot.utils.database - INFO - Supabase connected
+2026-03-30 23:58:03 - __main__ - INFO - Database connected
+2026-03-30 23:58:03 - bot.utils.cache - INFO - Upstash Redis cache connected
+2026-03-30 23:58:03 - __main__ - INFO - Redis connected
+2026-03-30 23:58:03 - __main__ - INFO - Queue manager initialized
+2026-03-30 23:58:05 - bot.core.userbot - INFO - Userbot 1 started: @Scrapper123456_bot
+2026-03-30 23:58:05 - __main__ - INFO - Initialized 1 userbot(s)
+2026-03-30 23:58:05 - bot.core.call - INFO - py-tgcalls initialized for userbot 1
+2026-03-30 23:58:05 - __main__ - INFO - Call manager initialized
+2026-03-30 23:58:05 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-03-30 23:58:05 - apscheduler.scheduler - INFO - Added job "CleanupScheduler.cleanup_temp_files" to job store "default"
+2026-03-30 23:58:05 - apscheduler.scheduler - INFO - Scheduler started
+2026-03-30 23:58:05 - bot.utils.scheduler - INFO - Cleanup scheduler started
+2026-03-30 23:58:05 - __main__ - INFO - Cleanup scheduler started
+2026-03-30 23:58:06 - bot.core.bot - INFO - Bot started: @Scrapper123456_bot
+2026-03-30 23:59:14 - bot.plugins.start - INFO - Brook start image uploaded and file_id cached.
+2026-03-31 00:04:11 - root - INFO - Logging setup complete
+2026-03-31 00:04:11 - __main__ - INFO - Starting Music Bot...
+2026-03-31 00:04:12 - bot.utils.supabase_db - INFO - Supabase tables initialized (create tables via Supabase dashboard)
+2026-03-31 00:04:13 - bot.utils.supabase_db - INFO - Supabase database initialized
+2026-03-31 00:04:13 - bot.utils.database - INFO - Supabase connected
+2026-03-31 00:04:13 - __main__ - INFO - Database connected
+2026-03-31 00:04:14 - bot.utils.cache - INFO - Upstash Redis cache connected
+2026-03-31 00:04:14 - __main__ - INFO - Redis connected
+2026-03-31 00:04:14 - __main__ - INFO - Queue manager initialized
+2026-03-31 00:04:15 - bot.core.userbot - INFO - Userbot 1 started: @Scrapper123456_bot
+2026-03-31 00:04:15 - __main__ - INFO - Initialized 1 userbot(s)
+2026-03-31 00:04:16 - bot.core.call - INFO - py-tgcalls initialized for userbot 1
+2026-03-31 00:04:16 - __main__ - INFO - Call manager initialized
+2026-03-31 00:04:16 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-03-31 00:04:16 - apscheduler.scheduler - INFO - Added job "CleanupScheduler.cleanup_temp_files" to job store "default"
+2026-03-31 00:04:16 - apscheduler.scheduler - INFO - Scheduler started
+2026-03-31 00:04:16 - bot.utils.scheduler - INFO - Cleanup scheduler started
+2026-03-31 00:04:16 - __main__ - INFO - Cleanup scheduler started
+2026-03-31 00:04:17 - bot.core.bot - INFO - Bot started: @Scrapper123456_bot
+2026-03-31 00:04:53 - root - INFO - Stop signal received (SIGINT). Exiting...
+2026-03-31 00:04:53 - __main__ - INFO - Bot started successfully
+2026-03-31 00:06:13 - root - INFO - Logging setup complete
+2026-03-31 00:06:13 - __main__ - INFO - Starting Music Bot...
+2026-03-31 00:06:14 - bot.utils.supabase_db - INFO - Supabase tables initialized (create tables via Supabase dashboard)
+2026-03-31 00:06:15 - bot.utils.supabase_db - INFO - Supabase database initialized
+2026-03-31 00:06:15 - bot.utils.database - INFO - Supabase connected
+2026-03-31 00:06:15 - __main__ - INFO - Database connected
+2026-03-31 00:06:15 - bot.utils.cache - INFO - Upstash Redis cache connected
+2026-03-31 00:06:15 - __main__ - INFO - Redis connected
+2026-03-31 00:06:15 - __main__ - INFO - Queue manager initialized
+2026-03-31 00:06:17 - bot.core.userbot - INFO - Userbot 1 started: @Scrapper123456_bot
+2026-03-31 00:06:17 - __main__ - INFO - Initialized 1 userbot(s)
+2026-03-31 00:06:17 - bot.core.call - INFO - py-tgcalls initialized for userbot 1
+2026-03-31 00:06:17 - __main__ - INFO - Call manager initialized
+2026-03-31 00:06:17 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-03-31 00:06:17 - apscheduler.scheduler - INFO - Added job "CleanupScheduler.cleanup_temp_files" to job store "default"
+2026-03-31 00:06:17 - apscheduler.scheduler - INFO - Scheduler started
+2026-03-31 00:06:17 - bot.utils.scheduler - INFO - Cleanup scheduler started
+2026-03-31 00:06:17 - __main__ - INFO - Cleanup scheduler started
+2026-03-31 00:06:18 - bot.core.bot - INFO - Bot started: @Scrapper123456_bot
+2026-03-31 00:12:22 - root - INFO - Logging setup complete
+2026-03-31 00:12:22 - __main__ - INFO - Starting Music Bot...
+2026-03-31 00:12:24 - bot.utils.supabase_db - INFO - Supabase tables initialized (create tables via Supabase dashboard)
+2026-03-31 00:12:25 - bot.utils.supabase_db - INFO - Supabase database initialized
+2026-03-31 00:12:25 - bot.utils.database - INFO - Supabase connected
+2026-03-31 00:12:25 - __main__ - INFO - Database connected
+2026-03-31 00:12:25 - bot.utils.cache - INFO - Upstash Redis cache connected
+2026-03-31 00:12:25 - __main__ - INFO - Redis connected
+2026-03-31 00:12:25 - __main__ - INFO - Queue manager initialized
+2026-03-31 00:12:27 - bot.core.userbot - INFO - Userbot 1 started: @Scrapper123456_bot
+2026-03-31 00:12:27 - __main__ - INFO - Initialized 1 userbot(s)
+2026-03-31 00:12:28 - bot.core.call - INFO - py-tgcalls initialized for userbot 1
+2026-03-31 00:12:28 - __main__ - INFO - Call manager initialized
+2026-03-31 00:12:28 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-03-31 00:12:28 - apscheduler.scheduler - INFO - Added job "CleanupScheduler.cleanup_temp_files" to job store "default"
+2026-03-31 00:12:28 - apscheduler.scheduler - INFO - Scheduler started
+2026-03-31 00:12:28 - bot.utils.scheduler - INFO - Cleanup scheduler started
+2026-03-31 00:12:28 - __main__ - INFO - Cleanup scheduler started
+2026-03-31 00:12:29 - __main__ - ERROR - Failed to start bot
+Traceback (most recent call last):
+  File "D:\Music bot\bot\__main__.py", line 61, in main
+    bot = await init_bot()
+          ^^^^^^^^^^^^^^^^
+  File "D:\Music bot\bot\core\bot.py", line 36, in init_bot
+    await bot_client.start()
+  File "D:\Music bot\.venv\Lib\site-packages\pyrogram\methods\utilities\start.py", line 58, in start
+    is_authorized = await self.connect()
+                    ^^^^^^^^^^^^^^^^^^^^
+  File "D:\Music bot\.venv\Lib\site-packages\pyrogram\methods\auth\connect.py", line 40, in connect
+    await self.load_session()
+  File "D:\Music bot\.venv\Lib\site-packages\pyrogram\client.py", line 616, in load_session
+    await self.storage.open()
+  File "D:\Music bot\.venv\Lib\site-packages\pyrogram\storage\file_storage.py", line 63, in open
+    self.update()
+  File "D:\Music bot\.venv\Lib\site-packages\pyrogram\storage\file_storage.py", line 52, in update
+    self.version(version)
+  File "D:\Music bot\.venv\Lib\site-packages\pyrogram\storage\sqlite_storage.py", line 219, in version
+    self.conn.execute(
+sqlite3.OperationalError: database is locked
+2026-03-31 00:12:55 - root - INFO - Logging setup complete
+2026-03-31 00:12:55 - __main__ - INFO - Starting Music Bot...
+2026-03-31 00:12:56 - bot.utils.supabase_db - INFO - Supabase tables initialized (create tables via Supabase dashboard)
+2026-03-31 00:12:57 - bot.utils.supabase_db - INFO - Supabase database initialized
+2026-03-31 00:12:57 - bot.utils.database - INFO - Supabase connected
+2026-03-31 00:12:57 - __main__ - INFO - Database connected
+2026-03-31 00:12:57 - bot.utils.cache - INFO - Upstash Redis cache connected
+2026-03-31 00:12:57 - __main__ - INFO - Redis connected
+2026-03-31 00:12:57 - __main__ - INFO - Queue manager initialized
+2026-03-31 00:12:59 - bot.core.userbot - INFO - Userbot 1 started: @Scrapper123456_bot
+2026-03-31 00:12:59 - __main__ - INFO - Initialized 1 userbot(s)
+2026-03-31 00:12:59 - bot.core.call - INFO - py-tgcalls initialized for userbot 1
+2026-03-31 00:12:59 - __main__ - INFO - Call manager initialized
+2026-03-31 00:12:59 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-03-31 00:12:59 - apscheduler.scheduler - INFO - Added job "CleanupScheduler.cleanup_temp_files" to job store "default"
+2026-03-31 00:12:59 - apscheduler.scheduler - INFO - Scheduler started
+2026-03-31 00:12:59 - bot.utils.scheduler - INFO - Cleanup scheduler started
+2026-03-31 00:12:59 - __main__ - INFO - Cleanup scheduler started
+2026-03-31 00:13:00 - bot.core.bot - INFO - Bot started: @Scrapper123456_bot
+2026-03-31 00:14:21 - bot.plugins.start - INFO - Brook start image uploaded and file_id cached.
+2026-03-31 00:29:31 - root - INFO - Stop signal received (SIGINT). Exiting...
+2026-03-31 00:29:31 - __main__ - INFO - Bot started successfully
+2026-03-31 00:54:21 - root - INFO - Logging setup complete
+2026-03-31 00:54:21 - __main__ - INFO - Starting Music Bot...
+2026-03-31 00:54:22 - bot.utils.supabase_db - INFO - Supabase tables initialized (create tables via Supabase dashboard)
+2026-03-31 00:54:23 - bot.utils.supabase_db - INFO - Supabase database initialized
+2026-03-31 00:54:23 - bot.utils.database - INFO - Supabase connected
+2026-03-31 00:54:23 - __main__ - INFO - Database connected
+2026-03-31 00:54:24 - bot.utils.cache - INFO - Upstash Redis cache connected
+2026-03-31 00:54:24 - __main__ - INFO - Redis connected
+2026-03-31 00:54:24 - __main__ - INFO - Queue manager initialized
+2026-03-31 00:54:26 - bot.core.userbot - INFO - Userbot 1 started: @Scrapper123456_bot
+2026-03-31 00:54:26 - __main__ - INFO - Initialized 1 userbot(s)
+2026-03-31 00:54:26 - bot.core.call - INFO - py-tgcalls initialized for userbot 1
+2026-03-31 00:54:26 - __main__ - INFO - Call manager initialized
+2026-03-31 00:54:26 - __main__ - INFO - Stream-end handler registered
+2026-03-31 00:54:26 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-03-31 00:54:26 - apscheduler.scheduler - INFO - Added job "CleanupScheduler.cleanup_temp_files" to job store "default"
+2026-03-31 00:54:26 - apscheduler.scheduler - INFO - Scheduler started
+2026-03-31 00:54:26 - bot.utils.scheduler - INFO - Cleanup scheduler started
+2026-03-31 00:54:26 - __main__ - INFO - Cleanup scheduler started
+2026-03-31 00:54:27 - bot.core.bot - INFO - Bot started: @Scrapper123456_bot
+2026-03-31 00:54:48 - root - INFO - Stop signal received (SIGINT). Exiting...
+2026-03-31 00:54:48 - __main__ - INFO - Bot started successfully
+2026-03-31 00:55:06 - root - INFO - Logging setup complete
+2026-03-31 00:55:06 - __main__ - INFO - Starting Music Bot...
+2026-03-31 00:55:07 - bot.utils.supabase_db - INFO - Supabase tables initialized (create tables via Supabase dashboard)
+2026-03-31 00:55:08 - bot.utils.supabase_db - INFO - Supabase database initialized
+2026-03-31 00:55:08 - bot.utils.database - INFO - Supabase connected
+2026-03-31 00:55:08 - __main__ - INFO - Database connected
+2026-03-31 00:55:08 - bot.utils.cache - INFO - Upstash Redis cache connected
+2026-03-31 00:55:08 - __main__ - INFO - Redis connected
+2026-03-31 00:55:08 - __main__ - INFO - Queue manager initialized
+2026-03-31 00:55:10 - bot.core.userbot - INFO - Userbot 1 started: @Scrapper123456_bot
+2026-03-31 00:55:10 - __main__ - INFO - Initialized 1 userbot(s)
+2026-03-31 00:55:10 - bot.core.call - INFO - py-tgcalls initialized for userbot 1
+2026-03-31 00:55:10 - __main__ - INFO - Call manager initialized
+2026-03-31 00:55:10 - __main__ - INFO - Stream-end handler registered
+2026-03-31 00:55:10 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-03-31 00:55:10 - apscheduler.scheduler - INFO - Added job "CleanupScheduler.cleanup_temp_files" to job store "default"
+2026-03-31 00:55:10 - apscheduler.scheduler - INFO - Scheduler started
+2026-03-31 00:55:10 - bot.utils.scheduler - INFO - Cleanup scheduler started
+2026-03-31 00:55:10 - __main__ - INFO - Cleanup scheduler started
+2026-03-31 00:55:11 - bot.core.bot - INFO - Bot started: @Scrapper123456_bot
+2026-03-31 00:55:46 - root - INFO - Stop signal received (SIGINT). Exiting...
+2026-03-31 00:55:46 - __main__ - INFO - Bot started successfully
+2026-03-31 00:56:02 - root - INFO - Logging setup complete
+2026-03-31 00:56:02 - __main__ - INFO - Starting Music Bot...
+2026-03-31 00:56:03 - bot.utils.supabase_db - INFO - Supabase tables initialized (create tables via Supabase dashboard)
+2026-03-31 00:56:03 - bot.utils.supabase_db - INFO - Supabase database initialized
+2026-03-31 00:56:03 - bot.utils.database - INFO - Supabase connected
+2026-03-31 00:56:03 - __main__ - INFO - Database connected
+2026-03-31 00:56:03 - bot.utils.cache - INFO - Upstash Redis cache connected
+2026-03-31 00:56:03 - __main__ - INFO - Redis connected
+2026-03-31 00:56:03 - __main__ - INFO - Queue manager initialized
+2026-03-31 00:56:05 - bot.core.userbot - INFO - Userbot 1 started: @Scrapper123456_bot
+2026-03-31 00:56:05 - __main__ - INFO - Initialized 1 userbot(s)
+2026-03-31 00:56:05 - bot.core.call - INFO - py-tgcalls initialized for userbot 1
+2026-03-31 00:56:05 - __main__ - INFO - Call manager initialized
+2026-03-31 00:56:06 - __main__ - INFO - Stream-end handler registered
+2026-03-31 00:56:06 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-03-31 00:56:06 - apscheduler.scheduler - INFO - Added job "CleanupScheduler.cleanup_temp_files" to job store "default"
+2026-03-31 00:56:06 - apscheduler.scheduler - INFO - Scheduler started
+2026-03-31 00:56:06 - bot.utils.scheduler - INFO - Cleanup scheduler started
+2026-03-31 00:56:06 - __main__ - INFO - Cleanup scheduler started
+2026-03-31 00:56:07 - bot.core.bot - INFO - Bot started: @Scrapper123456_bot
+2026-03-31 00:56:23 - bot.plugins.start - INFO - Brook start image uploaded and file_id cached.
+2026-03-31 00:56:35 - bot.utils.supabase_db - ERROR - Error checking gban: {'message': "Could not find the table 'public.gbanned' in the schema cache", 'code': 'PGRST205', 'hint': None, 'details': None}
+2026-03-31 00:56:36 - bot.utils.supabase_db - ERROR - Error checking sudo: {'message': "Could not find the table 'public.sudo_users' in the schema cache", 'code': 'PGRST205', 'hint': None, 'details': None}
+2026-03-31 00:56:36 - bot.utils.permissions - ERROR - Error checking admin status: 'NoneType' object has no attribute 'get_chat_member'
+2026-03-31 00:56:36 - pyrogram.dispatcher - ERROR - Telegram says: [400 MESSAGE_TOO_LONG] - The message text is too long (caused by "messages.SetBotCallbackAnswer")
+Traceback (most recent call last):
+  File "D:\Music bot\.venv\Lib\site-packages\pyrogram\dispatcher.py", line 240, in handler_worker
+    await handler.callback(self.client, *args)
+  File "D:\Music bot\bot\plugins\callbacks.py", line 61, in callback_handler
+    await handler(client, callback, chat_id)
+  File "D:\Music bot\bot\plugins\callbacks.py", line 221, in handle_help_info
+    await callback.answer(text, show_alert=True)
+  File "D:\Music bot\.venv\Lib\site-packages\pyrogram\types\bots_and_keyboards\callback_query.py", line 159, in answer
+    return await self._client.answer_callback_query(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\Music bot\.venv\Lib\site-packages\pyrogram\methods\bots\answer_callback_query.py", line 73, in answer_callback_query
+    return await self.invoke(
+           ^^^^^^^^^^^^^^^^^^
+  File "D:\Music bot\.venv\Lib\site-packages\pyrogram\methods\advanced\invoke.py", line 79, in invoke
+    r = await self.session.invoke(
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\Music bot\.venv\Lib\site-packages\pyrogram\session\session.py", line 389, in invoke
+    return await self.send(query, timeout=timeout)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\Music bot\.venv\Lib\site-packages\pyrogram\session\session.py", line 357, in send
+    RPCError.raise_it(result, type(data))
+  File "D:\Music bot\.venv\Lib\site-packages\pyrogram\errors\rpc_error.py", line 91, in raise_it
+    raise getattr(
+pyrogram.errors.exceptions.bad_request_400.MessageTooLong: Telegram says: [400 MESSAGE_TOO_LONG] - The message text is too long (caused by "messages.SetBotCallbackAnswer")
+2026-03-31 01:00:21 - root - INFO - Logging setup complete
+2026-03-31 01:00:21 - __main__ - INFO - Starting Music Bot...
+2026-03-31 01:00:23 - bot.utils.supabase_db - INFO - Supabase tables initialized (create tables via Supabase dashboard)
+2026-03-31 01:00:25 - bot.utils.supabase_db - INFO - Supabase database initialized
+2026-03-31 01:00:25 - bot.utils.database - INFO - Supabase connected
+2026-03-31 01:00:25 - __main__ - INFO - Database connected
+2026-03-31 01:00:25 - bot.utils.cache - INFO - Upstash Redis cache connected
+2026-03-31 01:00:25 - __main__ - INFO - Redis connected
+2026-03-31 01:00:25 - __main__ - INFO - Queue manager initialized
+2026-03-31 01:00:28 - bot.core.userbot - INFO - Userbot 1 started: @Scrapper123456_bot
+2026-03-31 01:00:28 - __main__ - INFO - Initialized 1 userbot(s)
+2026-03-31 01:00:29 - bot.core.call - INFO - py-tgcalls initialized for userbot 1
+2026-03-31 01:00:29 - __main__ - INFO - Call manager initialized
+2026-03-31 01:00:29 - __main__ - INFO - Stream-end handler registered
+2026-03-31 01:00:29 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-03-31 01:00:29 - apscheduler.scheduler - INFO - Added job "CleanupScheduler.cleanup_temp_files" to job store "default"
+2026-03-31 01:00:29 - apscheduler.scheduler - INFO - Scheduler started
+2026-03-31 01:00:29 - bot.utils.scheduler - INFO - Cleanup scheduler started
+2026-03-31 01:00:29 - __main__ - INFO - Cleanup scheduler started
+2026-03-31 01:00:30 - bot.core.bot - INFO - Bot started: @Scrapper123456_bot
+2026-03-31 01:00:40 - bot.utils.supabase_db - ERROR - Error checking gban: {'message': "Could not find the table 'public.gbanned' in the schema cache", 'code': 'PGRST205', 'hint': None, 'details': None}
+2026-03-31 01:00:40 - bot.utils.supabase_db - ERROR - Error checking sudo: {'message': "Could not find the table 'public.sudo_users' in the schema cache", 'code': 'PGRST205', 'hint': None, 'details': None}
+2026-03-31 01:00:40 - bot.utils.permissions - ERROR - Error checking admin status: 'NoneType' object has no attribute 'get_chat_member'
+2026-03-31 01:00:40 - pyrogram.dispatcher - ERROR - Telegram says: [400 MESSAGE_TOO_LONG] - The message text is too long (caused by "messages.SetBotCallbackAnswer")
+Traceback (most recent call last):
+  File "D:\Music bot\.venv\Lib\site-packages\pyrogram\dispatcher.py", line 240, in handler_worker
+    await handler.callback(self.client, *args)
+  File "D:\Music bot\bot\plugins\callbacks.py", line 61, in callback_handler
+    await handler(client, callback, chat_id)
+  File "D:\Music bot\bot\plugins\callbacks.py", line 221, in handle_help_info
+    await callback.answer(text, show_alert=True)
+  File "D:\Music bot\.venv\Lib\site-packages\pyrogram\types\bots_and_keyboards\callback_query.py", line 159, in answer
+    return await self._client.answer_callback_query(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\Music bot\.venv\Lib\site-packages\pyrogram\methods\bots\answer_callback_query.py", line 73, in answer_callback_query
+    return await self.invoke(
+           ^^^^^^^^^^^^^^^^^^
+  File "D:\Music bot\.venv\Lib\site-packages\pyrogram\methods\advanced\invoke.py", line 79, in invoke
+    r = await self.session.invoke(
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\Music bot\.venv\Lib\site-packages\pyrogram\session\session.py", line 389, in invoke
+    return await self.send(query, timeout=timeout)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\Music bot\.venv\Lib\site-packages\pyrogram\session\session.py", line 357, in send
+    RPCError.raise_it(result, type(data))
+  File "D:\Music bot\.venv\Lib\site-packages\pyrogram\errors\rpc_error.py", line 91, in raise_it
+    raise getattr(
+pyrogram.errors.exceptions.bad_request_400.MessageTooLong: Telegram says: [400 MESSAGE_TOO_LONG] - The message text is too long (caused by "messages.SetBotCallbackAnswer")
+2026-03-31 01:03:02 - bot.utils.supabase_db - ERROR - Error checking gban: {'message': "Could not find the table 'public.gbanned' in the schema cache", 'code': 'PGRST205', 'hint': None, 'details': None}
+2026-03-31 01:03:03 - bot.utils.supabase_db - ERROR - Error checking sudo: {'message': "Could not find the table 'public.sudo_users' in the schema cache", 'code': 'PGRST205', 'hint': None, 'details': None}
+2026-03-31 01:03:03 - bot.utils.permissions - ERROR - Error checking admin status: 'NoneType' object has no attribute 'get_chat_member'
+2026-03-31 01:03:22 - bot.utils.supabase_db - ERROR - Error checking gban: {'message': "Could not find the table 'public.gbanned' in the schema cache", 'code': 'PGRST205', 'hint': None, 'details': None}
+2026-03-31 01:03:23 - bot.utils.supabase_db - ERROR - Error checking sudo: {'message': "Could not find the table 'public.sudo_users' in the schema cache", 'code': 'PGRST205', 'hint': None, 'details': None}
+2026-03-31 01:03:23 - bot.utils.permissions - ERROR - Error checking admin status: 'NoneType' object has no attribute 'get_chat_member'
+2026-03-31 01:05:53 - root - INFO - Stop signal received (SIGINT). Exiting...
+2026-03-31 01:05:53 - __main__ - INFO - Bot started successfully
+2026-03-31 01:17:11 - root - INFO - Logging setup complete
+2026-03-31 01:17:11 - __main__ - INFO - Starting Music Bot...
+2026-03-31 01:17:12 - bot.utils.supabase_db - INFO - Supabase tables initialized (create tables via Supabase dashboard)
+2026-03-31 01:17:13 - bot.utils.supabase_db - INFO - Supabase database initialized
+2026-03-31 01:17:13 - bot.utils.database - INFO - Supabase connected
+2026-03-31 01:17:13 - __main__ - INFO - Database connected
+2026-03-31 01:17:14 - bot.utils.cache - INFO - Upstash Redis cache connected
+2026-03-31 01:17:14 - __main__ - INFO - Redis connected
+2026-03-31 01:17:14 - __main__ - INFO - Queue manager initialized
+2026-03-31 01:17:16 - bot.core.userbot - INFO - Userbot 1 started: @Scrapper123456_bot
+2026-03-31 01:17:16 - __main__ - INFO - Initialized 1 userbot(s)
+2026-03-31 01:17:17 - bot.core.call - INFO - py-tgcalls initialized for userbot 1
+2026-03-31 01:17:17 - __main__ - INFO - Call manager initialized
+2026-03-31 01:17:17 - __main__ - INFO - Stream-end handler registered
+2026-03-31 01:17:17 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-03-31 01:17:17 - apscheduler.scheduler - INFO - Added job "CleanupScheduler.cleanup_temp_files" to job store "default"
+2026-03-31 01:17:17 - apscheduler.scheduler - INFO - Scheduler started
+2026-03-31 01:17:17 - bot.utils.scheduler - INFO - Cleanup scheduler started
+2026-03-31 01:17:17 - __main__ - INFO - Cleanup scheduler started
+2026-03-31 01:17:18 - bot.core.bot - INFO - Bot started: @Scrapper123456_bot
+2026-03-31 01:17:30 - bot.utils.permissions - WARNING - bot_client not initialized, skipping admin check
+2026-03-31 01:17:44 - bot.utils.permissions - WARNING - bot_client not initialized, skipping admin check
+2026-03-31 01:21:19 - root - INFO - Stop signal received (SIGINT). Exiting...
+2026-03-31 01:21:19 - __main__ - INFO - Bot started successfully
+2026-03-31 01:21:32 - root - INFO - Logging setup complete
+2026-03-31 01:21:32 - __main__ - INFO - Starting Music Bot...
+2026-03-31 01:21:33 - bot.utils.supabase_db - INFO - Supabase tables initialized (create tables via Supabase dashboard)
+2026-03-31 01:21:35 - bot.utils.supabase_db - INFO - Supabase database initialized
+2026-03-31 01:21:35 - bot.utils.database - INFO - Supabase connected
+2026-03-31 01:21:35 - __main__ - INFO - Database connected
+2026-03-31 01:21:35 - bot.utils.cache - INFO - Upstash Redis cache connected
+2026-03-31 01:21:35 - __main__ - INFO - Redis connected
+2026-03-31 01:21:35 - __main__ - INFO - Queue manager initialized
+2026-03-31 01:21:37 - bot.core.userbot - INFO - Userbot 1 started: @Scrapper123456_bot
+2026-03-31 01:21:37 - __main__ - INFO - Initialized 1 userbot(s)
+2026-03-31 01:21:37 - bot.core.call - INFO - py-tgcalls initialized for userbot 1
+2026-03-31 01:21:37 - __main__ - INFO - Call manager initialized
+2026-03-31 01:21:37 - __main__ - INFO - Stream-end handler registered
+2026-03-31 01:21:37 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-03-31 01:21:37 - apscheduler.scheduler - INFO - Added job "CleanupScheduler.cleanup_temp_files" to job store "default"
+2026-03-31 01:21:37 - apscheduler.scheduler - INFO - Scheduler started
+2026-03-31 01:21:37 - bot.utils.scheduler - INFO - Cleanup scheduler started
+2026-03-31 01:21:37 - __main__ - INFO - Cleanup scheduler started
+2026-03-31 01:21:38 - bot.core.bot - INFO - Bot started: @Scrapper123456_bot
+2026-03-31 01:25:17 - root - INFO - Stop signal received (SIGINT). Exiting...
+2026-03-31 01:25:17 - __main__ - INFO - Bot started successfully
+2026-03-31 01:25:22 - root - INFO - Logging setup complete
+2026-03-31 01:25:22 - __main__ - INFO - Starting Music Bot...
+2026-03-31 01:25:24 - bot.utils.supabase_db - INFO - Supabase tables initialized (create tables via Supabase dashboard)
+2026-03-31 01:25:25 - bot.utils.supabase_db - INFO - Supabase database initialized
+2026-03-31 01:25:25 - bot.utils.database - INFO - Supabase connected
+2026-03-31 01:25:25 - __main__ - INFO - Database connected
+2026-03-31 01:25:25 - bot.utils.cache - INFO - Upstash Redis cache connected
+2026-03-31 01:25:25 - __main__ - INFO - Redis connected
+2026-03-31 01:25:25 - __main__ - INFO - Queue manager initialized
+2026-03-31 01:25:27 - bot.core.userbot - INFO - Userbot 1 started: @Scrapper123456_bot
+2026-03-31 01:25:27 - __main__ - INFO - Initialized 1 userbot(s)
+2026-03-31 01:25:28 - bot.core.call - INFO - py-tgcalls initialized for userbot 1
+2026-03-31 01:25:28 - __main__ - INFO - Call manager initialized
+2026-03-31 01:25:28 - __main__ - INFO - Stream-end handler registered
+2026-03-31 01:25:28 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-03-31 01:25:28 - apscheduler.scheduler - INFO - Added job "CleanupScheduler.cleanup_temp_files" to job store "default"
+2026-03-31 01:25:28 - apscheduler.scheduler - INFO - Scheduler started
+2026-03-31 01:25:28 - bot.utils.scheduler - INFO - Cleanup scheduler started
+2026-03-31 01:25:28 - __main__ - INFO - Cleanup scheduler started
+2026-03-31 01:25:29 - bot.core.bot - INFO - Bot started: @Scrapper123456_bot
+2026-03-31 01:27:38 - bot.utils.permissions - WARNING - bot_client not initialized, skipping admin check
+2026-03-31 01:29:38 - bot.utils.permissions - WARNING - bot_client not initialized, skipping admin check
+2026-03-31 01:30:24 - root - INFO - Stop signal received (SIGINT). Exiting...
+2026-03-31 01:30:24 - __main__ - INFO - Bot started successfully
+2026-03-31 01:31:53 - root - INFO - Logging setup complete
+2026-03-31 01:31:53 - __main__ - INFO - Starting Music Bot...
+2026-03-31 01:31:54 - bot.utils.supabase_db - INFO - Supabase tables initialized (create tables via Supabase dashboard)
+2026-03-31 01:31:56 - bot.utils.supabase_db - INFO - Supabase database initialized
+2026-03-31 01:31:56 - bot.utils.database - INFO - Supabase connected
+2026-03-31 01:31:56 - __main__ - INFO - Database connected
+2026-03-31 01:31:56 - bot.utils.cache - INFO - Upstash Redis cache connected
+2026-03-31 01:31:56 - __main__ - INFO - Redis connected
+2026-03-31 01:31:56 - __main__ - INFO - Queue manager initialized
+2026-03-31 01:31:58 - bot.core.userbot - INFO - Userbot 1 started: @Scrapper123456_bot
+2026-03-31 01:31:58 - __main__ - INFO - Initialized 1 userbot(s)
+2026-03-31 01:31:58 - bot.core.call - INFO - py-tgcalls initialized for userbot 1
+2026-03-31 01:31:58 - __main__ - INFO - Call manager initialized
+2026-03-31 01:31:59 - __main__ - INFO - Stream-end handler registered
+2026-03-31 01:31:59 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-03-31 01:31:59 - apscheduler.scheduler - INFO - Added job "CleanupScheduler.cleanup_temp_files" to job store "default"
+2026-03-31 01:31:59 - apscheduler.scheduler - INFO - Scheduler started
+2026-03-31 01:31:59 - bot.utils.scheduler - INFO - Cleanup scheduler started
+2026-03-31 01:31:59 - __main__ - INFO - Cleanup scheduler started
+2026-03-31 01:31:59 - bot.core.bot - INFO - Bot started: @Scrapper123456_bot
+2026-03-31 08:44:37 - root - INFO - Logging setup complete
+2026-03-31 08:44:37 - __main__ - INFO - Starting Music Bot...
+2026-03-31 08:44:39 - bot.utils.supabase_db - INFO - Supabase tables initialized (create tables via Supabase dashboard)
+2026-03-31 08:44:40 - bot.utils.supabase_db - INFO - Supabase database initialized
+2026-03-31 08:44:40 - bot.utils.database - INFO - Supabase connected
+2026-03-31 08:44:40 - __main__ - INFO - Database connected
+2026-03-31 08:44:40 - bot.utils.cache - INFO - Upstash Redis cache connected
+2026-03-31 08:44:40 - __main__ - INFO - Redis connected
+2026-03-31 08:44:40 - __main__ - INFO - Queue manager initialized
+2026-03-31 08:44:42 - bot.core.userbot - INFO - Userbot 1 started: @Scrapper123456_bot
+2026-03-31 08:44:42 - __main__ - INFO - Initialized 1 userbot(s)
+2026-03-31 08:44:43 - bot.core.call - INFO - py-tgcalls initialized for userbot 1
+2026-03-31 08:44:43 - __main__ - INFO - Call manager initialized
+2026-03-31 08:44:43 - __main__ - INFO - Stream-end handler registered
+2026-03-31 08:44:43 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-03-31 08:44:43 - apscheduler.scheduler - INFO - Added job "CleanupScheduler.cleanup_temp_files" to job store "default"
+2026-03-31 08:44:43 - apscheduler.scheduler - INFO - Scheduler started
+2026-03-31 08:44:43 - bot.utils.scheduler - INFO - Cleanup scheduler started
+2026-03-31 08:44:43 - __main__ - INFO - Cleanup scheduler started
+2026-03-31 08:44:44 - bot.core.bot - INFO - Bot started: @Scrapper123456_bot
+2026-03-31 08:46:50 - bot.plugins.start - INFO - Brook start image uploaded and file_id cached.
+2026-03-31 08:46:56 - bot.utils.permissions - WARNING - bot_client not initialized, skipping admin check
+2026-03-31 08:56:49 - root - INFO - Stop signal received (SIGINT). Exiting...
+2026-03-31 08:56:49 - __main__ - INFO - Bot started successfully
+2026-03-31 08:56:55 - root - INFO - Logging setup complete
+2026-03-31 08:56:55 - __main__ - INFO - Starting Music Bot...
+2026-03-31 08:56:56 - bot.utils.supabase_db - INFO - Supabase tables initialized (create tables via Supabase dashboard)
+2026-03-31 08:56:58 - bot.utils.supabase_db - INFO - Supabase database initialized
+2026-03-31 08:56:58 - bot.utils.database - INFO - Supabase connected
+2026-03-31 08:56:58 - __main__ - INFO - Database connected
+2026-03-31 08:56:58 - bot.utils.cache - INFO - Upstash Redis cache connected
+2026-03-31 08:56:58 - __main__ - INFO - Redis connected
+2026-03-31 08:56:58 - __main__ - INFO - Queue manager initialized
+2026-03-31 08:56:58 - bot.core.music_backend - INFO - MusicBackend persistent session initialized
+2026-03-31 08:56:58 - __main__ - INFO - Music backend initialized
+2026-03-31 08:57:00 - bot.core.userbot - INFO - Userbot 1 started: @Scrapper123456_bot
+2026-03-31 08:57:00 - __main__ - INFO - Initialized 1 userbot(s)
+2026-03-31 08:57:01 - bot.core.call - INFO - py-tgcalls initialized for userbot 1
+2026-03-31 08:57:01 - __main__ - INFO - Call manager initialized
+2026-03-31 08:57:01 - __main__ - INFO - Stream-end handler registered
+2026-03-31 08:57:01 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-03-31 08:57:01 - apscheduler.scheduler - INFO - Added job "CleanupScheduler.cleanup_temp_files" to job store "default"
+2026-03-31 08:57:01 - apscheduler.scheduler - INFO - Scheduler started
+2026-03-31 08:57:01 - bot.utils.scheduler - INFO - Cleanup scheduler started
+2026-03-31 08:57:01 - __main__ - INFO - Cleanup scheduler started
+2026-03-31 08:57:02 - bot.core.bot - INFO - Bot started: @Scrapper123456_bot
+2026-03-31 08:57:38 - bot.core.music_backend - ERROR - JioSaavn search error: 200, message='Attempt to decode JSON with unexpected mimetype: text/html; charset=utf-8', url='https://www.jiosaavn.com/api.php?_format=json&_marker=0&api_version=4&ctx=web6dot0&q=Aakhri+Ishq&n=5&p=1&caller=PWA&saavn_app=2&__call=search.getResults'
+2026-03-31 08:57:39 - bot.core.music_backend - INFO - JioSaavn found 0 tracks
+2026-03-31 08:57:39 - bot.core.music_backend - INFO - YouTube found 5 tracks
+2026-03-31 08:57:39 - bot.core.music_backend - INFO - SoundCloud found 5 tracks
+2026-03-31 08:57:39 - bot.plugins.play - ERROR - play_cmd failed
+Traceback (most recent call last):
+  File "D:\Music bot\bot\plugins\play.py", line 139, in play_cmd
+    result = await conflict_resolver.search_with_conflicts(
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\Music bot\bot\utils\title_detector.py", line 200, in search_with_conflicts
+    url = track.get('url', '')
+          ^^^^^^^^^
+AttributeError: 'Track' object has no attribute 'get'
+2026-03-31 08:58:31 - root - INFO - Stop signal received (SIGINT). Exiting...
+2026-03-31 08:58:31 - __main__ - INFO - Bot started successfully
+2026-03-31 08:59:06 - root - INFO - Logging setup complete
+2026-03-31 08:59:06 - __main__ - INFO - Starting Music Bot...
+2026-03-31 08:59:07 - bot.utils.supabase_db - INFO - Supabase tables initialized (create tables via Supabase dashboard)
+2026-03-31 08:59:08 - bot.utils.supabase_db - INFO - Supabase database initialized
+2026-03-31 08:59:08 - bot.utils.database - INFO - Supabase connected
+2026-03-31 08:59:08 - __main__ - INFO - Database connected
+2026-03-31 08:59:08 - bot.utils.cache - INFO - Upstash Redis cache connected
+2026-03-31 08:59:08 - __main__ - INFO - Redis connected
+2026-03-31 08:59:08 - __main__ - INFO - Queue manager initialized
+2026-03-31 08:59:09 - bot.core.music_backend - INFO - MusicBackend persistent session initialized
+2026-03-31 08:59:09 - __main__ - INFO - Music backend initialized
+2026-03-31 08:59:10 - bot.core.userbot - INFO - Userbot 1 started: @Scrapper123456_bot
+2026-03-31 08:59:10 - __main__ - INFO - Initialized 1 userbot(s)
+2026-03-31 08:59:11 - bot.core.call - INFO - py-tgcalls initialized for userbot 1
+2026-03-31 08:59:11 - __main__ - INFO - Call manager initialized
+2026-03-31 08:59:11 - __main__ - INFO - Stream-end handler registered
+2026-03-31 08:59:11 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-03-31 08:59:11 - apscheduler.scheduler - INFO - Added job "CleanupScheduler.cleanup_temp_files" to job store "default"
+2026-03-31 08:59:11 - apscheduler.scheduler - INFO - Scheduler started
+2026-03-31 08:59:11 - bot.utils.scheduler - INFO - Cleanup scheduler started
+2026-03-31 08:59:11 - __main__ - INFO - Cleanup scheduler started
+2026-03-31 08:59:12 - bot.core.bot - INFO - Bot started: @Scrapper123456_bot
+2026-03-31 08:59:24 - bot.core.music_backend - INFO - JioSaavn found 5 tracks
+2026-03-31 08:59:24 - bot.core.music_backend - INFO - YouTube found 5 tracks
+2026-03-31 09:00:27 - root - INFO - Stop signal received (SIGINT). Exiting...
+2026-03-31 09:00:27 - __main__ - INFO - Bot started successfully
+2026-03-31 09:00:45 - root - INFO - Logging setup complete
+2026-03-31 09:00:45 - __main__ - INFO - Starting Music Bot...
+2026-03-31 09:00:46 - bot.utils.supabase_db - INFO - Supabase tables initialized (create tables via Supabase dashboard)
+2026-03-31 09:00:46 - bot.utils.supabase_db - INFO - Supabase database initialized
+2026-03-31 09:00:46 - bot.utils.database - INFO - Supabase connected
+2026-03-31 09:00:46 - __main__ - INFO - Database connected
+2026-03-31 09:00:47 - bot.utils.cache - INFO - Upstash Redis cache connected
+2026-03-31 09:00:47 - __main__ - INFO - Redis connected
+2026-03-31 09:00:47 - __main__ - INFO - Queue manager initialized
+2026-03-31 09:00:47 - bot.core.music_backend - INFO - MusicBackend persistent session initialized
+2026-03-31 09:00:47 - __main__ - INFO - Music backend initialized
+2026-03-31 09:00:49 - bot.core.userbot - INFO - Userbot 1 started: @Scrapper123456_bot
+2026-03-31 09:00:49 - __main__ - INFO - Initialized 1 userbot(s)
+2026-03-31 09:00:49 - bot.core.call - INFO - py-tgcalls initialized for userbot 1
+2026-03-31 09:00:49 - __main__ - INFO - Call manager initialized
+2026-03-31 09:00:49 - __main__ - INFO - Stream-end handler registered
+2026-03-31 09:00:49 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-03-31 09:00:49 - apscheduler.scheduler - INFO - Added job "CleanupScheduler.cleanup_temp_files" to job store "default"
+2026-03-31 09:00:49 - apscheduler.scheduler - INFO - Scheduler started
+2026-03-31 09:00:49 - bot.utils.scheduler - INFO - Cleanup scheduler started
+2026-03-31 09:00:49 - __main__ - INFO - Cleanup scheduler started
+2026-03-31 09:00:50 - bot.core.bot - INFO - Bot started: @Scrapper123456_bot
+2026-03-31 09:01:19 - bot.core.music_backend - INFO - JioSaavn found 5 tracks
+2026-03-31 09:01:19 - bot.core.music_backend - INFO - YouTube found 5 tracks
+2026-03-31 09:01:19 - bot.plugins.play - ERROR - play_cmd failed
+Traceback (most recent call last):
+  File "D:\Music bot\bot\plugins\play.py", line 154, in play_cmd
+    await _show_conflict_options(message, chat_id, user_id, result["conflicts"], search_msg)
+  File "D:\Music bot\bot\plugins\play.py", line 554, in _show_conflict_options
+    t_title = (t.get("title", "?") or "?")
+               ^^^^^
+AttributeError: 'Track' object has no attribute 'get'
+2026-03-31 09:02:41 - root - INFO - Stop signal received (SIGINT). Exiting...
+2026-03-31 09:02:41 - __main__ - INFO - Bot started successfully
+2026-03-31 09:02:52 - root - INFO - Logging setup complete
+2026-03-31 09:02:52 - __main__ - INFO - Starting Music Bot...
+2026-03-31 09:02:53 - bot.utils.supabase_db - INFO - Supabase tables initialized (create tables via Supabase dashboard)
+2026-03-31 09:02:55 - bot.utils.supabase_db - INFO - Supabase database initialized
+2026-03-31 09:02:55 - bot.utils.database - INFO - Supabase connected
+2026-03-31 09:02:55 - __main__ - INFO - Database connected
+2026-03-31 09:02:55 - bot.utils.cache - INFO - Upstash Redis cache connected
+2026-03-31 09:02:55 - __main__ - INFO - Redis connected
+2026-03-31 09:02:55 - __main__ - INFO - Queue manager initialized
+2026-03-31 09:02:55 - bot.core.music_backend - INFO - MusicBackend persistent session initialized
+2026-03-31 09:02:55 - __main__ - INFO - Music backend initialized
+2026-03-31 09:02:57 - bot.core.userbot - INFO - Userbot 1 started: @Scrapper123456_bot
+2026-03-31 09:02:57 - __main__ - INFO - Initialized 1 userbot(s)
+2026-03-31 09:02:57 - bot.core.call - INFO - py-tgcalls initialized for userbot 1
+2026-03-31 09:02:57 - __main__ - INFO - Call manager initialized
+2026-03-31 09:02:57 - __main__ - INFO - Stream-end handler registered
+2026-03-31 09:02:57 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-03-31 09:02:57 - apscheduler.scheduler - INFO - Added job "CleanupScheduler.cleanup_temp_files" to job store "default"
+2026-03-31 09:02:57 - apscheduler.scheduler - INFO - Scheduler started
+2026-03-31 09:02:57 - bot.utils.scheduler - INFO - Cleanup scheduler started
+2026-03-31 09:02:57 - __main__ - INFO - Cleanup scheduler started
+2026-03-31 09:02:58 - bot.core.bot - INFO - Bot started: @Scrapper123456_bot
+2026-03-31 09:03:07 - bot.core.music_backend - INFO - JioSaavn found 5 tracks
+2026-03-31 09:03:07 - bot.core.music_backend - INFO - YouTube found 5 tracks
+2026-03-31 09:03:13 - pyrogram.dispatcher - ERROR - cannot import name 'add_track_and_play' from 'bot.plugins.play' (D:\Music bot\bot\plugins\play.py)
+Traceback (most recent call last):
+  File "D:\Music bot\.venv\Lib\site-packages\pyrogram\dispatcher.py", line 240, in handler_worker
+    await handler.callback(self.client, *args)
+  File "D:\Music bot\bot\plugins\callbacks.py", line 27, in callback_handler
+    await handle_play_select(client, callback, chat_id, user_id, data)
+  File "D:\Music bot\bot\plugins\callbacks.py", line 243, in handle_play_select
+    from bot.plugins.play import _pending_conflicts, add_track_and_play
+ImportError: cannot import name 'add_track_and_play' from 'bot.plugins.play' (D:\Music bot\bot\plugins\play.py)
+2026-03-31 09:04:54 - root - INFO - Stop signal received (SIGINT). Exiting...
+2026-03-31 09:04:54 - __main__ - INFO - Bot started successfully
+2026-03-31 13:00:30 - root - INFO - Logging setup complete
+2026-03-31 13:00:30 - __main__ - INFO - Starting Music Bot...
+2026-03-31 13:00:33 - bot.utils.supabase_db - INFO - Supabase tables initialized (create tables via Supabase dashboard)
+2026-03-31 13:00:34 - bot.utils.supabase_db - INFO - Supabase database initialized
+2026-03-31 13:00:34 - bot.utils.database - INFO - Supabase connected
+2026-03-31 13:00:34 - __main__ - INFO - Database connected
+2026-03-31 13:00:34 - bot.utils.cache - INFO - Upstash Redis cache connected
+2026-03-31 13:00:34 - __main__ - INFO - Redis connected
+2026-03-31 13:00:34 - __main__ - INFO - Queue manager initialized
+2026-03-31 13:00:34 - bot.core.music_backend - INFO - MusicBackend persistent session initialized
+2026-03-31 13:00:34 - __main__ - INFO - Music backend initialized
+2026-03-31 13:00:37 - bot.core.userbot - INFO - Userbot 1 started: @Scrapper123456_bot
+2026-03-31 13:00:37 - __main__ - INFO - Initialized 1 userbot(s)
+2026-03-31 13:00:38 - bot.core.call - INFO - py-tgcalls initialized for userbot 1
+2026-03-31 13:00:38 - __main__ - INFO - Call manager initialized
+2026-03-31 13:00:38 - __main__ - INFO - Stream-end handler registered
+2026-03-31 13:00:38 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-03-31 13:00:38 - apscheduler.scheduler - INFO - Added job "CleanupScheduler.cleanup_temp_files" to job store "default"
+2026-03-31 13:00:38 - apscheduler.scheduler - INFO - Scheduler started
+2026-03-31 13:00:38 - bot.utils.scheduler - INFO - Cleanup scheduler started
+2026-03-31 13:00:38 - __main__ - INFO - Cleanup scheduler started
+2026-03-31 13:00:39 - bot.core.bot - INFO - Bot started: @Scrapper123456_bot
+2026-03-31 13:01:33 - bot.core.music_backend - INFO - JioSaavn found 5 tracks
+2026-03-31 13:01:33 - bot.core.music_backend - INFO - YouTube found 5 tracks
+2026-03-31 13:03:41 - bot.core.queue - INFO - Added track to queue for chat -1003746870661: Aakhri Ishq (pos: 1)
+2026-03-31 13:03:41 - bot.core.music_backend - ERROR - JioSaavn stream error: Invalid variable type: value should be str, int or float, got None of type <class 'NoneType'>
+2026-03-31 13:03:41 - bot.plugins.play - ERROR - Track has no URL and resolution failed in chat -1003746870661: {'title': 'Aakhri Ishq', 'url': '', 'duration': 0, 'thumb': 'https://c.saavncdn.com/581/Dhurandhar-The-Revenge-Hindi-2026-20260324162314-500x500.jpg', 'requested_by': 5558942656, 'source': 'jiosaavn', 'position': 0}
+2026-03-31 13:08:44 - root - INFO - Stop signal received (SIGINT). Exiting...
+2026-03-31 13:08:44 - __main__ - INFO - Bot started successfully
+2026-03-31 13:20:59 - root - INFO - Logging setup complete
+2026-03-31 13:20:59 - __main__ - INFO - Starting Music Bot...
+2026-03-31 13:21:00 - bot.utils.supabase_db - INFO - Supabase tables initialized (create tables via Supabase dashboard)
+2026-03-31 13:21:01 - bot.utils.supabase_db - INFO - Supabase database initialized
+2026-03-31 13:21:01 - bot.utils.database - INFO - Supabase connected
+2026-03-31 13:21:01 - __main__ - INFO - Database connected
+2026-03-31 13:21:01 - bot.utils.cache - INFO - Upstash Redis cache connected
+2026-03-31 13:21:01 - __main__ - INFO - Redis connected
+2026-03-31 13:21:01 - __main__ - INFO - Queue manager initialized
+2026-03-31 13:21:01 - bot.core.music_backend - INFO - MusicBackend persistent session initialized
+2026-03-31 13:21:01 - __main__ - INFO - Music backend initialized
+2026-03-31 13:21:03 - bot.core.userbot - INFO - Userbot 1 started: @Scrapper123456_bot
+2026-03-31 13:21:03 - __main__ - INFO - Initialized 1 userbot(s)
+2026-03-31 13:21:04 - bot.core.call - INFO - py-tgcalls initialized for userbot 1
+2026-03-31 13:21:04 - __main__ - INFO - Call manager initialized
+2026-03-31 13:21:04 - __main__ - INFO - Stream-end handler registered
+2026-03-31 13:21:04 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-03-31 13:21:04 - apscheduler.scheduler - INFO - Added job "CleanupScheduler.cleanup_temp_files" to job store "default"
+2026-03-31 13:21:04 - apscheduler.scheduler - INFO - Scheduler started
+2026-03-31 13:21:04 - bot.utils.scheduler - INFO - Cleanup scheduler started
+2026-03-31 13:21:04 - __main__ - INFO - Cleanup scheduler started
+2026-03-31 13:21:05 - bot.core.bot - INFO - Bot started: @Scrapper123456_bot
+2026-03-31 13:21:49 - bot.core.music_backend - INFO - JioSaavn found 5 tracks
+2026-03-31 13:21:49 - bot.core.music_backend - INFO - YouTube found 5 tracks
+2026-03-31 13:21:56 - bot.core.queue - INFO - Added track to queue for chat -1003746870661: Aakhri Ishq (pos: 1)
+2026-03-31 13:21:56 - bot.core.music_backend - ERROR - JioSaavn stream error: 200, message='Attempt to decode JSON with unexpected mimetype: text/html; charset=utf-8', url='https://www.jiosaavn.com/api.php?_format=json&_marker=0&api_version=4&ctx=web6dot0&caller=PWA&saavn_app=2&__call=song.getDetails&pids=uvFc_tcD'
+2026-03-31 13:21:56 - bot.plugins.play - ERROR - Track has no URL and resolution failed in chat -1003746870661: {'title': 'Aakhri Ishq', 'url': '', 'duration': 0, 'thumb': 'https://c.saavncdn.com/581/Dhurandhar-The-Revenge-Hindi-2026-20260324162314-500x500.jpg', 'requested_by': 5558942656, 'source': 'jiosaavn', 'id': 'uvFc_tcD', 'uploader': 'Unknown Artist', 'position': 0}
+2026-03-31 13:23:10 - root - INFO - Stop signal received (SIGINT). Exiting...
+2026-03-31 13:23:10 - __main__ - INFO - Bot started successfully
+2026-03-31 13:31:24 - root - INFO - Logging setup complete
+2026-03-31 13:31:24 - __main__ - INFO - Starting Music Bot...
+2026-03-31 13:31:25 - bot.utils.supabase_db - INFO - Supabase tables initialized (create tables via Supabase dashboard)
+2026-03-31 13:31:26 - bot.utils.supabase_db - INFO - Supabase database initialized
+2026-03-31 13:31:26 - bot.utils.database - INFO - Supabase connected
+2026-03-31 13:31:26 - __main__ - INFO - Database connected
+2026-03-31 13:31:26 - bot.utils.cache - INFO - Upstash Redis cache connected
+2026-03-31 13:31:26 - __main__ - INFO - Redis connected
+2026-03-31 13:31:26 - __main__ - INFO - Queue manager initialized
+2026-03-31 13:31:27 - bot.core.music_backend - INFO - MusicBackend persistent session initialized
+2026-03-31 13:31:27 - __main__ - INFO - Music backend initialized
+2026-03-31 13:31:29 - bot.core.userbot - INFO - Userbot 1 started: @Scrapper123456_bot
+2026-03-31 13:31:29 - __main__ - INFO - Initialized 1 userbot(s)
+2026-03-31 13:31:30 - bot.core.call - INFO - py-tgcalls initialized for userbot 1
+2026-03-31 13:31:30 - __main__ - INFO - Call manager initialized
+2026-03-31 13:31:30 - __main__ - INFO - Stream-end handler registered
+2026-03-31 13:31:30 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-03-31 13:31:30 - apscheduler.scheduler - INFO - Added job "CleanupScheduler.cleanup_temp_files" to job store "default"
+2026-03-31 13:31:30 - apscheduler.scheduler - INFO - Scheduler started
+2026-03-31 13:31:30 - bot.utils.scheduler - INFO - Cleanup scheduler started
+2026-03-31 13:31:30 - __main__ - INFO - Cleanup scheduler started
+2026-03-31 13:31:31 - bot.core.bot - INFO - Bot started: @Scrapper123456_bot
+2026-03-31 13:32:06 - bot.core.music_backend - INFO - JioSaavn found 5 tracks
+2026-03-31 13:32:06 - bot.core.music_backend - INFO - YouTube found 5 tracks
+2026-03-31 13:32:14 - bot.core.queue - INFO - Added track to queue for chat -1003746870661: Aakhri Ishq (pos: 1)
+2026-03-31 13:32:14 - bot.core.music_backend - INFO - JioSaavn stream URL decoded via generateAuthToken
+2026-03-31 13:32:14 - bot.plugins.play - ERROR - start_playback failed in -1003746870661
+Traceback (most recent call last):
+  File "D:\Music bot\bot\plugins\play.py", line 325, in start_playback
+    await call_manager.play(chat_id, url, video=is_video)
+  File "D:\Music bot\bot\core\call.py", line 110, in play
+    stream = self._build_stream(stream_url, video=video, seek=seek)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\Music bot\bot\core\call.py", line 252, in _build_stream
+    from pytgcalls.types import AudioConfig, VideoConfig
+ImportError: cannot import name 'AudioConfig' from 'pytgcalls.types' (D:\Music bot\.venv\Lib\site-packages\pytgcalls\types\__init__.py)
+2026-03-31 13:36:53 - root - INFO - Stop signal received (SIGINT). Exiting...
+2026-03-31 13:36:53 - __main__ - INFO - Bot started successfully
+2026-03-31 13:37:01 - root - INFO - Logging setup complete
+2026-03-31 13:37:01 - __main__ - INFO - Starting Music Bot...
+2026-03-31 13:37:02 - bot.utils.supabase_db - INFO - Supabase tables initialized (create tables via Supabase dashboard)
+2026-03-31 13:37:04 - bot.utils.supabase_db - INFO - Supabase database initialized
+2026-03-31 13:37:04 - bot.utils.database - INFO - Supabase connected
+2026-03-31 13:37:04 - __main__ - INFO - Database connected
+2026-03-31 13:37:05 - bot.utils.cache - INFO - Upstash Redis cache connected
+2026-03-31 13:37:05 - __main__ - INFO - Redis connected
+2026-03-31 13:37:05 - __main__ - INFO - Queue manager initialized
+2026-03-31 13:37:05 - bot.core.music_backend - INFO - MusicBackend persistent session initialized
+2026-03-31 13:37:05 - __main__ - INFO - Music backend initialized
+2026-03-31 13:37:07 - bot.core.userbot - INFO - Userbot 1 started: @Scrapper123456_bot
+2026-03-31 13:37:07 - __main__ - INFO - Initialized 1 userbot(s)
+2026-03-31 13:37:08 - bot.core.call - INFO - py-tgcalls initialized for userbot 1
+2026-03-31 13:37:08 - __main__ - INFO - Call manager initialized
+2026-03-31 13:37:08 - __main__ - INFO - Stream-end handler registered
+2026-03-31 13:37:08 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-03-31 13:37:08 - apscheduler.scheduler - INFO - Added job "CleanupScheduler.cleanup_temp_files" to job store "default"
+2026-03-31 13:37:08 - apscheduler.scheduler - INFO - Scheduler started
+2026-03-31 13:37:08 - bot.utils.scheduler - INFO - Cleanup scheduler started
+2026-03-31 13:37:08 - __main__ - INFO - Cleanup scheduler started
+2026-03-31 13:37:09 - bot.core.bot - INFO - Bot started: @Scrapper123456_bot
+2026-03-31 13:37:21 - bot.core.music_backend - INFO - JioSaavn found 5 tracks
+2026-03-31 13:37:21 - bot.core.music_backend - INFO - YouTube found 5 tracks
+2026-03-31 13:37:29 - bot.core.queue - INFO - Added track to queue for chat -1003746870661: Aakhri Ishq (pos: 1)
+2026-03-31 13:37:30 - bot.core.music_backend - INFO - JioSaavn stream URL decoded via generateAuthToken
+2026-03-31 13:37:31 - bot.core.call - ERROR - Playback failed in -1003746870661: Telegram says: [400 BOT_METHOD_INVALID] - The method can't be used by bots (caused by "phone.CreateGroupCall")
+2026-03-31 13:37:31 - bot.plugins.play - ERROR - start_playback failed in -1003746870661
+Traceback (most recent call last):
+  File "D:\Music bot\bot\plugins\play.py", line 325, in start_playback
+    await call_manager.play(chat_id, url, video=is_video)
+  File "D:\Music bot\bot\core\call.py", line 125, in play
+    await call.play(chat_id, stream)
+  File "D:\Music bot\.venv\Lib\site-packages\pytgcalls\statictypes.py", line 96, in async_wrapper
+    return await func(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\Music bot\.venv\Lib\site-packages\pytgcalls\mtproto_required.py", line 23, in async_wrapper
+    return await func(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\Music bot\.venv\Lib\site-packages\pytgcalls\mutex.py", line 12, in async_wrapper
+    return await func(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\Music bot\.venv\Lib\site-packages\pytgcalls\methods\stream\play.py", line 74, in play
+    await self._app.create_group_call(
+  File "D:\Music bot\.venv\Lib\site-packages\pytgcalls\mtproto\mtproto_client.py", line 183, in create_group_call
+    await self._bind_client.create_group_call(
+  File "D:\Music bot\.venv\Lib\site-packages\pytgcalls\mtproto\pyrogram_client.py", line 596, in create_group_call
+    result: Updates = await self._invoke(
+                      ^^^^^^^^^^^^^^^^^^^
+  File "D:\Music bot\.venv\Lib\site-packages\pytgcalls\mtproto\pyrogram_client.py", line 840, in _invoke
+    return await session.invoke(
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "D:\Music bot\.venv\Lib\site-packages\pyrogram\methods\advanced\invoke.py", line 79, in invoke
+    r = await self.session.invoke(
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\Music bot\.venv\Lib\site-packages\pyrogram\session\session.py", line 389, in invoke
+    return await self.send(query, timeout=timeout)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\Music bot\.venv\Lib\site-packages\pyrogram\session\session.py", line 357, in send
+    RPCError.raise_it(result, type(data))
+  File "D:\Music bot\.venv\Lib\site-packages\pyrogram\errors\rpc_error.py", line 91, in raise_it
+    raise getattr(
+pyrogram.errors.exceptions.bad_request_400.BotMethodInvalid: Telegram says: [400 BOT_METHOD_INVALID] - The method can't be used by bots (caused by "phone.CreateGroupCall")
+2026-03-31 13:39:00 - root - INFO - Stop signal received (SIGINT). Exiting...
+2026-03-31 13:39:00 - __main__ - INFO - Bot started successfully
+2026-03-31 13:41:11 - root - INFO - Logging setup complete
+2026-03-31 13:41:11 - __main__ - INFO - Starting Music Bot...
+2026-03-31 13:41:12 - bot.utils.supabase_db - INFO - Supabase tables initialized (create tables via Supabase dashboard)
+2026-03-31 13:41:13 - bot.utils.supabase_db - INFO - Supabase database initialized
+2026-03-31 13:41:13 - bot.utils.database - INFO - Supabase connected
+2026-03-31 13:41:13 - __main__ - INFO - Database connected
+2026-03-31 13:41:13 - bot.utils.cache - INFO - Upstash Redis cache connected
+2026-03-31 13:41:13 - __main__ - INFO - Redis connected
+2026-03-31 13:41:13 - __main__ - INFO - Queue manager initialized
+2026-03-31 13:41:14 - bot.core.music_backend - INFO - MusicBackend persistent session initialized
+2026-03-31 13:41:14 - __main__ - INFO - Music backend initialized
+2026-03-31 13:41:16 - bot.core.userbot - INFO - Userbot 1 started: @Scrapper123456_bot
+2026-03-31 13:41:16 - __main__ - INFO - Initialized 1 userbot(s)
+2026-03-31 13:41:16 - bot.core.call - INFO - py-tgcalls initialized for userbot 1
+2026-03-31 13:41:16 - __main__ - INFO - Call manager initialized
+2026-03-31 13:41:16 - __main__ - INFO - Stream-end handler registered
+2026-03-31 13:41:16 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-03-31 13:41:16 - apscheduler.scheduler - INFO - Added job "CleanupScheduler.cleanup_temp_files" to job store "default"
+2026-03-31 13:41:16 - apscheduler.scheduler - INFO - Scheduler started
+2026-03-31 13:41:16 - bot.utils.scheduler - INFO - Cleanup scheduler started
+2026-03-31 13:41:16 - __main__ - INFO - Cleanup scheduler started
+2026-03-31 13:41:17 - bot.core.bot - INFO - Bot started: @Scrapper123456_bot
+2026-03-31 13:42:29 - bot.core.music_backend - INFO - JioSaavn found 5 tracks
+2026-03-31 13:42:29 - bot.core.music_backend - INFO - YouTube found 5 tracks
+2026-03-31 13:42:30 - bot.core.queue - INFO - Added track to queue for chat -1003746870661: Aakhri Ishq (pos: 1)
+2026-03-31 13:42:30 - bot.core.music_backend - INFO - JioSaavn stream URL decoded via generateAuthToken
+2026-03-31 13:42:31 - bot.core.call - ERROR - Playback failed in -1003746870661: Telegram says: [400 BOT_METHOD_INVALID] - The method can't be used by bots (caused by "phone.CreateGroupCall")
+2026-03-31 13:42:31 - bot.plugins.play - ERROR - start_playback failed in -1003746870661
+Traceback (most recent call last):
+  File "D:\Music bot\bot\plugins\play.py", line 325, in start_playback
+    await call_manager.play(chat_id, url, video=is_video)
+  File "D:\Music bot\bot\core\call.py", line 125, in play
+    await call.play(chat_id, stream)
+  File "D:\Music bot\.venv\Lib\site-packages\pytgcalls\statictypes.py", line 96, in async_wrapper
+    return await func(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\Music bot\.venv\Lib\site-packages\pytgcalls\mtproto_required.py", line 23, in async_wrapper
+    return await func(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\Music bot\.venv\Lib\site-packages\pytgcalls\mutex.py", line 12, in async_wrapper
+    return await func(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\Music bot\.venv\Lib\site-packages\pytgcalls\methods\stream\play.py", line 74, in play
+    await self._app.create_group_call(
+  File "D:\Music bot\.venv\Lib\site-packages\pytgcalls\mtproto\mtproto_client.py", line 183, in create_group_call
+    await self._bind_client.create_group_call(
+  File "D:\Music bot\.venv\Lib\site-packages\pytgcalls\mtproto\pyrogram_client.py", line 596, in create_group_call
+    result: Updates = await self._invoke(
+                      ^^^^^^^^^^^^^^^^^^^
+  File "D:\Music bot\.venv\Lib\site-packages\pytgcalls\mtproto\pyrogram_client.py", line 840, in _invoke
+    return await session.invoke(
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "D:\Music bot\.venv\Lib\site-packages\pyrogram\methods\advanced\invoke.py", line 79, in invoke
+    r = await self.session.invoke(
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\Music bot\.venv\Lib\site-packages\pyrogram\session\session.py", line 389, in invoke
+    return await self.send(query, timeout=timeout)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\Music bot\.venv\Lib\site-packages\pyrogram\session\session.py", line 357, in send
+    RPCError.raise_it(result, type(data))
+  File "D:\Music bot\.venv\Lib\site-packages\pyrogram\errors\rpc_error.py", line 91, in raise_it
+    raise getattr(
+pyrogram.errors.exceptions.bad_request_400.BotMethodInvalid: Telegram says: [400 BOT_METHOD_INVALID] - The method can't be used by bots (caused by "phone.CreateGroupCall")
+2026-03-31 13:45:50 - root - INFO - Stop signal received (SIGINT). Exiting...
+2026-03-31 13:45:50 - __main__ - INFO - Bot started successfully
+2026-03-31 13:46:00 - root - INFO - Logging setup complete
+2026-03-31 13:46:00 - __main__ - INFO - Starting Music Bot...
+2026-03-31 13:46:01 - bot.utils.supabase_db - INFO - Supabase tables initialized (create tables via Supabase dashboard)
+2026-03-31 13:46:02 - bot.utils.supabase_db - INFO - Supabase database initialized
+2026-03-31 13:46:02 - bot.utils.database - INFO - Supabase connected
+2026-03-31 13:46:02 - __main__ - INFO - Database connected
+2026-03-31 13:46:03 - bot.utils.cache - INFO - Upstash Redis cache connected
+2026-03-31 13:46:03 - __main__ - INFO - Redis connected
+2026-03-31 13:46:03 - __main__ - INFO - Queue manager initialized
+2026-03-31 13:46:03 - bot.core.music_backend - INFO - MusicBackend persistent session initialized
+2026-03-31 13:46:03 - __main__ - INFO - Music backend initialized
+2026-03-31 13:46:05 - asyncio - ERROR - Unclosed client session
+client_session: <aiohttp.client.ClientSession object at 0x000001CD1B23FC50>
+2026-03-31 13:55:57 - root - INFO - Logging setup complete
+2026-03-31 13:55:57 - __main__ - INFO - Starting Music Bot...
+2026-03-31 13:55:58 - bot.utils.supabase_db - INFO - Supabase tables initialized (create tables via Supabase dashboard)
+2026-03-31 13:55:59 - bot.utils.supabase_db - INFO - Supabase database initialized
+2026-03-31 13:55:59 - bot.utils.database - INFO - Supabase connected
+2026-03-31 13:55:59 - __main__ - INFO - Database connected
+2026-03-31 13:56:00 - bot.utils.cache - INFO - Upstash Redis cache connected
+2026-03-31 13:56:00 - __main__ - INFO - Redis connected
+2026-03-31 13:56:00 - __main__ - INFO - Queue manager initialized
+2026-03-31 13:56:00 - bot.core.music_backend - INFO - MusicBackend persistent session initialized
+2026-03-31 13:56:00 - __main__ - INFO - Music backend initialized
+2026-03-31 13:56:02 - bot.core.userbot - INFO - Userbot 1 started: @Justahuman6996
+2026-03-31 13:56:02 - __main__ - INFO - Initialized 1 userbot(s)
+2026-03-31 13:56:03 - bot.core.call - INFO - py-tgcalls initialized for userbot 1
+2026-03-31 13:56:03 - __main__ - INFO - Call manager initialized
+2026-03-31 13:56:03 - __main__ - INFO - Stream-end handler registered
+2026-03-31 13:56:03 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-03-31 13:56:03 - apscheduler.scheduler - INFO - Added job "CleanupScheduler.cleanup_temp_files" to job store "default"
+2026-03-31 13:56:03 - apscheduler.scheduler - INFO - Scheduler started
+2026-03-31 13:56:03 - bot.utils.scheduler - INFO - Cleanup scheduler started
+2026-03-31 13:56:03 - __main__ - INFO - Cleanup scheduler started
+2026-03-31 13:56:04 - bot.core.bot - INFO - Bot started: @Scrapper123456_bot
+2026-03-31 13:56:34 - bot.core.music_backend - INFO - JioSaavn found 10 tracks
+2026-03-31 13:56:34 - bot.core.music_backend - INFO - YouTube found 5 tracks
+2026-03-31 13:56:34 - bot.core.queue - INFO - Added track to queue for chat -1003746870661: Aakhri Ishq (pos: 1)
+2026-03-31 13:56:35 - bot.core.music_backend - INFO - JioSaavn stream URL decoded via generateAuthToken
+2026-03-31 13:56:36 - bot.core.call - ERROR - Playback failed in -1003746870661: Peer id invalid: -1003746870661
+2026-03-31 13:56:36 - bot.plugins.play - ERROR - start_playback failed in -1003746870661
+Traceback (most recent call last):
+  File "D:\Music bot\.venv\Lib\site-packages\pyrogram\methods\advanced\resolve_peer.py", line 62, in resolve_peer
+    return await self.storage.get_peer_by_id(peer_id)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\Music bot\.venv\Lib\site-packages\pyrogram\storage\sqlite_storage.py", line 142, in get_peer_by_id
+    raise KeyError(f"ID not found: {peer_id}")
+KeyError: 'ID not found: -1003746870661'
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "D:\Music bot\bot\plugins\play.py", line 325, in start_playback
+    await call_manager.play(chat_id, url, video=is_video)
+  File "D:\Music bot\bot\core\call.py", line 125, in play
+    await call.play(chat_id, stream)
+  File "D:\Music bot\.venv\Lib\site-packages\pytgcalls\statictypes.py", line 96, in async_wrapper
+    return await func(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\Music bot\.venv\Lib\site-packages\pytgcalls\mtproto_required.py", line 23, in async_wrapper
+    return await func(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\Music bot\.venv\Lib\site-packages\pytgcalls\mutex.py", line 12, in async_wrapper
+    return await func(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\Music bot\.venv\Lib\site-packages\pytgcalls\methods\stream\play.py", line 74, in play
+    await self._app.create_group_call(
+  File "D:\Music bot\.venv\Lib\site-packages\pytgcalls\mtproto\mtproto_client.py", line 183, in create_group_call
+    await self._bind_client.create_group_call(
+  File "D:\Music bot\.venv\Lib\site-packages\pytgcalls\mtproto\pyrogram_client.py", line 598, in create_group_call
+    peer=await self.resolve_peer(chat_id),
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\Music bot\.venv\Lib\site-packages\pytgcalls\mtproto\pyrogram_client.py", line 769, in resolve_peer
+    return await self._app.resolve_peer(user_id)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\Music bot\.venv\Lib\site-packages\pyrogram\methods\advanced\resolve_peer.py", line 89, in resolve_peer
+    peer_type = utils.get_peer_type(peer_id)
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\Music bot\.venv\Lib\site-packages\pyrogram\utils.py", line 246, in get_peer_type
+    raise ValueError(f"Peer id invalid: {peer_id}")
+ValueError: Peer id invalid: -1003746870661
+2026-03-31 13:58:31 - root - INFO - Stop signal received (SIGINT). Exiting...
+2026-03-31 13:58:31 - __main__ - INFO - Bot started successfully
+2026-03-31 13:58:31 - bot.core.music_backend - INFO - MusicBackend session closed
+2026-03-31 13:58:31 - __main__ - INFO - Bot shutdown complete
+2026-03-31 13:58:39 - root - INFO - Logging setup complete
+2026-03-31 13:58:39 - __main__ - INFO - Starting Music Bot...
+2026-03-31 13:58:40 - bot.utils.supabase_db - INFO - Supabase tables initialized (create tables via Supabase dashboard)
+2026-03-31 13:58:41 - bot.utils.supabase_db - INFO - Supabase database initialized
+2026-03-31 13:58:41 - bot.utils.database - INFO - Supabase connected
+2026-03-31 13:58:41 - __main__ - INFO - Database connected
+2026-03-31 13:58:42 - bot.utils.cache - INFO - Upstash Redis cache connected
+2026-03-31 13:58:42 - __main__ - INFO - Redis connected
+2026-03-31 13:58:42 - __main__ - INFO - Queue manager initialized
+2026-03-31 13:58:42 - bot.core.music_backend - INFO - MusicBackend persistent session initialized
+2026-03-31 13:58:42 - __main__ - INFO - Music backend initialized
+2026-03-31 13:58:44 - bot.core.userbot - INFO - Userbot 1 started: @Justahuman6996
+2026-03-31 13:58:44 - __main__ - INFO - Initialized 1 userbot(s)
+2026-03-31 13:58:44 - bot.core.call - INFO - py-tgcalls initialized for userbot 1
+2026-03-31 13:58:44 - __main__ - INFO - Call manager initialized
+2026-03-31 13:58:44 - __main__ - INFO - Stream-end handler registered
+2026-03-31 13:58:44 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-03-31 13:58:44 - apscheduler.scheduler - INFO - Added job "CleanupScheduler.cleanup_temp_files" to job store "default"
+2026-03-31 13:58:44 - apscheduler.scheduler - INFO - Scheduler started
+2026-03-31 13:58:44 - bot.utils.scheduler - INFO - Cleanup scheduler started
+2026-03-31 13:58:44 - __main__ - INFO - Cleanup scheduler started
+2026-03-31 13:58:45 - bot.core.bot - INFO - Bot started: @Scrapper123456_bot
+2026-03-31 13:59:13 - bot.core.music_backend - INFO - JioSaavn found 10 tracks
+2026-03-31 13:59:13 - bot.core.music_backend - INFO - YouTube found 5 tracks
+2026-03-31 13:59:13 - bot.core.queue - INFO - Added track to queue for chat -1003746870661: Aakhri Ishq (pos: 1)
+2026-03-31 13:59:13 - bot.core.music_backend - INFO - JioSaavn stream URL decoded via generateAuthToken
+2026-03-31 13:59:45 - root - INFO - Stop signal received (SIGINT). Exiting...
+2026-03-31 13:59:45 - __main__ - INFO - Bot started successfully
+2026-03-31 13:59:45 - bot.core.music_backend - INFO - MusicBackend session closed
+2026-03-31 13:59:45 - __main__ - INFO - Bot shutdown complete
