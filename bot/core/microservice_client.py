@@ -124,23 +124,19 @@ class MusicMicroserviceClient:
         failures = int(state.get("failures") or 0) + 1
         state["failures"] = failures
         state["last_error"] = error
-        cooldown_seconds = min(45, 5 * failures)
-        state["cooldown_until"] = time.time() + cooldown_seconds
+        # No cooldown - always use the configured URL regardless of failures
+        state["cooldown_until"] = 0.0
 
     @staticmethod
     def _is_render_endpoint(base_url: str) -> bool:
         return "onrender.com" in (base_url or "").lower()
 
     def _allow_cold_start_retry(self, base_url: str) -> bool:
-        if not self._is_render_endpoint(base_url):
-            return False
-        state = self._endpoint_state.get(base_url, {})
-        return int(state.get("successes") or 0) == 0 and int(state.get("failures") or 0) == 0
+        # Cold start retry is disabled - use only the configured URL without special retry logic
+        return False
 
     def is_initial_render_cold_start(self) -> bool:
-        for base_url in self.base_urls:
-            if self._allow_cold_start_retry(base_url):
-                return True
+        # Cold start detection is disabled - always return False
         return False
 
     @staticmethod
@@ -184,70 +180,51 @@ class MusicMicroserviceClient:
         headers = self._headers()
         last_error: Optional[str] = None
 
-        ordered_urls = self._ordered_base_urls()
-
-        for idx, base_url in enumerate(ordered_urls):
-            url = f"{base_url}{path}"
-            retry_cold_start = self._allow_cold_start_retry(base_url)
-            timeout_attempts = [self.timeout_seconds]
-            if retry_cold_start and self.cold_start_timeout_seconds > self.timeout_seconds:
-                timeout_attempts.append(self.cold_start_timeout_seconds)
-
-            for attempt_idx, attempt_timeout in enumerate(timeout_attempts):
-                started = time.time()
-                is_last_attempt = attempt_idx == len(timeout_attempts) - 1
+        # Use only the first configured URL - no fallback to other endpoints
+        base_url = self.base_urls[0]
+        url = f"{base_url}{path}"
+        
+        timeout = aiohttp.ClientTimeout(total=self.timeout_seconds)
+        started = time.time()
+        try:
+            session = await HTTPConnectionPool.get_session()
+            async with session.request(
+                method.upper(),
+                url,
+                params=params,
+                json=json_payload,
+                headers=headers,
+                timeout=timeout,
+            ) as response:
+                if response.status not in expected:
+                    body = await response.text()
+                    last_error = f"HTTP {response.status}: {body[:200]}"
+                    if response.status not in non_fatal_statuses:
+                        self._record_endpoint_failure(base_url, last_error)
+                    logger.warning("Microservice request failed %s %s (%s)", method, url, last_error)
+                    return None
                 try:
-                    session = await HTTPConnectionPool.get_session()
-                    timeout = aiohttp.ClientTimeout(total=attempt_timeout)
-                    async with session.request(
-                        method.upper(),
-                        url,
-                        params=params,
-                        json=json_payload,
-                        headers=headers,
-                        timeout=timeout,
-                    ) as response:
-                        if response.status not in expected:
-                            body = await response.text()
-                            last_error = f"HTTP {response.status}: {body[:200]}"
-                            if response.status not in non_fatal_statuses:
-                                self._record_endpoint_failure(base_url, last_error)
-                            logger.warning("Microservice request failed %s %s (%s)", method, url, last_error)
-                            break
-                        try:
-                            payload = await response.json(content_type=None)
-                            self._record_endpoint_success(base_url, (time.time() - started) * 1000.0)
-                            return payload
-                        except Exception as exc:
-                            last_error = f"invalid-json: {exc}"
-                            self._record_endpoint_failure(base_url, last_error)
-                            logger.warning("Microservice returned invalid JSON for %s %s: %s", method, url, exc)
-                            break
-                except asyncio.TimeoutError:
-                    last_error = "timeout"
-                    if not is_last_attempt:
-                        logger.warning(
-                            "Microservice cold-start retry for %s %s after %ss timeout.",
-                            method,
-                            url,
-                            attempt_timeout,
-                        )
-                        continue
-                    self._record_endpoint_failure(base_url, last_error)
-                    logger.warning("Microservice request timed out for %s %s", method, url)
-                    break
+                    payload = await response.json(content_type=None)
+                    self._record_endpoint_success(base_url, (time.time() - started) * 1000.0)
+                    return payload
                 except Exception as exc:
-                    last_error = str(exc)
+                    last_error = f"invalid-json: {exc}"
                     self._record_endpoint_failure(base_url, last_error)
-                    logger.warning("Microservice request error for %s %s: %s", method, url, exc)
-                    break
-
-            # Keep loop deterministic and avoid hammering all failed endpoints at once.
-            if idx < len(ordered_urls) - 1:
-                await asyncio.sleep(0.05)
+                    logger.warning("Microservice returned invalid JSON for %s %s: %s", method, url, exc)
+                    return None
+        except asyncio.TimeoutError:
+            last_error = "timeout"
+            self._record_endpoint_failure(base_url, last_error)
+            logger.warning("Microservice request timed out for %s %s", method, url)
+            return None
+        except Exception as exc:
+            last_error = str(exc)
+            self._record_endpoint_failure(base_url, last_error)
+            logger.warning("Microservice request error for %s %s: %s", method, url, exc)
+            return None
 
         if last_error:
-            logger.debug("All microservice endpoints failed for %s %s: %s", method, path, last_error)
+            logger.debug("Microservice endpoint failed for %s %s: %s", method, path, last_error)
         return None
 
     async def search(self, query: str, limit: int = 10, routing: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
@@ -255,6 +232,7 @@ class MusicMicroserviceClient:
         if not q:
             return []
 
+        # First try with routing hints if provided
         if routing:
             routed_payload = await self._request(
                 "POST",
@@ -271,6 +249,7 @@ class MusicMicroserviceClient:
             if items:
                 return items
 
+        # Primary search with 'q' parameter
         payload = await self._request(
             "GET",
             self.search_path,
@@ -281,13 +260,8 @@ class MusicMicroserviceClient:
         if items:
             return items
 
-        fallback_payload = await self._request(
-            "GET",
-            self.search_path,
-            params={"query": q, "limit": max(1, int(limit or 1))},
-            expected=(200,),
-        )
-        return self._extract_items(fallback_payload)
+        # No fallback - return empty if the configured microservice returns nothing
+        return []
 
     async def resolve(self, track: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         payload = await self._request(
