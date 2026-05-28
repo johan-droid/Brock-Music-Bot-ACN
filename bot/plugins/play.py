@@ -243,10 +243,39 @@ async def play_cmd(client: Client, message: Message):
         )
         return
 
+    # Create initial search message with live timer placeholder
     search_msg = await message.reply(
-        "💀 <i>The Soul King is scouting the seas for your song...</i>",
+        "💀 <i>The Soul King is scouting the seas for your song...</i>\n\n"
+        "⏳ <b>Searching:</b> <code>0s</code>\n"
+        "<i>Please wait while we connect to the music server...</i>",
         parse_mode=ParseMode.HTML,
     )
+
+    # Start live timer update task
+    async def update_search_timer(msg: Message, start_time: float):
+        """Update the search message with live elapsed time."""
+        import time
+        try:
+            while True:
+                await asyncio.sleep(1)
+                elapsed = int(time.time() - start_time)
+                try:
+                    await msg.edit_text(
+                        "💀 <i>The Soul King is scouting the seas for your song...</i>\n\n"
+                        f"⏳ <b>Searching:</b> <code>{elapsed}s</code>\n"
+                        "<i>Please wait while we connect to the music server...</i>",
+                        parse_mode=ParseMode.HTML,
+                    )
+                except MessageNotModified:
+                    pass
+                except Exception:
+                    break
+        except asyncio.CancelledError:
+            pass
+        except Exception:
+            pass
+
+    timer_task = asyncio.create_task(update_search_timer(search_msg, time.time()))
 
     try:
         if True:
@@ -259,10 +288,18 @@ async def play_cmd(client: Client, message: Message):
             )
             logger.info("Search finished for query=%s status=%s tracks=%s", query, result.get("status"), len(result.get("tracks", [])))
 
+            # Cancel timer task before processing results
+            timer_task.cancel()
+            try:
+                await timer_task
+            except asyncio.CancelledError:
+                pass
+
             if result["status"] == "not_found":
                 logger.warning("No search results for query: %s", query)
                 await search_msg.edit(
-                    "No results found.",
+                    "❌ <b>No results found.</b>\n"
+                    "<i>\"The seas were empty this time... Try a different song! Yohoho!\"</i>",
                     parse_mode=ParseMode.HTML,
                 )
                 return
@@ -282,14 +319,24 @@ async def play_cmd(client: Client, message: Message):
                 return
 
             await search_msg.edit(
-                "No results found.",
+                "❌ <b>No results found.</b>",
                 parse_mode=ParseMode.HTML,
             )
             return
 
     except asyncio.TimeoutError:
+        timer_task.cancel()
+        try:
+            await timer_task
+        except asyncio.CancelledError:
+            pass
         await search_msg.edit("⏱ <b>Search timed out!</b>\n<i>\"The seas were too vast this time! Try again, Yohoho!\"</i>", parse_mode=ParseMode.HTML)
     except Exception as exc:
+        timer_task.cancel()
+        try:
+            await timer_task
+        except asyncio.CancelledError:
+            pass
         log_error(f"play_cmd failed", exc)
         await search_msg.edit(f"❌ <b>Error:</b> <code>{summarize_exception(exc)}</code>", parse_mode=ParseMode.HTML)
 
@@ -320,18 +367,73 @@ async def vplay_cmd(client: Client, message: Message):
         await message.reply("❌ Usage: <code>/vplay &lt;music URL or title&gt;</code>", parse_mode=ParseMode.HTML)
         return
 
-    search_msg = await message.reply("🎬 <i>The Soul King is loading the video stage...</i>", parse_mode=ParseMode.HTML)
+    # Create initial search message with live timer for video mode
+    search_msg = await message.reply(
+        "🎬 <i>The Soul King is loading the video stage...</i>\n\n"
+        "⏳ <b>Processing:</b> <code>0s</code>\n"
+        "<i>Please wait while we prepare the video stream...</i>",
+        parse_mode=ParseMode.HTML,
+    )
+
+    # Start live timer update task for video mode
+    async def update_video_timer(msg: Message, start_time: float):
+        """Update the video processing message with live elapsed time."""
+        import time
+        try:
+            while True:
+                await asyncio.sleep(1)
+                elapsed = int(time.time() - start_time)
+                try:
+                    await msg.edit_text(
+                        "🎬 <i>The Soul King is loading the video stage...</i>\n\n"
+                        f"⏳ <b>Processing:</b> <code>{elapsed}s</code>\n"
+                        "<i>Please wait while we prepare the video stream...</i>",
+                        parse_mode=ParseMode.HTML,
+                    )
+                except MessageNotModified:
+                    pass
+                except Exception:
+                    break
+        except asyncio.CancelledError:
+            pass
+        except Exception:
+            pass
+
+    timer_task = asyncio.create_task(update_video_timer(search_msg, time.time()))
 
     try:
         track = await asyncio.wait_for(extract_audio(query, message), timeout=80)
         if not track:
+            timer_task.cancel()
+            try:
+                await timer_task
+            except asyncio.CancelledError:
+                pass
             await search_msg.edit("❌ <b>Could not extract video!</b>", parse_mode=ParseMode.HTML)
             return
         track["is_video"] = True
+        
+        # Cancel timer before proceeding
+        timer_task.cancel()
+        try:
+            await timer_task
+        except asyncio.CancelledError:
+            pass
+        
         await add_track_and_play(message, chat_id, user_id, track, search_msg)
     except asyncio.TimeoutError:
+        timer_task.cancel()
+        try:
+            await timer_task
+        except asyncio.CancelledError:
+            pass
         await search_msg.edit("⏱ <b>Search timed out!</b>", parse_mode=ParseMode.HTML)
     except Exception as exc:
+        timer_task.cancel()
+        try:
+            await timer_task
+        except asyncio.CancelledError:
+            pass
         logger.error(f"vplay_cmd failed: {summarize_exception(exc)}")
         await search_msg.edit(f"❌ <b>Error:</b> <code>{summarize_exception(exc)}</code>", parse_mode=ParseMode.HTML)
 
