@@ -3,6 +3,9 @@
 import os
 import logging
 from pyrogram import Client, filters
+from typing import Any, cast
+
+Client = cast(Any, Client)
 from pyrogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton
 from pyrogram.enums import ParseMode
 from config import config
@@ -19,19 +22,17 @@ _LOCAL_IMAGE_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname
 
 def _build_start_text(mention: str) -> str:
     return (
-        f"🍁 Hey there... <b>{mention}</b>\n"
-        "I am the Soul King, Brook! 🦴\n\n"
-        "Welcome, my friend! I see you have a wonderful soul… although I don't have eyes to see it! "
-        "<i>Skull joke! Yohohoho!</i> 💀🎩\n\n"
-        "I am here to bring the music of the seas straight to your voice chats! "
-        "Whether it's <b>Bink's Sake</b> or your favorite modern tunes, I shall play them with melodies that touch the soul!\n\n"
-        "<b>┃ Main Features ❞</b>\n"
-        "• 🎵 High-quality audio streaming\n"
-        "• 🎥 Video chat support\n"
-        "• 📋 Smooth &amp; advanced queue system\n"
-        "• 🔍 Smart search &amp; title detection\n\n"
-        "<i>\"Music is the medicine of the soul… which is good, because I'm already dead! Yohohoho!\"</i> 💀🎻\n\n"
-        "Tap on /help to explore everything I can do! ⚡️"
+        f"🎻 Yohohoho! Welcome aboard, <b>{mention}</b>!\n"
+        "I am <b>Brook</b>, the Soul King of the Straw Hat crew. 🦴🎩\n\n"
+        "I bring concerts to your voice chats with all the flair of a grand stage on the high seas. "
+        "Whether you want a calm midnight melody, a rowdy crew anthem, or a full-on Bink's Sake mood, I am ready to perform.\n\n"
+        "<b>┃ Soul King's Repertoire ❞</b>\n"
+        "• 🎵 Stream tracks from your external music server\n"
+        "• 🎬 Fill voice chats with audio and video performances\n"
+        "• 📋 Build setlists, playlists, and radio-style sessions\n"
+        "• 🔍 Hunt songs by title, mood, and vibe\n\n"
+        "<i>\"Music is something that reaches the soul directly... fortunate for me, because I'm all soul! Yohohoho!\"</i> 💀🎻\n\n"
+        "Tap /help and let us begin tonight's performance."
     )
 
 
@@ -39,13 +40,13 @@ def _build_private_buttons() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup([
         [
             InlineKeyboardButton(
-                "➕ Add Soul King to Group",
+                "➕ Invite Brook to Group",
                 url=f"https://t.me/{config.BOT_USERNAME}?startgroup=true"
             ),
         ],
         [
-            InlineKeyboardButton("📖 Help", callback_data="help_menu"),
-            InlineKeyboardButton("🎸 Support", url="https://t.me/SoulKingSupport"),
+            InlineKeyboardButton("📖 Songbook", callback_data="help_menu"),
+            InlineKeyboardButton("🎸 Crew Support", url="https://t.me/SoulKingSupport"),
         ]
     ])
 
@@ -53,8 +54,8 @@ def _build_private_buttons() -> InlineKeyboardMarkup:
 def _build_group_buttons() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup([
         [
-            InlineKeyboardButton("📖 Help", callback_data="help_menu"),
-            InlineKeyboardButton("🎬 Status", callback_data="status_check"),
+            InlineKeyboardButton("📖 Songbook", callback_data="help_menu"),
+            InlineKeyboardButton("🎬 Stage Status", callback_data="status_check"),
         ]
     ])
 
@@ -126,10 +127,10 @@ async def start_group(client: Client, message: Message):
     mention = message.from_user.mention if message.from_user else "friend"
 
     text = (
-        f"<b>Yohohoho! The Soul King has arrived in {group_name}!</b> 💀🎵\n\n"
-        f"Hey {mention}! I'm ready to perform!\n"
-        f"Use <code>/play [song name]</code> to start a concert in your Voice Chat!\n\n"
-        "<i>\"A heart is a heavy burden… good thing I don't have one! Yohohoho!\"</i>"
+        f"<b>Yohohoho! Brook has taken the stage in {group_name}!</b> 💀🎵\n\n"
+        f"Hey {mention}, the Soul King is tuned up and ready.\n"
+        f"Use <code>/play [song name]</code> to begin a live concert in this crew's voice chat.\n\n"
+        "<i>\"Let us fill the sea with music until even the stars start singing!\"</i>"
     )
     buttons = _build_group_buttons()
     await message.reply_text(text, reply_markup=buttons, parse_mode=ParseMode.HTML)

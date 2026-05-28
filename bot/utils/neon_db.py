@@ -862,30 +862,6 @@ class NeonDatabase:
             logger.error(f"Error toggling playlist collab in Neon: {e}")
             return False
 
-    async def save_jamendo_token(self, user_id: int, token: Dict[str, Any]) -> bool:
-        """Save Jamendo token for user in playlists table."""
-        try:
-            import json
-            with self.conn.cursor() as cur:
-                cur.execute("UPDATE playlists SET jamendo_token = %s WHERE creator_user_id = %s", (json.dumps(token), user_id))
-                self.conn.commit()
-                return True
-        except Exception as e:
-            self.conn.rollback()
-            logger.error(f"Error saving jamendo token in Neon: {e}")
-            return False
-
-    async def get_jamendo_token(self, user_id: int) -> Optional[Dict[str, Any]]:
-        """Get Jamendo token for a user."""
-        try:
-            with self.conn.cursor(cursor_factory=RealDictCursor) as cur:
-                cur.execute("SELECT jamendo_token FROM playlists WHERE creator_user_id = %s AND jamendo_token IS NOT NULL LIMIT 1", (user_id,))
-                result = cur.fetchone()
-                return dict(result['jamendo_token']) if result and result.get('jamendo_token') else None
-        except Exception as e:
-            logger.error(f"Error getting jamendo token from Neon: {e}")
-            return None
-
     # Radio Shows Implementation for Neon
     async def create_radio_show(self, chat_id: int, host_user_id: int, show_name: str, description: str, day: int, time: str, genre: str, duration: int) -> int:
         """Create a new radio show."""

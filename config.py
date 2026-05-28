@@ -145,11 +145,6 @@ class Config(BaseSettings):
     # Per-assistant active VC cap. 0 means unlimited.
     ASSISTANT_MAX_ACTIVE_CHATS: int = 0
 
-    # Legacy Jamendo settings (deprecated: kept for backward compatibility)
-    JAMENDO_CLIENT_ID: Optional[str] = None
-    JAMENDO_CLIENT_SECRET: Optional[str] = None
-    JAMENDO_REDIRECT_URI: Optional[str] = "http://localhost:8000/jamendo/callback"
-
     # Optional feature flags
     ENABLE_PREVIOUS_TRACK: bool = True
     ENABLE_VC_DEBUG: bool = True

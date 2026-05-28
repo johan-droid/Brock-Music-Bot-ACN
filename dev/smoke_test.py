@@ -9,6 +9,19 @@ from bot.utils.formatters import format_track_info
 from bot.utils.title_detector import get_source_weights_for_query
 from bot.utils.cache import cache, init_redis
 
+
+def _configure_console_encoding() -> None:
+    """Keep smoke output readable on Windows shells with legacy code pages."""
+    for stream_name in ("stdout", "stderr"):
+        stream = getattr(sys, stream_name, None)
+        reconfigure = getattr(stream, "reconfigure", None)
+        if callable(reconfigure):
+            try:
+                reconfigure(encoding="utf-8", errors="backslashreplace")
+            except Exception:
+                pass
+
+
 async def main():
     # Init cache (uses SQLite fallback when Redis not configured)
     await init_redis()
@@ -29,4 +42,5 @@ async def main():
     await cache.delete(key)
 
 if __name__ == "__main__":
+    _configure_console_encoding()
     asyncio.run(main())

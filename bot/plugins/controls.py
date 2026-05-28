@@ -2,6 +2,9 @@
 
 import logging
 from pyrogram import Client, filters
+from typing import Any, cast
+
+Client = cast(Any, Client)
 from pyrogram.enums import ParseMode
 from pyrogram.types import Message
 from bot.utils.permissions import require_admin, require_member, rate_limit

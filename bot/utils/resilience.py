@@ -76,9 +76,6 @@ class CircuitBreaker:
         return False
 
 
-jamendo_cb = CircuitBreaker("Jamendo")
-
-
 class RateLimitAware:
     @staticmethod
     async def call_telegram(func, *args, **kwargs):

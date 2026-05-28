@@ -973,27 +973,6 @@ class SupabaseDatabase:
             logger.error(f"Error toggling playlist collab in Supabase: {e}")
             return False
 
-    async def save_jamendo_token(self, user_id: int, token: Dict[str, Any]) -> bool:
-        """Save Jamendo token for user in playlists table."""
-        try:
-            self.client.table("playlists").update({"jamendo_token": token}).eq("creator_user_id", user_id).execute()
-            return True
-        except Exception as e:
-            logger.error(f"Error saving jamendo token in Supabase: {e}")
-            return False
-
-    async def get_jamendo_token(self, user_id: int) -> Optional[Dict[str, Any]]:
-        """Get Jamendo token for a user."""
-        try:
-            result = self.client.table("playlists").select("jamendo_token").eq("creator_user_id", user_id).neq("jamendo_token", "null").limit(1).execute()
-            if result.data and result.data[0].get('jamendo_token'):
-                return result.data[0]['jamendo_token']
-            return None
-        except Exception as e:
-            logger.error(f"Error getting jamendo token from Supabase: {e}")
-            return None
-
-
 # Global instance
 supabase_db: Optional[SupabaseDatabase] = None
 

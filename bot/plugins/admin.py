@@ -12,6 +12,11 @@ import sys
 import psutil
 
 from pyrogram import Client, filters
+from typing import Any, cast
+
+# Treat `Client` as `Any` for the type checker so decorator usages like
+# `@Client.on_message(...)` do not raise false-positive type errors.
+Client = cast(Any, Client)
 from pyrogram.enums import ParseMode
 from pyrogram.types import Message
 from pyrogram.errors import FloodWait, UserNotParticipant, PeerIdInvalid, BadRequest

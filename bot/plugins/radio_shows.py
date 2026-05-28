@@ -13,6 +13,9 @@ Commands:
 import logging
 from typing import Any, Dict
 from pyrogram import Client, filters
+from typing import Any, cast
+
+Client = cast(Any, Client)
 from pyrogram.types import Message
 
 import bot.utils.database as app_db
@@ -249,15 +252,12 @@ async def show_preview_cmd(client: Client, message: Message):
 
     # Just preview first 3 tracks
     for t in tracks[:3]:
-        track_ref = t.get("jamendo_track_id")
-        # In a real scenario we'd lookup the track by ID from backend
-        # Here we just search by ID or mock it if not found
-        results = await music_backend.search(str(track_ref), limit=1)
-        if results:
-            track = results[0]
-            track_dict = track.to_dict()
+        track_ref = t.get("track_id") or t.get("id") or t.get("jamendo_track_id")
+        track_dict = await music_backend.resolve(str(track_ref))
+        if track_dict:
             track_dict["requested_by"] = message.from_user.id
-            track_dict["duration"] = min(track.duration, 30) if track.duration else 30 # Preview 30s
+            duration = int(track_dict.get("duration", 0) or 0)
+            track_dict["duration"] = min(duration, 30) if duration else 30  # Preview 30s
 
             await queue_manager.add_to_queue(
                 chat_id=chat_id,
