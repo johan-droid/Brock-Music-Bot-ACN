@@ -60,7 +60,7 @@ Recommended for busier groups:
 
 - multiple assistant sessions
 - Redis or Upstash Redis for faster cache behavior
-- Supabase or Neon for hosted persistence
+- Neon for hosted persistence
 - metrics endpoint enabled
 
 ## 4. Environment Variable Strategy
@@ -136,7 +136,6 @@ Use one of these if you want better cache performance:
 
 Use one of these when you want application state outside the bot container:
 
-- `SUPABASE_URL` + `SUPABASE_KEY`
 - `NEON_DATABASE_URL`
 - `MONGO_URI` for legacy or existing deployments
 
@@ -249,6 +248,6 @@ For most users, the best operational path is:
 - use SQLite first
 - connect one stable external music server
 - run in polling mode
-- add Redis, Neon, Supabase, or webhooks only when the basic flow is already stable
+- add Redis, Neon, or webhooks only when the basic flow is already stable
 
 That path keeps setup simple and reduces the number of moving parts during first deployment.

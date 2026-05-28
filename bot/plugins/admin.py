@@ -209,7 +209,7 @@ async def sudolist_cmd(client: Client, message: Message):
 @Client.on_message(filters.command("prunedb") & (filters.private | filters.group))
 @require_sudo
 async def prune_db_cmd(client: Client, message: Message):
-    """Manually prune inactive Supabase groups to reclaim database space."""
+    """Manually prune inactive groups to reclaim database space."""
     caller = message.from_user.id if message.from_user else None
     if not caller:
         return
@@ -218,7 +218,7 @@ async def prune_db_cmd(client: Client, message: Message):
         await message.reply(_SUDO_WARN)
         return
 
-    m = await message.reply_text("🧹 Pruning inactive groups from Supabase...")
+    m = await message.reply_text("🧹 Pruning inactive groups from database...")
     try:
         count = await app_db.db.prune_inactive_data()
         await m.edit_text(f"✅ **Database Pruned!**\nDeleted `{count}` inactive group(s) to save space.")

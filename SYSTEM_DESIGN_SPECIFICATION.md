@@ -37,7 +37,7 @@ The running system has five main parts:
    A separate server provides `/search`, `/resolve`, and `/health` style endpoints. The bot uses this service instead of embedding provider-specific music extraction logic in the bot runtime.
 
 5. **Persistence and Cache Layer**
-   The bot can use SQLite by default and optionally Redis, Supabase, Neon, or MongoDB depending on deployment needs.
+   The bot can use SQLite by default and optionally Redis, Neon, or MongoDB depending on deployment needs.
 
 ## 4. Runtime Components
 
@@ -100,7 +100,6 @@ Default local-friendly setup:
 Optional hosted or scaled setup:
 
 - Redis or Upstash Redis for cache
-- Supabase for application data
 - Neon Postgres for database-backed persistence
 - MongoDB where legacy deployments still use it
 
