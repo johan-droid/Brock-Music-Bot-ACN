@@ -20,7 +20,7 @@ from typing import Any, cast
 Client = cast(Any, Client)
 from pyrogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton
 from pyrogram.enums import ParseMode
-from pyrogram.errors import MessageNotModified, MessageDeleteForbidden
+from pyrogram.errors import MessageNotModified, MessageDeleteForbidden, FloodWait
 
 from bot.utils.permissions import rate_limit, require_member, require_admin, get_permission_level
 from bot.utils.formatters import format_duration, truncate_text
@@ -38,6 +38,8 @@ from bot.core import call
 from bot.core import bot as bot_module
 from bot.core.music_backend import music_backend, Track
 from bot.utils.errors import summarize_exception
+from bot.utils.errors import DelegationRequested
+from bot.utils.http_pool import HTTPConnectionPool
 from config import config
 from bot.utils.resilience import global_watchdog, log_error
 
@@ -64,6 +66,30 @@ def _next_quote() -> str:
     q = _BROOK_QUOTES[_BROOK_QUOTE_IDX[0] % len(_BROOK_QUOTES)]
     _BROOK_QUOTE_IDX[0] += 1
     return q
+
+
+async def _safe_edit_message(msg: Optional[Message], text: str, parse_mode: ParseMode = ParseMode.HTML) -> bool:
+    """Edit message safely and absorb Telegram FloodWait for UX/status updates."""
+    if msg is None:
+        return False
+    try:
+        await msg.edit(text, parse_mode=parse_mode)
+        return True
+    except MessageNotModified:
+        return True
+    except FloodWait as exc:
+        wait_seconds = max(1, min(int(getattr(exc, "value", 1) or 1), 30))
+        logger.warning("FloodWait while editing status message (%ss). Retrying once.", wait_seconds)
+        try:
+            await asyncio.sleep(wait_seconds + 1)
+            await msg.edit(text, parse_mode=parse_mode)
+            return True
+        except Exception as retry_exc:
+            logger.warning("Failed to edit status message after FloodWait retry: %s", retry_exc)
+            return False
+    except Exception as exc:
+        logger.warning("Failed to edit status message: %s", exc)
+        return False
 
 
 # Source badges
@@ -282,12 +308,29 @@ async def play_cmd(client: Client, message: Message):
         if True:
             # Text search with conflict detection using unified backend
             logger.info("Searching music for query: %s", query)
-            result = await conflict_resolver.search_with_conflicts(
-                query,
-                lambda q: music_backend.search(q, limit=20),
-                max_results=20,
-            )
-            logger.info("Search finished for query=%s status=%s tracks=%s", query, result.get("status"), len(result.get("tracks", [])))
+            try:
+                result = await conflict_resolver.search_with_conflicts(
+                    query,
+                    lambda q: music_backend.search(q, limit=20),
+                    max_results=20,
+                )
+            except DelegationRequested as dr:
+                delegate = getattr(dr, "delegate", None) or {}
+                note = delegate.get("message") or "The music service asked to delegate this search to another agent."
+                await _safe_edit_message(search_msg, f"🔁 {note}")
+
+                target = delegate.get("target")
+                task_payload = delegate.get("task") or delegate.get("payload") or {"query": query}
+                if isinstance(target, str) and target.startswith("http"):
+                    try:
+                        session = await HTTPConnectionPool.get_session()
+                        timeout = 15
+                        async with session.post(target, json=task_payload, timeout=timeout) as resp:
+                            logger.info("Delegation forwarded to %s (status=%s)", target, getattr(resp, "status", None))
+                    except Exception as exc:
+                        logger.warning("Failed to forward delegation to %s: %s", target, exc)
+                return
+                logger.info("Search finished for query=%s status=%s tracks=%s", query, result.get("status"), len(result.get("tracks", [])))
 
             # Cancel timer task before processing results
             timer_task.cancel()
@@ -298,10 +341,10 @@ async def play_cmd(client: Client, message: Message):
 
             if result["status"] == "not_found":
                 logger.warning("No search results for query: %s", query)
-                await search_msg.edit(
+                await _safe_edit_message(
+                    search_msg,
                     "❌ <b>No results found.</b>\n"
                     "<i>\"The seas were empty this time... Try a different song! Yohoho!\"</i>",
-                    parse_mode=ParseMode.HTML,
                 )
                 return
 
@@ -319,9 +362,9 @@ async def play_cmd(client: Client, message: Message):
                 await add_track_and_play(message, chat_id, user_id, track, search_msg)
                 return
 
-            await search_msg.edit(
+            await _safe_edit_message(
+                search_msg,
                 "❌ <b>No results found.</b>",
-                parse_mode=ParseMode.HTML,
             )
             return
 
@@ -331,7 +374,7 @@ async def play_cmd(client: Client, message: Message):
             await timer_task
         except asyncio.CancelledError:
             pass
-        await search_msg.edit("⏱ <b>Search timed out!</b>\n<i>\"The seas were too vast this time! Try again, Yohoho!\"</i>", parse_mode=ParseMode.HTML)
+        await _safe_edit_message(search_msg, "⏱ <b>Search timed out!</b>\n<i>\"The seas were too vast this time! Try again, Yohoho!\"</i>")
     except Exception as exc:
         timer_task.cancel()
         try:
@@ -339,7 +382,7 @@ async def play_cmd(client: Client, message: Message):
         except asyncio.CancelledError:
             pass
         log_error(f"play_cmd failed", exc)
-        await search_msg.edit(f"❌ <b>Error:</b> <code>{summarize_exception(exc)}</code>", parse_mode=ParseMode.HTML)
+        await _safe_edit_message(search_msg, f"❌ <b>Error:</b> <code>{summarize_exception(exc)}</code>")
 
 
 # ── /vplay ────────────────────────────────────────────────────────────────────
@@ -410,7 +453,7 @@ async def vplay_cmd(client: Client, message: Message):
                 await timer_task
             except asyncio.CancelledError:
                 pass
-            await search_msg.edit("❌ <b>Could not extract video!</b>", parse_mode=ParseMode.HTML)
+            await _safe_edit_message(search_msg, "❌ <b>Could not extract video!</b>")
             return
         track["is_video"] = True
         
@@ -428,7 +471,7 @@ async def vplay_cmd(client: Client, message: Message):
             await timer_task
         except asyncio.CancelledError:
             pass
-        await search_msg.edit("⏱ <b>Search timed out!</b>", parse_mode=ParseMode.HTML)
+        await _safe_edit_message(search_msg, "⏱ <b>Search timed out!</b>")
     except Exception as exc:
         timer_task.cancel()
         try:
@@ -436,7 +479,7 @@ async def vplay_cmd(client: Client, message: Message):
         except asyncio.CancelledError:
             pass
         logger.error(f"vplay_cmd failed: {summarize_exception(exc)}")
-        await search_msg.edit(f"❌ <b>Error:</b> <code>{summarize_exception(exc)}</code>", parse_mode=ParseMode.HTML)
+        await _safe_edit_message(search_msg, f"❌ <b>Error:</b> <code>{summarize_exception(exc)}</code>")
 
 
 # ── Core playback pipeline ────────────────────────────────────────────────────
@@ -609,14 +652,41 @@ async def start_playback(chat_id: int, prefetched_track: Optional[Dict[str, Any]
         logger.info(f"DEBUG start_playback: source={source}, track_id={track_id}, has_url={bool(url)}")
         
         # Always try to resolve/refresh stream URL for stability
-        stream_payload = await music_backend.get_stream_payload(Track(
-            title=track.get("title", ""),
-            artist=track.get("uploader", ""),
-            duration=track.get("duration", 0),
-            stream_url=url,
-            source=source,
-            track_id=track_id
-        ))
+        try:
+            stream_payload = await music_backend.get_stream_payload(Track(
+                title=track.get("title", ""),
+                artist=track.get("uploader", ""),
+                duration=track.get("duration", 0),
+                stream_url=url,
+                source=source,
+                track_id=track_id
+            ))
+        except DelegationRequested as dr:
+            delegate = getattr(dr, "delegate", None) or {}
+            # Notify chat that the microservice asked to delegate the task
+            note = delegate.get("message") or "The music service asked to delegate this task to another agent."
+            try:
+                if bot_module.bot_client:
+                    await bot_module.bot_client.send_message(chat_id, f"🔁 {note}")
+            except Exception:
+                logger.debug("Failed to send delegation notification to chat %s", chat_id)
+
+            # If the delegate payload contains a target URL, forward the task there.
+            target = delegate.get("target")
+            task_payload = delegate.get("task") or delegate.get("payload") or {}
+            if isinstance(target, str) and target.startswith("http"):
+                try:
+                    session = await HTTPConnectionPool.get_session()
+                    timeout = 15
+                    async with session.post(target, json=task_payload, timeout=timeout) as resp:
+                        logger.info("Delegation forwarded to %s (status=%s)", target, getattr(resp, "status", None))
+                except Exception as exc:
+                    logger.warning("Failed to forward delegation to %s: %s", target, exc)
+
+            # Stop playback attempt for now; let the queue remain or user retry.
+            await queue_manager.set_status(chat_id, "idle")
+            await persist_playback_state(chat_id, "idle")
+            return
         logger.info(f"DEBUG start_playback: stream_payload={stream_payload is not None}")
         if stream_payload and stream_payload.get("url"):
             url = stream_payload["url"]

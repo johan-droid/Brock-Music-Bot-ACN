@@ -39,7 +39,7 @@ async def test_search_accepts_results_shape():
 
 
 @pytest.mark.asyncio
-async def test_search_prefers_post_routing_payload_when_available():
+async def test_search_uses_post_routing_as_fallback_after_get_attempts():
     client = MusicMicroserviceClient(base_urls=["https://music-ms.onrender.com"])
     calls = []
 
@@ -52,7 +52,9 @@ async def test_search_prefers_post_routing_payload_when_available():
     client._request = fake_request  # type: ignore[method-assign]
     items = await client.search("song", limit=5, routing={"variants": ["song"]})
     assert items == [{"id": "r1", "title": "Routed Song"}]
-    assert calls[0][0] == "POST"
+    assert calls[0][0] == "GET"
+    assert calls[1][0] == "GET"
+    assert calls[2][0] == "POST"
 
 
 @pytest.mark.asyncio
