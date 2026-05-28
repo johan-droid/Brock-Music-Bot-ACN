@@ -1,4 +1,4 @@
-"""Database layer with support for Supabase, Neon, or SQLite fallback."""
+"""Database layer with support for Neon or SQLite fallback."""
 
 import logging
 import sys
@@ -9,7 +9,7 @@ logger = logging.getLogger(__name__)
 # Global instance
 # Other modules import this directly: keep name stable.
 db = None
-DB_MODE = "supabase"
+DB_MODE = "sqlite"
 
 
 class Database:
@@ -30,7 +30,7 @@ class Database:
 
 
 async def init_database():
-    """Initialize primary database (Neon > Supabase > SQLite fallback)."""
+    """Initialize primary database (Neon > SQLite fallback)."""
     global db, DB_MODE
 
     # Priority 1: Neon Database
@@ -46,29 +46,9 @@ async def init_database():
             logger.info("Database initialized on Neon PostgreSQL.")
             return
         except Exception as e:
-            logger.error(f"Neon connection failed: {e}. Trying Supabase...")
-    
-    # Priority 2: Supabase
-    supabase_url = config.SUPABASE_URL
-    supabase_key = config.SUPABASE_KEY
+            logger.error(f"Neon connection failed: {e}. Falling back to SQLite.")
 
-    if supabase_url and supabase_key:
-        try:
-            from bot.utils.supabase_db import init_supabase
-            init_supabase(supabase_url, supabase_key)
-            
-            # Import AFTER init so we get the initialized singleton instance.
-            import bot.utils.supabase_db as _supabase_module
-            db = _supabase_module.supabase_db
-            DB_MODE = "supabase"
-            logger.info("Database initialized on Supabase Postgres.")
-            return
-        except Exception as e:
-            logger.error(f"Supabase connection failed: {e}. Falling back to SQLite.")
-    else:
-        logger.warning("SUPABASE_URL or SUPABASE_KEY missing. Falling back to SQLite.")
-    
-    # Priority 3: SQLite fallback
+    # Priority 2: SQLite fallback
     _init_sqlite_fallback()
 
 

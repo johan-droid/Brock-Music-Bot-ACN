@@ -66,14 +66,10 @@ class Config(BaseSettings):
     # SQLite cache path (used when Redis is not available)
     SQLITE_CACHE_PATH: str = "./data/cache.db"
     
-    # SQLite database path (fallback for MongoDB/Supabase)
+    # SQLite database path (fallback when Neon is unavailable)
     SQLITE_DB_PATH: str = "./data/database.db"
-    
-    # Supabase (alternative to MongoDB)
-    SUPABASE_URL: Optional[str] = None
-    SUPABASE_KEY: Optional[str] = None
-    
-    # Neon Database (alternative to Supabase/MongoDB)
+
+    # Neon Database (primary hosted database)
     NEON_DATABASE_URL: Optional[str] = None
     
     # Genius (optional - for lyrics)
@@ -120,7 +116,7 @@ class Config(BaseSettings):
 
     # Source policy settings
     LEGAL_SOURCES_FIRST: bool = True
-    PRIORITIZE_EXTRACTORS: bool = True     # Use high-quality extractors before Supabase Index
+    PRIORITIZE_EXTRACTORS: bool = True     # Use high-quality extractors before cached DB index
     PARALLEL_SEARCH: bool = True          # Search all sources at once for speed
 
     # Remote music microservice configuration (Render/other cloud)

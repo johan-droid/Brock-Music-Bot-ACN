@@ -204,25 +204,13 @@ async def check_database() -> HealthCheckResult:
     try:
         from bot.utils.neon_db import neon_db
 
-        if neon_db:
-            if hasattr(neon_db, "health_check") and neon_db.health_check():
-                response_time = (time.time() - start_time) * 1000
-                return HealthCheckResult(
-                    service="database",
-                    status=HealthStatus.HEALTHY,
-                    response_time_ms=response_time,
-                    message="Neon DB connected",
-                )
-
-        from bot.utils.supabase_db import supabase_db
-
-        if supabase_db.client:
+        if neon_db and hasattr(neon_db, "health_check") and neon_db.health_check():
             response_time = (time.time() - start_time) * 1000
             return HealthCheckResult(
                 service="database",
                 status=HealthStatus.HEALTHY,
                 response_time_ms=response_time,
-                message="Supabase connected",
+                message="Neon DB connected",
             )
 
         return HealthCheckResult(
