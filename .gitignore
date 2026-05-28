@@ -3,8 +3,15 @@ __pycache__/
 *.py[cod]
 *$py.class
 *.so
+.python-version
+.mypy_cache/
+.pyre/
+.ruff_cache/
+.hypothesis/
+.ipynb_checkpoints/
 .pytest_cache/
 .coverage
+.coverage.*
 htmlcov/
 .tox/
 .nox/
@@ -37,6 +44,8 @@ venv/
 env/
 ENV/
 .venv/
+.conda/
+.virtualenv/
 env.bak/
 venv.bak/
 
@@ -59,12 +68,17 @@ data/
 *.db-journal
 *.sqlite
 *.sqlite3
+*.sqlite-shm
+*.sqlite-wal
 mongo-data/
 redis-data/
 
 # --- Logs ---
 logs/
 *.log
+*.out
+*.err
+*.pid
 bot_output.log
 bot_startup.log
 startup.log
@@ -75,14 +89,43 @@ startup.log
 .gemini/
 *.swp
 *.swo
+*.tmp
+*.bak
 .DS_Store
 Thumbs.db
+
+# --- Node / Frontend Tooling ---
+node_modules/
+.npm/
+.pnpm-store/
+.yarn/
+.yarn/cache/
+.yarn/unplugged/
+.yarn/build-state.yml
+.yarn/install-state.gz
+.parcel-cache/
+.next/
+.nuxt/
+.svelte-kit/
+coverage/
+dist-ssr/
+storybook-static/
+playwright-report/
+test-results/
+*.tsbuildinfo
+vite.svg
 
 # --- Deployment & Platforms ---
 .railway/
 .heroku/
+.vercel/
+.netlify/
+.serverless/
+.aws-sam/
+.terraform/
+*.tfstate
+*.tfstate.*
 dist-heroku/
-node_modules/
 
 # --- Project Specific ---
 temp/
@@ -92,6 +135,9 @@ pytgcalls_dir.txt
 downloads/
 *.orig
 *.patch
+scratch/
+sessions-backup/
+observability/*.local.yml
 
 # --- Test Artifacts ---
 test_*.py
