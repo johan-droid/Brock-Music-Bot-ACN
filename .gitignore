@@ -5,3 +5,50 @@ sessions/
 *.session
 data/*.db
 youtube-wrapper/cookies.txt
+## Python artifacts
+__pycache__/
+*.py[cod]
+*$py.class
+
+## Virtualenvs and env files
+venv/
+.venv/
+env/
+ENV/
+.env.*
+
+## Build / packaging
+build/
+dist/
+*.egg-info/
+pip-wheel-metadata/
+
+## Test / coverage
+.coverage
+.coverage.*
+.pytest_cache/
+htmlcov/
+
+## IDEs and editors
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+## Logs, caches, and temp files
+logs/
+*.log
+*.log.*
+*.bak
+*.tmp
+.mypy_cache/
+*.cache
+
+## OS
+.DS_Store
+Thumbs.db
+
+## Misc
+*.sqlite3
+*.egg
+install.cmd
