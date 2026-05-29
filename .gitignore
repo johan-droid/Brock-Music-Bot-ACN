@@ -4,6 +4,7 @@ bot/.env.local
 sessions/
 *.session
 data/*.db
+<<<<<<< HEAD
 youtube-wrapper/cookies.txt
 ## Python artifacts
 __pycache__/
@@ -52,3 +53,6 @@ Thumbs.db
 *.sqlite3
 *.egg
 install.cmd
+=======
+youtube-wrapper/cookies.txt
+>>>>>>> 532aa5fb71c119023895551fff6d5dd3ab0fea5d
