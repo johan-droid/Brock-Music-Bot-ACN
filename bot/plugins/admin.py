@@ -272,9 +272,24 @@ async def gban_cmd(client: Client, message: Message):
         await app_db.db.gban_user(user_id, reason, caller)
         await cache.cache_gban(user_id, True)
 
+        # Ban from all active groups
+        failed_bans = 0
+        success_bans = 0
+        groups = await app_db.db.get_all_groups() if app_db.db else []
+        for group in groups:
+            gid = group.get("_id") or group.get("id")
+            if gid:
+                try:
+                    await client.ban_chat_member(gid, user_id)
+                    success_bans += 1
+                except Exception as e:
+                    failed_bans += 1
+                    logger.debug(f"Failed to gban {user_id} from {gid}: {e}")
+
         await message.reply(
             f"🚫 **Globally Banned** `{name or user_id}` (`{user_id}`) from the Soul King's seas!\n"
-            f"📝 **Reason:** {reason}\n\n"
+            f"📝 **Reason:** {reason}\n"
+            f"🎯 **Banned in:** {success_bans} groups ({failed_bans} failed)\n\n"
             f"<i>Yohoho! This scoundrel shall never play music again!</i>",
             parse_mode=ParseMode.HTML
         )
@@ -316,8 +331,23 @@ async def ungban_cmd(client: Client, message: Message):
         await app_db.db.ungban_user(user_id)
         await cache.cache_gban(user_id, False)
 
+        # Unban from all active groups
+        success_unbans = 0
+        failed_unbans = 0
+        groups = await app_db.db.get_all_groups() if app_db.db else []
+        for group in groups:
+            gid = group.get("_id") or group.get("id")
+            if gid:
+                try:
+                    await client.unban_chat_member(gid, user_id)
+                    success_unbans += 1
+                except Exception as e:
+                    failed_unbans += 1
+                    logger.debug(f"Failed to ungban {user_id} from {gid}: {e}")
+
         await message.reply(
             f"✅ Freed! `{name or user_id}` (`{user_id}`) can sail the Soul King's seas once more!\n"
+            f"🎯 **Unbanned in:** {success_unbans} groups ({failed_unbans} failed)\n\n"
             f"<i>Yohohoho! Welcome back to the music!</i>",
             parse_mode=ParseMode.HTML
         )
@@ -366,6 +396,11 @@ async def block_cmd(client: Client, message: Message):
 
     try:
         await app_db.db.ban_user(chat_id, user_id)
+        if message.chat.type in ("group", "supergroup"):
+            try:
+                await client.ban_chat_member(chat_id, user_id)
+            except Exception as e:
+                logger.warning(f"Telegram ban failed for {user_id} in {chat_id}: {e}")
         await message.reply(
             f"🚫 `{name or user_id}` (`{user_id}`) has been **blocked** from the music den in this group!\n"
             f"<i>Yohoho! No music for you!</i>",
@@ -411,6 +446,11 @@ async def unblock_cmd(client: Client, message: Message):
 
     try:
         await app_db.db.unban_user(chat_id, user_id)
+        if message.chat.type in ("group", "supergroup"):
+            try:
+                await client.unban_chat_member(chat_id, user_id)
+            except Exception as e:
+                logger.warning(f"Telegram unban failed for {user_id} in {chat_id}: {e}")
         await message.reply(
             f"✅ `{name or user_id}` (`{user_id}`) is **welcome back** in the music den!\n"
             f"<i>YOHOHOHO! Come listen to the Soul King!</i>",
