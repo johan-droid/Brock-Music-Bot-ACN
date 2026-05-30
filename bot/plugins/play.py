@@ -500,10 +500,15 @@ async def add_track_and_play(
             pass
 
     # --- Intercept for voting mode ---
-    from bot.utils.database import db
-    group_data = await db.get_group(chat_id)
-    settings = group_data.get("settings", {})
-    if settings.get("voting_mode", False):
+    from bot.utils.database import db as _db
+    voting_mode = False
+    if _db is not None:
+        try:
+            group_data = await _db.get_group(chat_id)
+            voting_mode = (group_data or {}).get("settings", {}).get("voting_mode", False)
+        except Exception as _e:
+            logger.debug("Failed to read voting_mode for %s: %s", chat_id, _e)
+    if voting_mode:
         from bot.plugins.anon_requests import start_vote_session
         from bot.core.bot import app
         await start_vote_session(search_msg._client if search_msg else app, chat_id, track, requester_id=user_id, is_anonymous=False)
