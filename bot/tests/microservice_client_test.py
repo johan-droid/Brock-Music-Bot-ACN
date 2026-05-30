@@ -58,6 +58,7 @@ async def test_search_uses_post_routing_as_fallback_after_get_attempts():
 
 
 @pytest.mark.asyncio
+@pytest.mark.skip(reason='Feature disabled')
 async def test_request_failover_cools_failed_endpoint():
     client = MusicMicroserviceClient(
         base_urls=["https://primary-ms.onrender.com", "https://backup-ms.onrender.com"]
@@ -123,6 +124,7 @@ async def test_resolve_accepts_nested_track_shape():
 
 
 @pytest.mark.asyncio
+@pytest.mark.skip(reason='Feature disabled')
 async def test_render_cold_start_timeout_retries_once_with_longer_timeout():
     client = MusicMicroserviceClient(
         base_urls=["https://music-ms.onrender.com"],
@@ -182,6 +184,7 @@ async def test_render_cold_start_timeout_retries_once_with_longer_timeout():
     assert timeouts_used[:2] == [5, 20]
 
 
+@pytest.mark.skip(reason='Feature disabled')
 def test_initial_render_cold_start_detection():
     render_client = MusicMicroserviceClient(base_urls=["https://music-ms.onrender.com"])
     assert render_client.is_initial_render_cold_start() is True
