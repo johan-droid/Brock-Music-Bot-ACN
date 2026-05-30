@@ -168,14 +168,16 @@ async def anonplay_cmd(client: Client, message: Message):
         else:
             conn = getattr(db, "conn", None) or getattr(db, "_get_conn", lambda: None)()
             if conn:
-                try:
-                    with conn.cursor() as cur:
-                        cur.execute("INSERT INTO anon_requests (track_id, requested_by, chat_id) VALUES (%s, %s, %s)", (track.get("id"), str(user_id) if user_id else None, chat_id))
-                    conn.commit()
-                except Exception:
-                    conn.execute("INSERT INTO anon_requests (track_id, requested_by, chat_id) VALUES (?, ?, ?)", (track.get("id"), str(user_id) if user_id else None, chat_id))
-                    if hasattr(conn, "commit"):
+                def _db_op1():
+                    try:
+                        with conn.cursor() as cur:
+                            cur.execute("INSERT INTO anon_requests (track_id, requested_by, chat_id) VALUES (%s, %s, %s)", (track.get("id"), str(user_id) if user_id else None, chat_id))
                         conn.commit()
+                    except Exception:
+                        conn.execute("INSERT INTO anon_requests (track_id, requested_by, chat_id) VALUES (?, ?, ?)", (track.get("id"), str(user_id) if user_id else None, chat_id))
+                        if hasattr(conn, "commit"):
+                            conn.commit()
+                await asyncio.to_thread(_db_op1)
     except Exception as e:
         logger.warning(f"Failed to log anon request to DB: {e}")
 
@@ -224,16 +226,18 @@ async def start_vote_session(client: Client, chat_id: int, track: Dict[str, Any]
             # SQLite / Neon
             conn = getattr(db, "conn", None) or getattr(db, "_get_conn", lambda: None)()
             if conn:
-                try:
-                    # neon
-                    with conn.cursor() as cur:
-                        cur.execute("INSERT INTO vote_sessions (message_id, track_id, chat_id) VALUES (%s, %s, %s)", (msg.id, track.get("id"), chat_id))
-                    conn.commit()
-                except Exception:
-                    # sqlite
-                    conn.execute("INSERT INTO vote_sessions (message_id, track_id, chat_id) VALUES (?, ?, ?)", (msg.id, track.get("id"), chat_id))
-                    if hasattr(conn, "commit"):
+                def _db_op2():
+                    try:
+                        # neon
+                        with conn.cursor() as cur:
+                            cur.execute("INSERT INTO vote_sessions (message_id, track_id, chat_id) VALUES (%s, %s, %s)", (msg.id, track.get("id"), chat_id))
                         conn.commit()
+                    except Exception:
+                        # sqlite
+                        conn.execute("INSERT INTO vote_sessions (message_id, track_id, chat_id) VALUES (?, ?, ?)", (msg.id, track.get("id"), chat_id))
+                        if hasattr(conn, "commit"):
+                            conn.commit()
+                await asyncio.to_thread(_db_op2)
     except Exception as e:
         logger.warning(f"Failed to insert vote session to DB: {e}")
 
@@ -304,14 +308,16 @@ async def on_vote_callback(client: Client, callback_query: CallbackQuery):
         else:
             conn = getattr(db, "conn", None) or getattr(db, "_get_conn", lambda: None)()
             if conn:
-                try:
-                    with conn.cursor() as cur:
-                        cur.execute("UPDATE vote_sessions SET yes_votes=%s, no_votes=%s WHERE message_id=%s", (yes_count, no_count, msg_id))
-                    conn.commit()
-                except Exception:
-                    conn.execute("UPDATE vote_sessions SET yes_votes=?, no_votes=? WHERE message_id=?", (yes_count, no_count, msg_id))
-                    if hasattr(conn, "commit"):
+                def _db_op3():
+                    try:
+                        with conn.cursor() as cur:
+                            cur.execute("UPDATE vote_sessions SET yes_votes=%s, no_votes=%s WHERE message_id=%s", (yes_count, no_count, msg_id))
                         conn.commit()
+                    except Exception:
+                        conn.execute("UPDATE vote_sessions SET yes_votes=?, no_votes=? WHERE message_id=?", (yes_count, no_count, msg_id))
+                        if hasattr(conn, "commit"):
+                            conn.commit()
+                await asyncio.to_thread(_db_op3)
     except Exception:
         pass
 
@@ -332,14 +338,16 @@ async def vote_timeout(client: Client, vote_key: str, chat_id: int, track: Dict[
         else:
             conn = getattr(db, "conn", None) or getattr(db, "_get_conn", lambda: None)()
             if conn:
-                try:
-                    with conn.cursor() as cur:
-                        cur.execute("UPDATE vote_sessions SET expired=TRUE WHERE message_id=%s", (msg_id,))
-                    conn.commit()
-                except Exception:
-                    conn.execute("UPDATE vote_sessions SET expired=1 WHERE message_id=?", (msg_id,))
-                    if hasattr(conn, "commit"):
+                def _db_op4():
+                    try:
+                        with conn.cursor() as cur:
+                            cur.execute("UPDATE vote_sessions SET expired=TRUE WHERE message_id=%s", (msg_id,))
                         conn.commit()
+                    except Exception:
+                        conn.execute("UPDATE vote_sessions SET expired=1 WHERE message_id=?", (msg_id,))
+                        if hasattr(conn, "commit"):
+                            conn.commit()
+                await asyncio.to_thread(_db_op4)
     except Exception:
         pass
 
