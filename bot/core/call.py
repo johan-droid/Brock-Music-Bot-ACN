@@ -764,6 +764,7 @@ class CallManager:
         if seek and seek > 0:
             ffmpeg_params += f"-ss {seek} "
 
+        ffmpeg_params = ffmpeg_params.strip()
         kwargs = {
             "media_path": stream_url,
             "audio_parameters": audio_cfg,
@@ -771,6 +772,8 @@ class CallManager:
         }
         if video_cfg:
             kwargs["video_parameters"] = video_cfg
+        if ffmpeg_params:
+            kwargs["ffmpeg_parameters"] = ffmpeg_params
         return MediaStream(**kwargs)
 
 
