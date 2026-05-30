@@ -20,6 +20,7 @@ logger = logging.getLogger(__name__)
 
 # Global bot client instance
 bot_client: Optional[Client] = None
+_metrics_task: asyncio.Task | None = None
 _health_runner = None
 
 # Health check server for cloud platforms
@@ -296,13 +297,10 @@ async def init_bot():
     await _register_bot_commands(bot_client)
 
     # Start metrics collection background task
-    metrics_task = getattr(bot_client, "metrics_task", None)
-    if metrics_task is None or metrics_task.done():
-        metrics_task = asyncio.create_task(log_metrics_periodically(interval_seconds=300))
-        setattr(bot_client, "metrics_task", metrics_task)
+    global _metrics_task
+    if _metrics_task is None or _metrics_task.done():
+        _metrics_task = asyncio.create_task(log_metrics_periodically(interval_seconds=300))
         logger.info("Metrics collection started (300s interval)")
-    else:
-        logger.debug("Metrics task already running, skipping creation")
 
     return bot_client
 
@@ -313,15 +311,15 @@ async def stop_bot():
     if bot_client is None:
         return
 
-    metrics_task = getattr(bot_client, "metrics_task", None)
-    if metrics_task is not None:
-        metrics_task.cancel()
+    global _metrics_task
+    if _metrics_task is not None:
+        _metrics_task.cancel()
         try:
-            await metrics_task
+            await _metrics_task
         except asyncio.CancelledError:
             pass
         finally:
-            setattr(bot_client, "metrics_task", None)
+            _metrics_task = None
             logger.info("Metrics collection task cancelled")
 
     try:
