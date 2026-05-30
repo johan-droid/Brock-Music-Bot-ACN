@@ -505,8 +505,8 @@ async def add_track_and_play(
     settings = group_data.get("settings", {})
     if settings.get("voting_mode", False):
         from bot.plugins.anon_requests import start_vote_session
-        from bot.core.bot import app
-        await start_vote_session(search_msg._client if search_msg else app, chat_id, track, requester_id=user_id, is_anonymous=False)
+        _client = search_msg._client if search_msg else bot_module.bot_client
+        await start_vote_session(_client, chat_id, track, requester_id=user_id, is_anonymous=False)
         return
     # ---------------------------------
 
