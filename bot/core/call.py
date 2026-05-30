@@ -512,8 +512,8 @@ class CallManager:
 
                     raise RuntimeError(
                         "❌ PEER ERROR: The Assistant account cannot see this chat!\n"
-                        "Please make sure you have added your Assistant account (@Justahuman6996) "
-                        "to this group as a Member or Admin, then try again.\n"
+                        f"Please make sure you have added your Assistant account "
+                        f"to this group as a Member or Admin, then try again.\n"
                         "Additional checks: group must allow voice chats, userbot must be in the group, and group must not be a broadcast-only (channel).\n"
                         f"Details: {final_note}"
                     )
