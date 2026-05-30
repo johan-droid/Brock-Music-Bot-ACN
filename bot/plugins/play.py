@@ -935,6 +935,7 @@ async def on_track_end(chat_id: int) -> None:
 
     # Cancel progress updater and stop live UI session
     _cancel_task(_progress_tasks, chat_id)
+    _cancel_task(_autoclean_tasks, chat_id)
     await soul_king_ui.stop_live_session(chat_id)
 
     # Schedule NP card auto-deletion
