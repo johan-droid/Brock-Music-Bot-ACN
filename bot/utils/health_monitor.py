@@ -192,6 +192,45 @@ health_checker = HealthChecker()
 
 # Health check implementations
 
+async def check_jamendo() -> HealthCheckResult:
+    start_time = time.time()
+    try:
+        from bot.platforms.jamendo import JAMENDO_CLIENT_ID, JamendoClient
+        if not JAMENDO_CLIENT_ID:
+            return HealthCheckResult(
+                service="jamendo",
+                status=HealthStatus.DEGRADED,
+                response_time_ms=0,
+                message="Client ID not configured"
+            )
+
+        # Ping Jamendo
+        res = await JamendoClient.search("test", limit=1)
+        response_time = (time.time() - start_time) * 1000
+
+        if res:
+            return HealthCheckResult(
+                service="jamendo",
+                status=HealthStatus.HEALTHY,
+                response_time_ms=response_time,
+                message="Service healthy"
+            )
+        else:
+            return HealthCheckResult(
+                service="jamendo",
+                status=HealthStatus.UNHEALTHY,
+                response_time_ms=response_time,
+                message="No search results/failed"
+            )
+    except Exception as e:
+        response_time = (time.time() - start_time) * 1000
+        return HealthCheckResult(
+            service="jamendo",
+            status=HealthStatus.UNHEALTHY,
+            response_time_ms=response_time,
+            message=str(e)
+        )
+
 async def check_jiosaavn_wrapper() -> HealthCheckResult:
     """Check JioSaavn wrapper health."""
     from bot.platforms.jiosaavn_wrapper import JIOSAAVN_API_BASE_URL
@@ -332,6 +371,7 @@ async def check_database() -> HealthCheckResult:
 
 def register_default_health_checks():
     """Register all default health checks."""
+    health_checker.register_check("jamendo", check_jamendo)
     health_checker.register_check("jiosaavn_wrapper", check_jiosaavn_wrapper)
     health_checker.register_check("youtube_wrapper", check_youtube_wrapper)
     health_checker.register_check("database", check_database)
