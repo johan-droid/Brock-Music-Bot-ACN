@@ -700,6 +700,18 @@ async def start_playback(chat_id: int, prefetched_track: Optional[Dict[str, Any]
             logger.error(f"Track has no URL and resolution failed in chat {chat_id}: {track}")
             await queue_manager.set_status(chat_id, "idle")
             await persist_playback_state(chat_id, "idle")
+            try:
+                if bot_module.bot_client:
+                    title = track.get("title", "Unknown")
+                    await bot_module.bot_client.send_message(
+                        chat_id,
+                        f"⚠️ Could not resolve stream for {title}. Skipping.",
+                        parse_mode=ParseMode.HTML,
+                    )
+            except Exception:
+                pass
+            # Advance to next track instead of going fully idle
+            asyncio.create_task(start_playback(chat_id))
             return
 
         is_video = track.get("is_video", False)
