@@ -14,8 +14,8 @@ import psutil
 from pyrogram import Client, filters
 from typing import Any, cast
 
-# Treat `Client` as `Any` for the type checker so decorator usages like
-# `@Client.on_message(...)` do not raise false-positive type errors.
+# Treat <code>Client</code> as <code>Any</code> for the type checker so decorator usages like
+# <code>@Client.on_message(...)</code> do not raise false-positive type errors.
 Client = cast(Any, Client)
 from pyrogram.enums import ParseMode
 from pyrogram.types import Message
@@ -41,21 +41,21 @@ logger = logging.getLogger(__name__)
 # ─────────────────────────────────────────────
 
 _OWNER_WARN = (
-    "⛔ **Access Denied!**\n\n"
+    "⛔ <b>Access Denied!</b>\n\n"
     "💀 *\"Yohohoho! Only the Captain can use this command!\"*\n"
-    "This command is reserved for the **bot owner** only."
+    "This command is reserved for the <b>bot owner</b> only."
 )
 
 _SUDO_WARN = (
-    "⛔ **Access Denied!**\n\n"
+    "⛔ <b>Access Denied!</b>\n\n"
     "💀 *\"Yohohoho! You're not part of the Soul King's trusted crew!\"*\n"
-    "This command requires **sudo/owner** privileges."
+    "This command requires <b>sudo/owner</b> privileges."
 )
 
 _ADMIN_WARN = (
-    "⛔ **Access Denied!**\n\n"
+    "⛔ <b>Access Denied!</b>\n\n"
     "💀 *\"Yohohoho! Only group admins may wield this power!\"*\n"
-    "This command is for **group admins** only."
+    "This command is for <b>group admins</b> only."
 )
 
 
@@ -78,7 +78,7 @@ async def _resolve_target(message: Message, client: Client) -> tuple[int | None,
         except (PeerIdInvalid, BadRequest, KeyError):
             await message.reply("❌ User not found. Provide a valid user ID or @username.")
         except Exception as e:
-            await message.reply(f"❌ Error resolving user: `{e}`")
+            await message.reply(f"❌ Error resolving user: <code>{e}</code>")
 
     return None, ""
 
@@ -101,7 +101,7 @@ async def addsudo_cmd(client: Client, message: Message):
 
     if len(message.command) < 2 and not message.reply_to_message:
         await message.reply(
-            "📖 **Usage:** `/addsudo [user_id/@username]`\nor reply to a user's message."
+            "📖 <b>Usage:</b> <code>/addsudo [user_id/@username]</code>\nor reply to a user's message."
         )
         return
 
@@ -114,19 +114,19 @@ async def addsudo_cmd(client: Client, message: Message):
         return
 
     if app_db.db and await app_db.db.is_sudo(user_id):
-        await message.reply(f"ℹ️ `{name}` (`{user_id}`) is already in the crew!")
+        await message.reply(f"ℹ️ <code>{name}</code> (<code>{user_id}</code>) is already in the crew!")
         return
 
     try:
         await app_db.db.add_sudo(user_id, name, caller)
         await message.reply(
-            f"💀 **YOHOHOHO!** [`{name}`](tg://user?id={user_id}) (`{user_id}`) has joined the "
-            f"Soul King's trusted crew as a **sudo user**! ⚔️"
+            f"💀 <b>YOHOHOHO!</b> [<code>{name}</code>](tg://user?id={user_id}) (<code>{user_id}</code>) has joined the "
+            f"Soul King's trusted crew as a <b>sudo user</b>! ⚔️"
         )
         logger.info(f"Sudo added: {user_id} by {caller}")
     except Exception as e:
         logger.error(f"addsudo failed: {e}")
-        await message.reply(f"❌ Failed to add sudo: `{e}`")
+        await message.reply(f"❌ Failed to add sudo: <code>{e}</code>")
 
 
 # ─────────────────────────────────────────────
@@ -146,7 +146,7 @@ async def delsudo_cmd(client: Client, message: Message):
         return
 
     if len(message.command) < 2 and not message.reply_to_message:
-        await message.reply("📖 **Usage:** `/delsudo [user_id/@username]`\nor reply to a user's message.")
+        await message.reply("📖 <b>Usage:</b> <code>/delsudo [user_id/@username]</code>\nor reply to a user's message.")
         return
 
     user_id, name = await _resolve_target(message, client)
@@ -158,18 +158,18 @@ async def delsudo_cmd(client: Client, message: Message):
         return
 
     if app_db.db and not await app_db.db.is_sudo(user_id):
-        await message.reply(f"ℹ️ User `{user_id}` is not in the sudo list.")
+        await message.reply(f"ℹ️ User <code>{user_id}</code> is not in the sudo list.")
         return
 
     try:
         await app_db.db.remove_sudo(user_id)
         await message.reply(
-            f"💀 User `{user_id}` has walked the plank and been removed from the crew! Yohoho!"
+            f"💀 User <code>{user_id}</code> has walked the plank and been removed from the crew! Yohoho!"
         )
         logger.info(f"Sudo removed: {user_id} by {caller}")
     except Exception as e:
         logger.error(f"delsudo failed: {e}")
-        await message.reply(f"❌ Failed to remove sudo: `{e}`")
+        await message.reply(f"❌ Failed to remove sudo: <code>{e}</code>")
 
 
 # ─────────────────────────────────────────────
@@ -197,11 +197,11 @@ async def sudolist_cmd(client: Client, message: Message):
         await message.reply("📭 No sudo users in the crew yet, Yohoho!")
         return
 
-    lines = ["💀⚔️ **The Soul King's Trusted Crew (Sudo Users):**\n"]
+    lines = ["💀⚔️ <b>The Soul King's Trusted Crew (Sudo Users):</b>\n"]
     for sudo in sudos:
         uid = sudo.get("_id", sudo.get("id", "?"))
         uname = sudo.get("name", "Unknown")
-        lines.append(f"• `{uid}` — {uname}")
+        lines.append(f"• <code>{uid}</code> — {uname}")
 
     await message.reply("\n".join(lines))
 
@@ -221,12 +221,12 @@ async def prune_db_cmd(client: Client, message: Message):
     m = await message.reply_text("🧹 Pruning inactive groups from database...")
     try:
         count = await app_db.db.prune_inactive_data()
-        await m.edit_text(f"✅ **Database Pruned!**\nDeleted `{count}` inactive group(s) to save space.")
+        await m.edit_text(f"✅ <b>Database Pruned!</b>\nDeleted <code>{count}</code> inactive group(s) to save space.")
     except AttributeError:
-        await m.edit_text("❌ `prune_inactive_data` method not found. Please ensure you added it to the database class.")
+        await m.edit_text("❌ <code>prune_inactive_data</code> method not found. Please ensure you added it to the database class.")
     except Exception as e:
         logger.error(f"prunedb failed: {e}")
-        await m.edit_text(f"❌ Failed to prune database: `{e}`")
+        await m.edit_text(f"❌ Failed to prune database: <code>{e}</code>")
 
 
 # ─────────────────────────────────────────────
@@ -246,7 +246,7 @@ async def gban_cmd(client: Client, message: Message):
         return
 
     if len(message.command) < 2 and not message.reply_to_message:
-        await message.reply("📖 **Usage:** `/gban [user_id/@username] [reason]`\nor reply to a user's message.")
+        await message.reply("📖 <b>Usage:</b> <code>/gban [user_id/@username] [reason]</code>\nor reply to a user's message.")
         return
 
     user_id, name = await _resolve_target(message, client)
@@ -276,6 +276,14 @@ async def gban_cmd(client: Client, message: Message):
         failed_bans = 0
         success_bans = 0
         groups = await app_db.db.get_all_groups() if app_db.db else []
+
+        # Ensure current chat is in the list of groups to ban from if executed in a group
+        from pyrogram.enums import ChatType
+        current_chat_id = message.chat.id
+        if getattr(message.chat, "type", None) in (ChatType.GROUP, ChatType.SUPERGROUP, "group", "supergroup"):
+            if not any(g.get("_id") == current_chat_id or g.get("id") == current_chat_id for g in groups):
+                groups.append({"_id": current_chat_id})
+
         for group in groups:
             gid = group.get("_id") or group.get("id")
             if gid:
@@ -287,16 +295,16 @@ async def gban_cmd(client: Client, message: Message):
                     logger.debug(f"Failed to gban {user_id} from {gid}: {e}")
 
         await message.reply(
-            f"🚫 **Globally Banned** `{name or user_id}` (`{user_id}`) from the Soul King's seas!\n"
-            f"📝 **Reason:** {reason}\n"
-            f"🎯 **Banned in:** {success_bans} groups ({failed_bans} failed)\n\n"
+            f"🚫 <b>Globally Banned</b> <code>{name or user_id}</code> (<code>{user_id}</code>) from the Soul King's seas!\n"
+            f"📝 <b>Reason:</b> {reason}\n"
+            f"🎯 <b>Banned in:</b> {success_bans} groups ({failed_bans} failed)\n\n"
             f"<i>Yohoho! This scoundrel shall never play music again!</i>",
             parse_mode=ParseMode.HTML
         )
         logger.warning(f"GBan: {user_id} by {caller} reason='{reason}'")
     except Exception as e:
         logger.error(f"gban failed: {e}")
-        await message.reply(f"❌ Failed to gban: `{e}`")
+        await message.reply(f"❌ Failed to gban: <code>{e}</code>")
 
 
 # ─────────────────────────────────────────────
@@ -316,7 +324,7 @@ async def ungban_cmd(client: Client, message: Message):
         return
 
     if len(message.command) < 2 and not message.reply_to_message:
-        await message.reply("📖 **Usage:** `/ungban [user_id/@username]`\nor reply to a user's message.")
+        await message.reply("📖 <b>Usage:</b> <code>/ungban [user_id/@username]</code>\nor reply to a user's message.")
         return
 
     user_id, name = await _resolve_target(message, client)
@@ -325,7 +333,7 @@ async def ungban_cmd(client: Client, message: Message):
 
     try:
         if app_db.db and not await app_db.db.is_gbanned(user_id):
-            await message.reply(f"ℹ️ User `{user_id}` is not globally banned.")
+            await message.reply(f"ℹ️ User <code>{user_id}</code> is not globally banned.")
             return
 
         await app_db.db.ungban_user(user_id)
@@ -335,6 +343,14 @@ async def ungban_cmd(client: Client, message: Message):
         success_unbans = 0
         failed_unbans = 0
         groups = await app_db.db.get_all_groups() if app_db.db else []
+
+        # Ensure current chat is in the list of groups to unban from if executed in a group
+        from pyrogram.enums import ChatType
+        current_chat_id = message.chat.id
+        if getattr(message.chat, "type", None) in (ChatType.GROUP, ChatType.SUPERGROUP, "group", "supergroup"):
+            if not any(g.get("_id") == current_chat_id or g.get("id") == current_chat_id for g in groups):
+                groups.append({"_id": current_chat_id})
+
         for group in groups:
             gid = group.get("_id") or group.get("id")
             if gid:
@@ -346,15 +362,15 @@ async def ungban_cmd(client: Client, message: Message):
                     logger.debug(f"Failed to ungban {user_id} from {gid}: {e}")
 
         await message.reply(
-            f"✅ Freed! `{name or user_id}` (`{user_id}`) can sail the Soul King's seas once more!\n"
-            f"🎯 **Unbanned in:** {success_unbans} groups ({failed_unbans} failed)\n\n"
+            f"✅ Freed! <code>{name or user_id}</code> (<code>{user_id}</code>) can sail the Soul King's seas once more!\n"
+            f"🎯 <b>Unbanned in:</b> {success_unbans} groups ({failed_unbans} failed)\n\n"
             f"<i>Yohohoho! Welcome back to the music!</i>",
             parse_mode=ParseMode.HTML
         )
         logger.info(f"UnGBan: {user_id} by {caller}")
     except Exception as e:
         logger.error(f"ungban failed: {e}")
-        await message.reply(f"❌ Failed to ungban: `{e}`")
+        await message.reply(f"❌ Failed to ungban: <code>{e}</code>")
 
 
 # ─────────────────────────────────────────────
@@ -383,7 +399,7 @@ async def block_cmd(client: Client, message: Message):
             return
 
     if len(message.command) < 2 and not message.reply_to_message:
-        await message.reply("📖 **Usage:** `/block [user_id/@username]`\nor reply to a user's message.")
+        await message.reply("📖 <b>Usage:</b> <code>/block [user_id/@username]</code>\nor reply to a user's message.")
         return
 
     user_id, name = await _resolve_target(message, client)
@@ -402,14 +418,14 @@ async def block_cmd(client: Client, message: Message):
             except Exception as e:
                 logger.warning(f"Telegram ban failed for {user_id} in {chat_id}: {e}")
         await message.reply(
-            f"🚫 `{name or user_id}` (`{user_id}`) has been **blocked** from the music den in this group!\n"
+            f"🚫 <code>{name or user_id}</code> (<code>{user_id}</code>) has been <b>blocked</b> from the music den in this group!\n"
             f"<i>Yohoho! No music for you!</i>",
             parse_mode=ParseMode.HTML
         )
         logger.info(f"Blocked {user_id} in {chat_id} by {caller}")
     except Exception as e:
         logger.error(f"block failed: {e}")
-        await message.reply(f"❌ Failed to block: `{e}`")
+        await message.reply(f"❌ Failed to block: <code>{e}</code>")
 
 
 # ─────────────────────────────────────────────
@@ -437,7 +453,7 @@ async def unblock_cmd(client: Client, message: Message):
             return
 
     if len(message.command) < 2 and not message.reply_to_message:
-        await message.reply("📖 **Usage:** `/unblock [user_id/@username]`\nor reply to a user's message.")
+        await message.reply("📖 <b>Usage:</b> <code>/unblock [user_id/@username]</code>\nor reply to a user's message.")
         return
 
     user_id, name = await _resolve_target(message, client)
@@ -452,14 +468,14 @@ async def unblock_cmd(client: Client, message: Message):
             except Exception as e:
                 logger.warning(f"Telegram unban failed for {user_id} in {chat_id}: {e}")
         await message.reply(
-            f"✅ `{name or user_id}` (`{user_id}`) is **welcome back** in the music den!\n"
+            f"✅ <code>{name or user_id}</code> (<code>{user_id}</code>) is <b>welcome back</b> in the music den!\n"
             f"<i>YOHOHOHO! Come listen to the Soul King!</i>",
             parse_mode=ParseMode.HTML
         )
         logger.info(f"Unblocked {user_id} in {chat_id} by {caller}")
     except Exception as e:
         logger.error(f"unblock failed: {e}")
-        await message.reply(f"❌ Failed to unblock: `{e}`")
+        await message.reply(f"❌ Failed to unblock: <code>{e}</code>")
 
 
 # ─────────────────────────────────────────────
@@ -504,35 +520,35 @@ async def stats_cmd(client: Client, message: Message):
             webhook_status = "Error Fetching"
 
     text = (
-        "📊 **SOUL KING BOT — STATISTICS**\n\n"
+        "📊 <b>SOUL KING BOT — STATISTICS</b>\n\n"
 
-        "👥 **Groups:**\n"
+        "👥 <b>Groups:</b>\n"
 
-        f"• Total: `{stats.get('total_groups', 'N/A')}`\n"
+        f"• Total: <code>{stats.get('total_groups', 'N/A')}</code>\n"
 
-        f"• Active: `{stats.get('active_groups', 'N/A')}`\n"
+        f"• Active: <code>{stats.get('active_groups', 'N/A')}</code>\n"
 
-        f"• Live VCs: `{active_vc}`\n\n"
+        f"• Live VCs: <code>{active_vc}</code>\n\n"
 
-        "👑 **Permissions:**\n"
+        "👑 <b>Permissions:</b>\n"
 
-        f"• Sudo Users: `{stats.get('sudo_users', 'N/A')}`\n"
+        f"• Sudo Users: <code>{stats.get('sudo_users', 'N/A')}</code>\n"
 
-        f"• Globally Banned: `{stats.get('gbanned_users', 'N/A')}`\n\n"
+        f"• Globally Banned: <code>{stats.get('gbanned_users', 'N/A')}</code>\n\n"
 
-        "⚙️ **System:**\n"
+        "⚙️ <b>System:</b>\n"
 
-        f"• Python: `{platform.python_version()}`\n"
+        f"• Python: <code>{platform.python_version()}</code>\n"
 
-        f"• Platform: `{sys.platform}`\n"
+        f"• Platform: <code>{sys.platform}</code>\n"
 
-        f"• Memory Usage: `{mem_usage}%`\n"
+        f"• Memory Usage: <code>{mem_usage}%</code>\n"
 
-        f"• Uptime: `{uptime}`\n"
+        f"• Uptime: <code>{uptime}</code>\n"
 
-        f"• Webhook: `{webhook_status}`\n"
+        f"• Webhook: <code>{webhook_status}</code>\n"
 
-        f"• Bot Version: `2.0 — Pro Mode`\n\n"
+        f"• Bot Version: <code>2.0 — Pro Mode</code>\n\n"
 
         "<i>\"I may be a skeleton, but these stats are very much alive! YOHOHOHO!\"</i>"
     )
@@ -555,7 +571,7 @@ async def broadcast_cmd(client: Client, message: Message):
 
     if len(message.command) < 2 and not message.reply_to_message:
         await message.reply(
-            "📖 **Usage:** `/broadcast [message]`\nor reply to any message to forward it."
+            "📖 <b>Usage:</b> <code>/broadcast [message]</code>\nor reply to any message to forward it."
         )
         return
 
@@ -571,7 +587,7 @@ async def broadcast_cmd(client: Client, message: Message):
         await message.reply("📭 No active groups to broadcast to.")
         return
 
-    status_msg = await message.reply(f"📢 Broadcasting to **{len(groups)}** groups...")
+    status_msg = await message.reply(f"📢 Broadcasting to <b>{len(groups)}</b> groups...")
 
     success = 0
     failed = 0
@@ -623,7 +639,7 @@ async def restart_cmd(client: Client, message: Message):
         return
 
     await message.reply(
-        "🔄 **Restarting the Soul King's ship!**\n"
+        "🔄 <b>Restarting the Soul King's ship!</b>\n"
         "<i>BRB... adjusting my violin strings! Yohoho!</i>",
         parse_mode=ParseMode.HTML
     )
@@ -652,10 +668,10 @@ async def maintenance_cmd(client: Client, message: Message):
     # No argument — show current status
     if len(message.command) < 2:
         current = await cache.is_maintenance()
-        status_str = "🔧 **ON**" if current else "✅ **OFF**"
+        status_str = "🔧 <b>ON</b>" if current else "✅ <b>OFF</b>"
         await message.reply(
-            f"🛠 **Maintenance Mode:** {status_str}\n\n"
-            f"📖 **Usage:** `/maintenance [on/off]`"
+            f"🛠 <b>Maintenance Mode:</b> {status_str}\n\n"
+            f"📖 <b>Usage:</b> <code>/maintenance [on/off]</code>"
         )
         return
 
@@ -664,7 +680,7 @@ async def maintenance_cmd(client: Client, message: Message):
     if arg in ("on", "true", "1", "yes"):
         await cache.set_maintenance(True)
         await message.reply(
-            "🔧 **Maintenance mode ON!**\n"
+            "🔧 <b>Maintenance mode ON!</b>\n"
             "<i>The Soul King is taking a break to polish his violin...\n"
             "Only sudo users may command the bot for now.</i>",
             parse_mode=ParseMode.HTML
@@ -674,14 +690,14 @@ async def maintenance_cmd(client: Client, message: Message):
     elif arg in ("off", "false", "0", "no"):
         await cache.set_maintenance(False)
         await message.reply(
-            "✅ **Maintenance mode OFF!**\n"
+            "✅ <b>Maintenance mode OFF!</b>\n"
             "<i>The Soul King is back on stage — YOHOHOHO! 🎸🎵</i>",
             parse_mode=ParseMode.HTML
         )
         logger.info(f"Maintenance mode DISABLED by {caller}")
 
     else:
-        await message.reply("❌ Invalid argument. Use `on` or `off`.")
+        await message.reply("❌ Invalid argument. Use <code>on</code> or <code>off</code>.")
 
 
 @Client.on_message(filters.command("health") & filters.user(config.OWNER_ID))
