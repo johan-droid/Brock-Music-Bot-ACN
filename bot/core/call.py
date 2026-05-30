@@ -49,8 +49,20 @@ def validate_stream_url(url: str, source: str = "auto") -> bool:
     source_name = (source or "auto").strip().lower()
 
     # Allow trusted local files for Telegram media / Song Hunter clips.
-    if source_name in {"telegram", "song_hunter", "local"} and os.path.isfile(url):
-        return True
+    if source_name in {"telegram", "song_hunter"} and os.path.isfile(url):
+        # Restrict local file access to known safe directories only
+        import pathlib
+        try:
+            resolved = pathlib.Path(url).resolve()
+            safe_roots = [
+                pathlib.Path("/tmp/musicbot").resolve(),
+                pathlib.Path("data/hunter_cache").resolve(),
+            ]
+            if any(str(resolved).startswith(str(r)) for r in safe_roots):
+                return True
+        except Exception:
+            pass
+        return False
 
     # Check URL scheme
     try:
