@@ -314,6 +314,7 @@ async def play_cmd(client: Client, message: Message):
                     lambda q: music_backend.search(q, limit=20),
                     max_results=20,
                 )
+                asyncio.create_task(_expire_old_conflicts())
             except DelegationRequested as dr:
                 delegate = getattr(dr, "delegate", None) or {}
                 note = delegate.get("message") or "The music service asked to delegate this search to another agent."
@@ -1182,6 +1183,17 @@ async def _autoclean_np(chat_id: int, msg_id: int, delay: int) -> None:
 
 _pending_conflicts: dict = {}  # chat_id → {token → {tracks, original_msg, user_id, user_mention}}
 
+async def _expire_old_conflicts() -> None:
+    cutoff = time.time() - 300  # 5 minute TTL
+    for cid in list(_pending_conflicts.keys()):
+        chat = _pending_conflicts[cid]
+        stale = [tok for tok, d in chat.items() if d.get("created_at", 0) < cutoff]
+        for tok in stale:
+            chat.pop(tok, None)
+        if not chat:
+            _pending_conflicts.pop(cid, None)
+
+
 # Source number emojis for a clean numbered list
 _NUM_EMOJI = ["1️⃣", "2️⃣", "3️⃣", "4️⃣", "5️⃣"]
 _SOURCE_ICON = {
@@ -1308,6 +1320,7 @@ async def _show_conflict_options(
         chat_conflicts.pop(tok, None)
 
     chat_conflicts[token] = {
+        "created_at": time.time(),
         "tracks": tracks,
         "original_msg": search_msg,
         "user_mention": message.from_user.mention if message.from_user else "User",
