@@ -330,7 +330,9 @@ async def play_cmd(client: Client, message: Message):
                     except Exception as exc:
                         logger.warning("Failed to forward delegation to %s: %s", target, exc)
                 return
-                logger.info("Search finished for query=%s status=%s tracks=%s", query, result.get("status"), len(result.get("tracks", [])))
+
+            logger.info("Search finished for query=%s status=%s tracks=%s", query, result.get("status"), len(result.get("tracks", [])))
+            asyncio.create_task(_expire_old_conflicts())
 
             # Cancel timer task before processing results
             timer_task.cancel()
@@ -1182,6 +1184,18 @@ async def _autoclean_np(chat_id: int, msg_id: int, delay: int) -> None:
 
 _pending_conflicts: dict = {}  # chat_id → {token → {tracks, original_msg, user_id, user_mention}}
 
+async def _expire_old_conflicts() -> None:
+    import time
+    cutoff = time.time() - 300  # 5 minute TTL
+    for cid in list(_pending_conflicts.keys()):
+        chat = _pending_conflicts[cid]
+        stale = [tok for tok, d in chat.items() if d.get("created_at", 0) < cutoff]
+        for tok in stale:
+            chat.pop(tok, None)
+        if not chat:
+            _pending_conflicts.pop(cid, None)
+
+
 # Source number emojis for a clean numbered list
 _NUM_EMOJI = ["1️⃣", "2️⃣", "3️⃣", "4️⃣", "5️⃣"]
 _SOURCE_ICON = {
@@ -1307,11 +1321,13 @@ async def _show_conflict_options(
     for tok in stale_tokens:
         chat_conflicts.pop(tok, None)
 
+    import time
     chat_conflicts[token] = {
         "tracks": tracks,
         "original_msg": search_msg,
         "user_mention": message.from_user.mention if message.from_user else "User",
         "user_id": user_id,
+        "created_at": time.time(),
     }
 
     await _safe_edit(search_msg, text, InlineKeyboardMarkup(button_rows))
