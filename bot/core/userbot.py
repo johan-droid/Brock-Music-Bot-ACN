@@ -131,7 +131,20 @@ async def init_userbots() -> List[Client]:
         try:
             client = _build_client_from_session(i, auth)
             
-            await client.start()
+            try:
+                await client.start()
+            except Exception as e:
+                import sqlite3
+                if isinstance(e, sqlite3.DatabaseError) or "database disk image is malformed" in str(e).lower() or isinstance(e, pyrogram.errors.AuthKeyUnregistered):
+                    logger.error(f"Session file for userbot {i} is corrupt or unregistered: {e}. Deleting session file.")
+                    if getattr(client, "name", None):
+                        session_file = Path(f"{client.name}.session")
+                        journal_file = Path(f"{client.name}.session-journal")
+                        if session_file.exists(): session_file.unlink()
+                        if journal_file.exists(): journal_file.unlink()
+                    raise e
+                raise e
+
             user_info = await client.get_me()
             
             if user_info.is_bot:

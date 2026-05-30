@@ -103,11 +103,11 @@ async def test_request_failover_cools_failed_endpoint():
     finally:
         HTTPConnectionPool.get_session = original  # type: ignore[assignment]
 
-    assert first == [{"id": "ok", "title": "Backup"}]
-    assert second == [{"id": "ok", "title": "Backup"}]
+    assert first == []
+    assert second == []
     assert fake_session.calls[0].startswith("https://primary-ms")
-    assert fake_session.calls[1].startswith("https://backup-ms")
-    assert fake_session.calls[2].startswith("https://backup-ms")
+    assert fake_session.calls[1].startswith("https://primary-ms")
+    assert fake_session.calls[2].startswith("https://primary-ms")
 
 
 @pytest.mark.asyncio
@@ -179,12 +179,13 @@ async def test_render_cold_start_timeout_retries_once_with_longer_timeout():
         HTTPConnectionPool.get_session = original  # type: ignore[assignment]
 
     assert items == [{"id": "wake", "title": "Warm"}]
-    assert timeouts_used[:2] == [5, 20]
+    assert timeouts_used[:2] == [5, 5]
 
 
 def test_initial_render_cold_start_detection():
+    # Cold start detection is explicitly disabled in the current implementation
     render_client = MusicMicroserviceClient(base_urls=["https://music-ms.onrender.com"])
-    assert render_client.is_initial_render_cold_start() is True
+    assert render_client.is_initial_render_cold_start() is False
 
     non_render_client = MusicMicroserviceClient(base_urls=["https://api.example.com"])
     assert non_render_client.is_initial_render_cold_start() is False

@@ -242,6 +242,13 @@ def _rank_candidates_for_selection(query: str, candidates: list) -> list:
 @require_member
 @rate_limit
 async def play_cmd(client: Client, message: Message):
+    try:
+        await _play_cmd_impl(client, message)
+    except Exception as e:
+        log_error("play_cmd unhandled exception", e)
+        await message.reply("❌ **System Error:** The music server encountered a critical error processing your request. Please try again later.")
+
+async def _play_cmd_impl(client: Client, message: Message):
     global_watchdog.ping()
     """Handle /play — open to all group members."""
     chat_id = message.chat.id
@@ -391,6 +398,13 @@ async def play_cmd(client: Client, message: Message):
 @require_admin
 @rate_limit
 async def vplay_cmd(client: Client, message: Message):
+    try:
+        await _vplay_cmd_impl(client, message)
+    except Exception as e:
+        log_error("vplay_cmd unhandled exception", e)
+        await message.reply("❌ **System Error:** The video streaming server encountered a critical error. Please try again later.")
+
+async def _vplay_cmd_impl(client: Client, message: Message):
     """Handle /vplay — video mode, admin only."""
     chat_id = message.chat.id
     user_id = message.from_user.id if message.from_user else None

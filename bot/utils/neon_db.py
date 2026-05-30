@@ -10,6 +10,24 @@ from datetime import datetime
 
 logger = logging.getLogger(__name__)
 
+from functools import wraps
+
+def auto_reconnect(func):
+    @wraps(func)
+    async def wrapper(self, *args, **kwargs):
+        try:
+            return await func(self, *args, **kwargs)
+        except (psycopg2.OperationalError, psycopg2.InterfaceError) as e:
+            logger.warning(f"Neon Database connection error in {func.__name__}: {e}. Attempting reconnect...")
+            try:
+                self._connect()
+                return await func(self, *args, **kwargs)
+            except Exception as reconnect_err:
+                logger.error(f"Failed to reconnect to Neon Database in {func.__name__}: {reconnect_err}")
+                raise
+    return wrapper
+
+
 # Global singleton
 neon_db: Optional['NeonDatabase'] = None
 
@@ -26,9 +44,17 @@ class NeonDatabase:
     def _connect(self):
         """Establish connection to Neon Database."""
         try:
-            self.conn = psycopg2.connect(self.database_url)
+            # Add robust connection parameters for Neon Postgres (keepalives to prevent idle dropouts)
+            self.conn = psycopg2.connect(
+                self.database_url,
+                keepalives=1,
+                keepalives_idle=30,
+                keepalives_interval=10,
+                keepalives_count=5,
+                sslmode='require'
+            )
             self.conn.autocommit = False
-            logger.info("Connected to Neon Database.")
+            logger.info("Connected to Neon Database with robust keepalives.")
         except Exception as e:
             logger.error(f"Failed to connect to Neon Database: {e}")
             raise
@@ -476,6 +502,7 @@ class NeonDatabase:
             logger.error(f"Neon health check failed: {e}")
             return False
 
+    @auto_reconnect
     async def is_gbanned(self, user_id: int) -> bool:
         """Check if user is globally banned."""
         try:
@@ -483,9 +510,10 @@ class NeonDatabase:
                 cur.execute("SELECT 1 FROM gbanned WHERE id = %s", (user_id,))
                 return cur.fetchone() is not None
         except Exception as e:
-            logger.debug(f"is_gbanned check error: {e}")
+            logger.warning(f"is_gbanned authority lookup failed for user {user_id}: {e}")
             return False
 
+    @auto_reconnect
     async def is_sudo(self, user_id: int) -> bool:
         """Check if user is sudo."""
         try:
@@ -493,7 +521,7 @@ class NeonDatabase:
                 cur.execute("SELECT 1 FROM sudo_users WHERE id = %s", (user_id,))
                 return cur.fetchone() is not None
         except Exception as e:
-            logger.debug(f"is_sudo check error: {e}")
+            logger.warning(f"is_sudo authority lookup failed for user {user_id}: {e}")
             return False
 
     @staticmethod
@@ -693,13 +721,14 @@ class NeonDatabase:
             self.conn.rollback()
             logger.error(f"Error unbanning user in Neon: {e}")
 
+    @auto_reconnect
     async def is_banned(self, chat_id: int, user_id: int) -> bool:
         try:
             with self.conn.cursor() as cur:
                 cur.execute("SELECT 1 FROM groupbans WHERE chat_id = %s AND user_id = %s", (chat_id, user_id))
                 return cur.fetchone() is not None
         except Exception as e:
-            logger.debug(f"is_banned check error: {e}")
+            logger.warning(f"is_banned authority lookup failed for user {user_id} in chat {chat_id}: {e}")
             return False
 
     async def get_stats(self) -> dict:

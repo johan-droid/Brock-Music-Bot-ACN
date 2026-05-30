@@ -90,6 +90,15 @@ async def _resolve_target(message: Message, client: Client) -> tuple[int | None,
 @Client.on_message(filters.command("addsudo") & (filters.group | filters.private))
 @require_sudo
 async def addsudo_cmd(client: Client, message: Message):
+    try:
+        await _addsudo_cmd_impl(client, message)
+    except Exception as e:
+        logger.error(f"addsudo_cmd unhandled exception: {e}")
+        if "log_error" in globals():
+            log_error(f"addsudo_cmd unhandled exception", e)
+        await message.reply("❌ **System Error:** Failed to process addsudo. Please check server logs.")
+
+async def _addsudo_cmd_impl(client: Client, message: Message):
     """Grant sudo privileges to a user (owner/sudo)."""
     caller = message.from_user.id if message.from_user else None
     if not caller:
@@ -136,6 +145,15 @@ async def addsudo_cmd(client: Client, message: Message):
 @Client.on_message(filters.command("delsudo") & (filters.group | filters.private))
 @require_sudo
 async def delsudo_cmd(client: Client, message: Message):
+    try:
+        await _delsudo_cmd_impl(client, message)
+    except Exception as e:
+        logger.error(f"delsudo_cmd unhandled exception: {e}")
+        if "log_error" in globals():
+            log_error(f"delsudo_cmd unhandled exception", e)
+        await message.reply("❌ **System Error:** Failed to process delsudo. Please check server logs.")
+
+async def _delsudo_cmd_impl(client: Client, message: Message):
     """Revoke sudo privileges (owner/sudo)."""
     caller = message.from_user.id if message.from_user else None
     if not caller:
@@ -236,6 +254,15 @@ async def prune_db_cmd(client: Client, message: Message):
 @Client.on_message(filters.command("gban") & (filters.group | filters.private))
 @require_sudo
 async def gban_cmd(client: Client, message: Message):
+    try:
+        await _gban_cmd_impl(client, message)
+    except Exception as e:
+        logger.error(f"gban_cmd unhandled exception: {e}")
+        if "log_error" in globals():
+            log_error(f"gban_cmd unhandled exception", e)
+        await message.reply("❌ **System Error:** The global ban operation encountered a critical error.")
+
+async def _gban_cmd_impl(client: Client, message: Message):
     """Globally ban a user (sudo+)."""
     caller = message.from_user.id if message.from_user else None
     if not caller:
@@ -306,6 +333,15 @@ async def gban_cmd(client: Client, message: Message):
 @Client.on_message(filters.command("ungban") & (filters.group | filters.private))
 @require_sudo
 async def ungban_cmd(client: Client, message: Message):
+    try:
+        await _ungban_cmd_impl(client, message)
+    except Exception as e:
+        logger.error(f"ungban_cmd unhandled exception: {e}")
+        if "log_error" in globals():
+            log_error(f"ungban_cmd unhandled exception", e)
+        await message.reply("❌ **System Error:** The global unban operation encountered a critical error.")
+
+async def _ungban_cmd_impl(client: Client, message: Message):
     """Remove global ban (sudo+)."""
     caller = message.from_user.id if message.from_user else None
     if not caller:
@@ -364,6 +400,15 @@ async def ungban_cmd(client: Client, message: Message):
 @Client.on_message(filters.command("block") & (filters.group | filters.private))
 @rate_limit
 async def block_cmd(client: Client, message: Message):
+    try:
+        await _block_cmd_impl(client, message)
+    except Exception as e:
+        logger.error(f"block_cmd unhandled exception: {e}")
+        if "log_error" in globals():
+            log_error(f"block_cmd unhandled exception", e)
+        await message.reply("❌ **System Error:** The block operation encountered a critical error.")
+
+async def _block_cmd_impl(client: Client, message: Message):
     """Block user (sudo+)."""
     caller = message.from_user.id if message.from_user else None
     chat_id = message.chat.id if message.chat else None
@@ -419,6 +464,15 @@ async def block_cmd(client: Client, message: Message):
 @Client.on_message(filters.command("unblock") & (filters.group | filters.private))
 @rate_limit
 async def unblock_cmd(client: Client, message: Message):
+    try:
+        await _unblock_cmd_impl(client, message)
+    except Exception as e:
+        logger.error(f"unblock_cmd unhandled exception: {e}")
+        if "log_error" in globals():
+            log_error(f"unblock_cmd unhandled exception", e)
+        await message.reply("❌ **System Error:** The unblock operation encountered a critical error.")
+
+async def _unblock_cmd_impl(client: Client, message: Message):
     """Unblock user (sudo+)."""
     caller = message.from_user.id if message.from_user else None
     chat_id = message.chat.id if message.chat else None

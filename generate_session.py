@@ -72,6 +72,22 @@ async def main():
         # Export the session string directly
         session_string = await app.export_session_string()
 
+        # Structurally validate the session string
+        if not session_string or len(session_string) < 50:
+            print("\n❌ ERROR: Generated session string is malformed or too short.")
+            return
+
+        import base64
+        try:
+            # Pyrogram session strings are typically base64url encoded with stripped padding
+            padding = "=" * (4 - (len(session_string) % 4))
+            decoded = base64.urlsafe_b64decode(session_string + padding)
+            if len(decoded) < 10:
+                raise ValueError("Decoded string too short")
+        except Exception as e:
+            print(f"\n❌ ERROR: Failed to structurally validate session string: {e}")
+            return
+
         print("\n" + "="*60)
         print("✅ SUCCESS! Logged in as:", me.first_name)
         print("(@" + (me.username or "no username") + ")")
