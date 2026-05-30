@@ -56,3 +56,4 @@ install.cmd
 =======
 youtube-wrapper/cookies.txt
 >>>>>>> 532aa5fb71c119023895551fff6d5dd3ab0fea5d
+__pycache__/
