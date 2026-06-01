@@ -8,7 +8,8 @@ from aiohttp import web
 from fastapi import FastAPI, Request, Response
 from fastapi.responses import PlainTextResponse, JSONResponse
 import uvicorn
-from admin_panel import admin_app
+# admin_panel not implemented yet
+admin_app = None
 from pyrogram.client import Client
 from pyrogram.sync import idle
 from pyrogram.types import BotCommand
@@ -132,7 +133,8 @@ async def start_health_server():
 
     app = FastAPI(title="Health Server")
 
-    app.mount("/admin", admin_app)
+    if admin_app is not None:
+        app.mount("/admin", admin_app)
 
     @app.get("/")
     @app.get("/health")
