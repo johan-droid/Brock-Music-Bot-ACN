@@ -1,16 +1,15 @@
 """Pyrogram Bot Client initialization."""
 
-import logging
 import asyncio
-from typing import Optional
+import logging
 import os
-from aiohttp import web
+from typing import Optional
+
 from fastapi import FastAPI, Request, Response
 from fastapi.responses import PlainTextResponse, JSONResponse
 import uvicorn
 from admin_panel import admin_app
 from pyrogram.client import Client
-from pyrogram.sync import idle
 from pyrogram.types import BotCommand
 from config import config
 from bot.utils.metrics import metrics_collector, log_metrics_periodically
@@ -21,6 +20,7 @@ logger = logging.getLogger(__name__)
 # Global bot client instance
 bot_client: Optional[Client] = None
 _health_runner = None
+
 
 # Health check server for cloud platforms
 async def health_check():
@@ -41,19 +41,12 @@ async def telegram_webhook(request: Request):
 
     try:
         data = await request.json()
-        # Feed the update to Pyrogram's dispatcher
-        # Note: We must use the internal dispatcher for raw updates
-        from pyrogram.types import Update
-        # This is a bit of a hack as Pyrogram doesn't have a public webhook feeder
-        # but we can simulate it or just use polling if preferred.
-        # For now, we log that we received it.
-        logger.debug(f"Received webhook update: {data}")
-        
-        # If we are in Webhook mode, we should ideally parse this.
-        # However, many users just want the bot to NOT crash when Telegram hits it.
+        logger.debug("Received webhook update: %s", data)
+        # Pyrogram does not expose a stable public webhook feeder here. Keeping
+        # this endpoint non-crashing is still useful for health/webhook probes.
         return Response(content="OK", status_code=200)
     except Exception as e:
-        logger.error(f"Error processing webhook: {e}")
+        logger.error("Error processing webhook: %s", e)
         return Response(status_code=500)
 
 
@@ -116,7 +109,28 @@ async def _register_bot_commands(client: Client) -> None:
         await setter(commands)
         logger.info("Registered %d Telegram bot commands", len(commands))
     except Exception as exc:
-        logger.warning(f"Failed to register Telegram bot commands: {exc}")
+        logger.warning("Failed to register Telegram bot commands: %s", exc)
+
+
+def _get_valid_port() -> Optional[int]:
+    """Return a safe platform health-server port, or None in worker mode."""
+    port_str = os.getenv("PORT")
+    if not port_str:
+        logger.info("PORT environment variable not found. Skipping health check server (Worker mode).")
+        return None
+
+    try:
+        port = int(port_str)
+    except (TypeError, ValueError):
+        logger.warning("Invalid PORT=%r. Skipping health check server instead of crashing.", port_str)
+        return None
+
+    if port <= 0 or port > 65535:
+        logger.warning("PORT=%s is outside valid TCP range. Skipping health check server.", port)
+        return None
+
+    return port
+
 
 async def start_health_server():
     """Start health check server using FastAPI."""
@@ -125,9 +139,8 @@ async def start_health_server():
     if _health_runner is not None:
         return _health_runner
 
-    port_str = os.getenv("PORT")
-    if not port_str:
-        logger.info("PORT environment variable not found. Skipping health check server (Worker mode).")
+    port = _get_valid_port()
+    if port is None:
         return None
 
     app = FastAPI(title="Health Server")
@@ -141,8 +154,11 @@ async def start_health_server():
 
     if config.WEBHOOK_URL:
         webhook_path = config.WEBHOOK_PATH or "/webhook"
+        if not webhook_path.startswith("/"):
+            webhook_path = f"/{webhook_path}"
+            config.WEBHOOK_PATH = webhook_path
         app.post(webhook_path)(telegram_webhook)
-        logger.info(f"Webhook endpoint registered at {webhook_path}")
+        logger.info("Webhook endpoint registered at %s", webhook_path)
 
     try:
         if getattr(config, "METRICS_HTTP_ENABLED", False):
@@ -157,7 +173,7 @@ async def start_health_server():
                         token = auth_stripped[7:].strip()
                     else:
                         return Response(content="Unauthorized: Use Bearer token", status_code=401)
-                
+
                 if token is None:
                     token = request.query_params.get("token", "").strip()
 
@@ -179,9 +195,10 @@ async def start_health_server():
             @app.get("/metrics/prometheus")
             async def _metrics_prom():
                 stats = metrics_collector.get_stats_by_action()
-                lines = []
-                lines.append('# HELP musicbot_callback_total Total callbacks received per action')
-                lines.append('# TYPE musicbot_callback_total counter')
+                lines = [
+                    '# HELP musicbot_callback_total Total callbacks received per action',
+                    '# TYPE musicbot_callback_total counter',
+                ]
                 for action, s in stats.items():
                     count = s.get("count", 0)
                     avg = s.get("avg_time_ms", 0)
@@ -194,12 +211,11 @@ async def start_health_server():
     except Exception:
         logger.exception("Failed to register metrics endpoints")
 
-    port = int(port_str)
-
-    # Configure and run uvicorn server in background
+    # Configure and run uvicorn server in background.
     u_config = uvicorn.Config(app, host="0.0.0.0", port=port, loop="asyncio", log_level="warning")
     runner = uvicorn.Server(u_config)
-    asyncio.create_task(runner.serve())
+    task = asyncio.create_task(runner.serve())
+    task.add_done_callback(lambda t: logger.exception("Health server stopped unexpectedly", exc_info=t.exception()) if not t.cancelled() and t.exception() else None)
 
     logger.info("Health check server started on port %s", port)
     _health_runner = runner
@@ -208,7 +224,7 @@ async def start_health_server():
 
 async def init_bot():
     """Initialize and start the bot client.
-    
+
     Auto-loads all plugins from bot/plugins/ directory.
     """
     if not config.TELEGRAM_ENABLED:
@@ -240,31 +256,27 @@ async def init_bot():
         plugins=dict(root="bot/plugins"),
     )
 
-    # Start health check server (only if PORT is available)
+    # Start health check server (only if PORT is available and valid)
     await start_health_server()
 
-    # Determine update method: Webhook vs Polling
-    # Note: Webhooks require a 'web' process and a PORT.
-    if config.WEBHOOK_URL and os.getenv("PORT"):
-        # Webhook mode
+    # Determine update method: Webhook vs Polling.
+    if config.WEBHOOK_URL and _get_valid_port() is not None:
         webhook_addr = f"{config.WEBHOOK_URL.rstrip('/')}{config.WEBHOOK_PATH}"
-        logger.info(f"Setting webhook to: {webhook_addr}")
+        logger.info("Setting webhook to: %s", webhook_addr)
         await bot_client.set_webhook(
             url=webhook_addr,
             secret_token=config.WEBHOOK_SECRET,
             max_connections=int(os.getenv("WEBHOOK_MAX_CONNECTIONS", "40")),
-            drop_pending_updates=True
+            drop_pending_updates=True,
         )
         webhook_info = await bot_client.get_webhook_info()
-        logger.info(f"Webhook status: {webhook_info}")
-        # In webhook mode, we only CONNECT the client, we don't START polling
+        logger.info("Webhook status: %s", webhook_info)
         await bot_client.connect()
         logger.info("Bot connected in WEBHOOK mode.")
     else:
-        # Polling mode: Ensure no stale webhooks exist
-        if config.WEBHOOK_URL and not os.getenv("PORT"):
-            logger.warning("WEBHOOK_URL is set but no PORT found (Worker mode). Falling back to POLLING.")
-            
+        if config.WEBHOOK_URL:
+            logger.warning("WEBHOOK_URL is set but no valid PORT exists. Falling back to POLLING.")
+
         try:
             await bot_client.delete_webhook()
             logger.info("Stale webhooks cleared.")
@@ -274,21 +286,25 @@ async def init_bot():
         logger.info("Bot started in POLLING mode (Worker).")
 
     bot_info = await bot_client.get_me()
-    logger.info(f"Bot info: @{bot_info.username} (id={bot_info.id})")
+    logger.info("Bot info: @%s (id=%s)", bot_info.username, bot_info.id)
 
     if config.BOT_ID and bot_info.id != config.BOT_ID:
         logger.warning(
-            f"Configured BOT_ID={config.BOT_ID} does not match actual bot id {bot_info.id}."
+            "Configured BOT_ID=%s does not match actual bot id %s.",
+            config.BOT_ID,
+            bot_info.id,
         )
 
     if config.BOT_USERNAME and bot_info.username and config.BOT_USERNAME.lower().strip("@") != bot_info.username.lower():
         logger.warning(
-            f"Configured BOT_USERNAME={config.BOT_USERNAME} does not match actual bot username @{bot_info.username}."
+            "Configured BOT_USERNAME=%s does not match actual bot username @%s.",
+            config.BOT_USERNAME,
+            bot_info.username,
         )
 
     if not config.BOT_USERNAME and bot_info.username:
         config.BOT_USERNAME = bot_info.username
-        logger.info(f"BOT_USERNAME was not set; using @{config.BOT_USERNAME} from Telegram API")
+        logger.info("BOT_USERNAME was not set; using @%s from Telegram API", config.BOT_USERNAME)
 
     if bot_info.username and config.BOT_USERNAME_ALT and bot_info.username.lower() == config.BOT_USERNAME_ALT.lower().strip("@"):
         logger.info("Bot username matches configured BOT_USERNAME_ALT")
@@ -328,6 +344,6 @@ async def stop_bot():
         await bot_client.stop()
         logger.info("Bot client stopped")
     except Exception as exc:
-        logger.error(f"Error stopping bot client: {exc}")
+        logger.error("Error stopping bot client: %s", exc)
     finally:
         bot_client = None
