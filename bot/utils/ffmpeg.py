@@ -5,6 +5,7 @@ Includes stream validation routine before playback.
 """
 
 import asyncio
+import contextlib
 import json
 import logging
 import os
