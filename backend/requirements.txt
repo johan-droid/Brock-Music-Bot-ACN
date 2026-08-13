@@ -1,0 +1,43 @@
+# Production Dependencies for Brook Music Bot
+# Core Telegram
+pyrogram==2.0.106
+py-tgcalls==2.3.3
+# tgcrypto is optional (needs C compiler/python3-dev); Pyrogram falls back to aiohttp crypto without it
+# tgcrypto==1.2.5
+
+# Config / validation
+pydantic==2.13.4
+pydantic-settings==2.15.0
+python-dotenv==1.2.2
+
+# Database (Neon PostgreSQL primary, SQLite fallback)
+psycopg2-binary==2.9.12
+aiosqlite==0.22.1
+
+# Cache
+redis==8.1.0
+upstash-redis==1.7.0
+
+# HTTP / async
+aiohttp==3.14.3
+
+# Media
+yt-dlp==2026.7.4
+Pillow==12.3.0
+
+# Audio effects
+pydub==0.25.1
+pedalboard==0.9.24
+
+# Scheduler
+apscheduler==3.11.3
+
+# System
+psutil==7.2.2
+
+# API / server
+fastapi==0.141.1
+uvicorn==0.52.2
+
+# Utils
+typing-extensions==4.16.0

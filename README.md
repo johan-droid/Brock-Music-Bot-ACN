@@ -39,14 +39,15 @@ Brook can:
 
 2. Install dependencies
    ```bash
+   cd backend
    pip install -r requirements.txt
    ```
 
-3. Copy `.env.example` to `.env`, then add your Telegram credentials, assistant session, and music server URL
+3. Copy `.env.example` to `.env.local`, then add your Telegram credentials, assistant session, and music server URL
 
 4. Start the bot
    ```bash
-   supervisord -n -c supervisor.conf
+   python -m app
    ```
 
 ## Main Commands
@@ -71,7 +72,7 @@ This bot leans hard into the Soul King mood:
 ## Notes
 
 - The bot expects a separate music server URL in `MUSIC_MICROSERVICE_URL`
-- `docker-compose.yml` is set up for the bot itself, not a bundled music backend
+- All backend code lives under `backend/` (`backend/app`), with deployment configs in `backend/deploy/`
 - The docs in this repo now match the current client-bot stage of the project:
   - [System Design Specification](SYSTEM_DESIGN_SPECIFICATION.md)
   - [Operational Engineering Guide](OPERATIONAL_ENGINEERING_GUIDE.md)

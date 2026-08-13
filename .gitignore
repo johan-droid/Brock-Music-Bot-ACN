@@ -1,11 +1,23 @@
 # Local secrets and runtime artifacts
 .env
-bot/.env.local
+.env.local
+app/.env.local
+backend/.env.local
 sessions/
+backend/sessions/
 *.session
+*.session-journal
+*_state.json
+/vc_code.txt
 data/*.db
-<<<<<<< HEAD
+data/*.db-*
+backend/data/*.db
+backend/data/*.db-*
+backend/data/cache.db
+
+# YouTube wrapper cookies
 youtube-wrapper/cookies.txt
+
 ## Python artifacts
 __pycache__/
 *.py[cod]
@@ -17,6 +29,7 @@ venv/
 env/
 ENV/
 .env.*
+!.env.example
 
 ## Build / packaging
 build/
@@ -53,7 +66,3 @@ Thumbs.db
 *.sqlite3
 *.egg
 install.cmd
-=======
-youtube-wrapper/cookies.txt
->>>>>>> 532aa5fb71c119023895551fff6d5dd3ab0fea5d
-__pycache__/
