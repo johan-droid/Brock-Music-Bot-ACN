@@ -33,8 +33,8 @@ Brook can:
 
 1. Clone the repo
    ```bash
-   git clone https://github.com/johan-droid/Music-Bot
-   cd Music-Bot
+   git clone https://github.com/johan-droid/Brock-Music-Bot-ACN
+   cd Brock-Music-Bot-ACN
    ```
 
 2. Install dependencies
@@ -74,9 +74,7 @@ This bot leans hard into the Soul King mood:
 - The bot expects a separate music server URL in `MUSIC_MICROSERVICE_URL`
 - All backend code lives under `backend/` (`backend/app`), with deployment configs in `backend/deploy/`
 - The docs in this repo now match the current client-bot stage of the project:
-  - [System Design Specification](SYSTEM_DESIGN_SPECIFICATION.md)
-  - [Operational Engineering Guide](OPERATIONAL_ENGINEERING_GUIDE.md)
-  - [Research & Performance Analysis](RESEARCH_AND_PERFORMANCE_ANALYSIS.md)
+  - [API Documentation](API.md)
 - There is also a more detailed `.env.example` now, so users can follow the setup step by step instead of guessing env names
 
 ---

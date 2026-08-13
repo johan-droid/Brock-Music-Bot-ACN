@@ -6,7 +6,7 @@ The bot exposes an HTTP server (FastAPI) for health checks, metrics, Telegram we
 
 ## Server
 
-The FastAPI server is started by `app/core/bot.py::start_health_server()` and bound to `0.0.0.0:<PORT>`.
+The FastAPI server is started by `backend/app/core/bot.py::start_health_server()` and bound to `0.0.0.0:<PORT>`.
 
 ## Endpoints
 
