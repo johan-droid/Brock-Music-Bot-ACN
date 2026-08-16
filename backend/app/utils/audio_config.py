@@ -149,10 +149,15 @@ class AudioOptimizer:
         return ffmpeg_params
     
     def _build_audio_filter(self) -> str:
-        """Build FFmpeg audio filter chain for optimal quality."""
+        """Build a lightweight FFmpeg filter chain for low-latency playback.
+
+        Kept deliberately lean: high-quality resampling, optional loudness
+        normalization and a safety limiter. The previous chain also ran a
+        compressor, a sub-20Hz highpass and a no-op volume filter, which added
+        meaningful CPU cost for no audible benefit on voice-chat streams.
+        """
         filters = []
-        filters.append("aresample=resampler=soxr:precision=28")
-        filters.append("acompressor=threshold=-18dB:ratio=3:attack=10:release=100")
+        filters.append("aresample=resampler=soxr:precision=16")
         if self.config.use_loudnorm:
             filters.append(
                 f"loudnorm=I={self.config.loudnorm_target}:"
@@ -160,9 +165,7 @@ class AudioOptimizer:
                 f"measured_I=0:measured_TP=0:"
                 f"measured_LRA=0:measured_thresh=0"
             )
-        filters.append("highpass=f=20")
         filters.append("alimiter=level_in=1:level_out=1:limit=0.95:attack=5:release=50")
-        filters.append("volume=1.0")
         return ",".join(filters)
     def get_ntgcalls_params(self) -> Dict[str, Any]:
         """Get NTgCalls (low-level) parameters for py-tgcalls 2.x."""

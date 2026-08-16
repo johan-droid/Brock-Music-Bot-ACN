@@ -113,6 +113,8 @@ class SQLiteCache:
     
     async def set(self, key: str, value: str, ex: int = 0):
         """Set string value with optional TTL."""
+        if ex is None:
+            ex = 0
         # Store in memory for hot data (< 5 min TTL)
         if 0 < ex <= 300:
             _memory_cache[key] = value

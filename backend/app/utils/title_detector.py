@@ -237,7 +237,11 @@ class TitleConflictResolver:
         # Generate search variants
         variants = generate_search_variants(query)
         all_results = []
-        
+
+        # Run the primary query first and short-circuit: the original query is by
+        # far the most likely to return good results, so only fall through to the
+        # variants when it comes up empty. This avoids up to 3x redundant
+        # (and slow, network-bound) search calls on the common path.
         for variant in variants[:3]:  # Try first 3 variants
             try:
                 results = await search_func(variant)
@@ -246,6 +250,7 @@ class TitleConflictResolver:
                         all_results.extend(results)
                     else:
                         all_results.append(results)
+                    break
             except Exception as e:
                 logger.error(f"Search variant/fallback failed: {e}")
 

@@ -609,7 +609,44 @@ class MusicBackend:
 
         return tracks
 
+    @staticmethod
+    def _payload_cache_key(track: Track) -> str:
+        if not track:
+            return ""
+        source = _normalize_source(track.source)
+        key_part = track.track_id or track.stream_url or track.title
+        if not key_part:
+            return ""
+        return f"payload:{source}:{key_part}"
+
     async def get_stream_payload(self, track: Track) -> Optional[Dict[str, Any]]:
+        if not track:
+            return None
+
+        # Cache resolved stream payloads so repeat plays start instantly
+        # instead of re-running the slow yt-dlp resolve every time. Cache
+        # access is best-effort: the multi-tier cache imports are lazy to
+        # avoid module-import cycles at startup.
+        cache_key = self._payload_cache_key(track)
+        if cache_key:
+            try:
+                cached, _ = await _get_multi_cache().get(cache_key)
+                if cached:
+                    return cached
+            except Exception:
+                pass
+
+        payload = await self._resolve_payload(track)
+
+        if payload and cache_key:
+            try:
+                await _get_multi_cache().set(cache_key, payload, ttl=1800)
+            except Exception:
+                pass
+
+        return payload
+
+    async def _resolve_payload(self, track: Track) -> Optional[Dict[str, Any]]:
         if not track:
             return None
 

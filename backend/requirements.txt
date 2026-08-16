@@ -2,8 +2,10 @@
 # Core Telegram
 pyrogram==2.0.106
 py-tgcalls==2.3.3
-# tgcrypto is optional (needs C compiler/python3-dev); Pyrogram falls back to aiohttp crypto without it
-# tgcrypto==1.2.5
+# tgcrypto is optional but recommended: gives ~10x MTProto crypto speedup.
+# It needs the Python dev headers (e.g. `sudo apt install python3.12-dev`)
+# to build locally; Pyrogram falls back to aiohttp crypto without it.
+tgcrypto==1.2.5
 
 # Config / validation
 pydantic==2.13.4

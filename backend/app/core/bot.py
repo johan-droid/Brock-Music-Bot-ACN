@@ -3,6 +3,7 @@
 import asyncio
 import logging
 import os
+import sqlite3
 from typing import Optional
 
 from fastapi import FastAPI, Request, Response
@@ -20,6 +21,52 @@ logger = logging.getLogger(__name__)
 # Global bot client instance
 bot_client: Optional[Client] = None
 _health_runner = None
+
+
+def _clean_stale_session_locks(session_dir: str) -> None:
+    """Remove stale Pyrogram session journal/shm/wal files left behind by crashes.
+
+    SQLite automatically rolls back a hot journal once the process that owned it
+    has exited, but leftover lock artifacts can still trip Pyrogram's short
+    (1s) busy timeout and abort startup with "database is locked".
+    """
+    for name in os.listdir(session_dir):
+        if name.endswith((".session-journal", ".session-shm", ".session-wal")):
+            path = os.path.join(session_dir, name)
+            try:
+                os.remove(path)
+                logger.info("Removed stale session lock file: %s", path)
+            except OSError:
+                pass
+
+
+def _is_session_lock_error(exc: BaseException) -> bool:
+    return "database is locked" in str(exc) or "database table is locked" in str(exc)
+
+
+async def _start_with_lock_retry(awaitable_factory, *, attempts: int = 5, base_delay: float = 2.0) -> None:
+    """Run ``awaitable_factory()`` retrying when Pyrogram's session DB is locked.
+
+    A previous bot instance may still be releasing its SQLite locks while the
+    platform supervisor restarts this process; Pyrogram only waits 1s before
+    giving up, so we retry with backoff instead of crashing.
+    """
+    for attempt in range(1, attempts + 1):
+        try:
+            await awaitable_factory()
+            return
+        except Exception as exc:
+            if not _is_session_lock_error(exc) or attempt == attempts:
+                raise
+            delay = base_delay * attempt
+            logger.warning(
+                "Pyrogram session database is locked (attempt %d/%d). "
+                "Another instance may still be shutting down. Retrying in %.1fs...",
+                attempt,
+                attempts,
+                delay,
+            )
+            await asyncio.sleep(delay)
 
 
 # Health check server for cloud platforms
@@ -257,7 +304,7 @@ async def start_health_server():
 async def init_bot():
     """Initialize and start the bot client.
 
-    Auto-loads all plugins from bot/plugins/ directory.
+    Auto-loads all plugins from app/plugins/ directory.
     """
     if not config.TELEGRAM_ENABLED:
         logger.info("TELEGRAM_ENABLED is false; skipping bot client initialization")
@@ -285,8 +332,10 @@ async def init_bot():
         api_hash=config.API_HASH,
         bot_token=config.BOT_TOKEN,
         workdir=session_dir,
-        plugins=dict(root="bot/plugins"),
+        plugins=dict(root="app/plugins"),
     )
+
+    _clean_stale_session_locks(session_dir)
 
     # Start health check server (only if PORT is available and valid)
     await start_health_server()
@@ -303,7 +352,7 @@ async def init_bot():
         )
         webhook_info = await bot_client.get_webhook_info()
         logger.info("Webhook status: %s", webhook_info)
-        await bot_client.connect()
+        await _start_with_lock_retry(bot_client.connect)
         logger.info("Bot connected in WEBHOOK mode.")
     else:
         if config.WEBHOOK_URL:
@@ -314,7 +363,7 @@ async def init_bot():
             logger.info("Stale webhooks cleared.")
         except Exception:
             pass
-        await bot_client.start()
+        await _start_with_lock_retry(bot_client.start)
         logger.info("Bot started in POLLING mode (Worker).")
 
     bot_info = await bot_client.get_me()

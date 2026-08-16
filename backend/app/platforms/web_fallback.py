@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
 from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
@@ -54,8 +55,8 @@ def _provider_order(raw: Optional[str]) -> List[str]:
     return deduped
 
 
-def _yt_dlp_opts() -> Dict[str, Any]:
-    return {
+def _yt_dlp_opts(fast: bool = False) -> Dict[str, Any]:
+    opts = {
         "quiet": True,
         "no_warnings": True,
         "noplaylist": True,
@@ -65,6 +66,35 @@ def _yt_dlp_opts() -> Dict[str, Any]:
         "cachedir": False,
         "socket_timeout": 20,
     }
+    if fast:
+        # Fast search mode: fetch only the playlist/search metadata without
+        # resolving each result. Typically 3-4x faster than full extraction and
+        # still includes title/duration/channel/url, which is all the selection
+        # menu needs. The full stream URL is resolved later when a track plays.
+        opts.update(
+            {
+                "extract_flat": True,
+                "lazy_playlist": True,
+            }
+        )
+
+    # Use the Android player client for YouTube by default: its stream URLs are
+    # not gated by the same bot-detection as the web clients, which return HTTP
+    # 403 on videoplayback without a logged-in session. Override with
+    # YTDLP_YOUTUBE_CLIENT or YTDLP_EXTRACTOR_ARGS if needed.
+    custom_args = os.getenv("YTDLP_EXTRACTOR_ARGS", "").strip()
+    if custom_args:
+        opts["extractor_args"] = {"youtube": [a.strip() for a in custom_args.split(";") if a.strip()]}
+    else:
+        client = os.getenv("YTDLP_YOUTUBE_CLIENT", "android").strip() or "android"
+        opts["extractor_args"] = {"youtube": [f"player_client={client}"]}
+
+    # Optional cookie file for logged-in playback (see README / bot docs).
+    cookiefile = os.getenv("YTDLP_COOKIES_FILE", "cookies.txt").strip()
+    if cookiefile and os.path.isfile(cookiefile):
+        opts["cookiefile"] = cookiefile
+
+    return opts
 
 
 def _info_to_track(info: Dict[str, Any], source: str, prefer_webpage_url: bool = False) -> Optional[Dict[str, Any]]:
@@ -80,10 +110,17 @@ def _info_to_track(info: Dict[str, Any], source: str, prefer_webpage_url: bool =
     if not stream_url and not webpage_url:
         return None
 
+    thumb = info.get("thumbnail")
+    if not thumb:
+        thumbs = info.get("thumbnails")
+        if isinstance(thumbs, list) and thumbs:
+            thumb = thumbs[-1].get("url") if isinstance(thumbs[-1], dict) else None
+
     artist = (
         info.get("artist")
         or info.get("uploader")
         or info.get("channel")
+        or info.get("creator")
         or "Unknown Artist"
     )
 
@@ -94,7 +131,7 @@ def _info_to_track(info: Dict[str, Any], source: str, prefer_webpage_url: bool =
         "duration": int(info.get("duration") or 0),
         "stream_url": stream_url,
         "url": stream_url,
-        "thumbnail": info.get("thumbnail"),
+        "thumbnail": thumb,
         "source": source,
         "track_id": str(track_id),
         "id": str(track_id),
@@ -103,10 +140,10 @@ def _info_to_track(info: Dict[str, Any], source: str, prefer_webpage_url: bool =
     }
 
 
-def _extract_sync(target: str, default_search: Optional[str] = None) -> Optional[Dict[str, Any]]:
+def _extract_sync(target: str, default_search: Optional[str] = None, fast: bool = False) -> Optional[Dict[str, Any]]:
     if not HAS_YTDLP:
         return None
-    opts = _yt_dlp_opts()
+    opts = _yt_dlp_opts(fast=fast)
     if default_search:
         opts["default_search"] = default_search
     with yt_dlp.YoutubeDL(opts) as ydl:
@@ -132,8 +169,30 @@ async def resolve_url(target: str, source: str = "external") -> Optional[Dict[st
         return None
 
 
+async def _search_provider(provider: str, query: str, limit: int) -> List[Dict[str, Any]]:
+    """Search a single provider via yt-dlp (fast flat extraction)."""
+    prefix = _SEARCH_PREFIX.get(provider)
+    if not prefix:
+        return []
+
+    search_term = f"{prefix}{max(1, int(limit))}:{query}"
+    try:
+        info = await asyncio.to_thread(_extract_sync, search_term, None, True)
+    except Exception as exc:
+        logger.debug("Local fallback search failed for provider=%s query=%r: %s", provider, query, exc)
+        return []
+
+    out: List[Dict[str, Any]] = []
+    entries = info.get("entries") if isinstance(info, dict) and isinstance(info.get("entries"), list) else []
+    for entry in entries:
+        track = _info_to_track(entry, source=provider, prefer_webpage_url=True)
+        if track:
+            out.append(track)
+    return out
+
+
 async def search_tracks(query: str, limit: int = 5, provider_priority: Optional[str] = None) -> List[Dict[str, Any]]:
-    """Search tracks across provider prefixes via yt-dlp."""
+    """Search tracks across provider prefixes via yt-dlp, concurrently."""
     text = (query or "").strip()
     if not text:
         return []
@@ -142,28 +201,17 @@ async def search_tracks(query: str, limit: int = 5, provider_priority: Optional[
         return []
 
     providers = _provider_order(provider_priority)
+    results = await asyncio.gather(
+        *(_search_provider(provider, text, limit) for provider in providers),
+        return_exceptions=True,
+    )
+
     out: List[Dict[str, Any]] = []
     seen: set[str] = set()
-
-    for provider in providers:
-        prefix = _SEARCH_PREFIX.get(provider)
-        if not prefix:
+    for tracks in results:
+        if isinstance(tracks, Exception) or not tracks:
             continue
-        search_term = f"{prefix}{max(1, int(limit))}:{text}"
-
-        try:
-            info = await asyncio.to_thread(_extract_sync, search_term, None)
-        except Exception as exc:
-            logger.debug("Local fallback search failed for provider=%s query=%r: %s", provider, text, exc)
-            continue
-
-        entries = info.get("entries") if isinstance(info, dict) and isinstance(info.get("entries"), list) else []
-        for entry in entries:
-            if not isinstance(entry, dict):
-                continue
-            track = _info_to_track(entry, source=provider, prefer_webpage_url=True)
-            if not track:
-                continue
+        for track in tracks:
             dedupe_key = (track.get("track_id") or track.get("url") or track.get("title") or "").strip().lower()
             if not dedupe_key or dedupe_key in seen:
                 continue

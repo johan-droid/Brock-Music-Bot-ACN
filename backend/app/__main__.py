@@ -7,15 +7,9 @@ import contextlib
 import logging
 import os
 
-import pyrogram.errors
+from app.core.pytgcalls_compat import apply_patches  # noqa: E402
 
-# Monkey-patch for py-tgcalls compatibility with newer pyrogram versions
-if not hasattr(pyrogram.errors, "GroupcallForbidden"):
-    setattr(
-        pyrogram.errors,
-        "GroupcallForbidden",
-        getattr(pyrogram.errors, "BroadcastForbidden", pyrogram.errors.Forbidden),
-    )
+apply_patches()
 
 from app.core.bot import init_bot, start_health_server
 from app.core.userbot import init_userbots
@@ -151,6 +145,30 @@ async def _main_impl():
         if config.TELEGRAM_ENABLED:
             await init_bot()
             logger.info("Main bot client started and responding to updates.")
+
+            # ---- TEMP DIAGNOSTIC (remove later) ----
+            import logging as _logging
+            _logging.getLogger("pyrogram").setLevel(_logging.INFO)
+
+            from app.core.bot import bot_client
+
+            async def _dbg_raw_update(client, update, users, chats):
+                _logging.getLogger(__name__).info(
+                    "[DIAG] RAW UPDATE: %s", type(update).__name__
+                )
+
+            async def _dbg_any(client, message):
+                _logging.getLogger(__name__).info(
+                    "[DIAG] MESSAGE from=%s text=%r",
+                    message.from_user.id if message.from_user else None,
+                    (message.text or "")[:60],
+                )
+
+            bot_client.on_raw_update(_dbg_raw_update)
+            bot_client.on_message(_dbg_any)
+            _logging.getLogger(__name__).info("[DIAG] raw-update echo installed; handlers=%d",
+                                              len(bot_client.dispatcher.groups.get(0, [])))
+            # ---- END TEMP DIAGNOSTIC ----
         else:
             logger.warning("Telegram client is disabled. Health server will stay up for diagnostics.")
 
