@@ -1,0 +1,28 @@
+[package]
+name = "brook-music-bot"
+version = "0.1.0"
+edition = "2021"
+authors = ["Brook Music Bot Contributors"]
+description = "Soul King Telegram Music Bot in Rust"
+
+[dependencies]
+tokio = { version = "1.38", features = ["full"] }
+teloxide = { version = "0.13", default-features = false, features = ["macros", "rustls"] }
+axum = { version = "0.7", features = ["macros"] }
+tower-http = { version = "0.5", features = ["cors", "trace", "auth"] }
+sqlx = { version = "0.7", default-features = false, features = ["runtime-tokio-rustls", "sqlite", "postgres", "chrono", "json"] }
+moka = { version = "0.12", features = ["future"] }
+reqwest = { version = "0.12", default-features = false, features = ["json", "stream", "rustls-tls"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+dotenvy = "0.15"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+dashmap = "5.5"
+anyhow = "1.0"
+thiserror = "1.0"
+chrono = { version = "0.4", features = ["serde"] }
+rand = "0.8"
+url = "2.5"
+urlencoding = "2.1"
+base64 = "0.22"

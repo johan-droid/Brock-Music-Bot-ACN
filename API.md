@@ -2,21 +2,32 @@
 
 ## Overview
 
-The bot exposes an HTTP server (FastAPI) for health checks, metrics, Telegram webhooks, and a protected admin panel. The server runs on the port in the `PORT` environment variable (skipped entirely in worker mode when `PORT` is not set).
+Brook Music Bot exposes an HTTP server for health checks, Prometheus / JSON metrics, Telegram webhooks, and an administrative dashboard.
 
-## Server
+The server is supported across both engines:
+- **Rust Engine** (`rust_backend/src/api/mod.rs`): Powered by **Axum** 0.7 & Tokio.
+- **Python Engine** (`backend/app/api.py`): Powered by **FastAPI** & Uvicorn.
 
-The FastAPI server is started by `backend/app/core/bot.py::start_health_server()` and bound to `0.0.0.0:<PORT>`.
+The server runs on the port specified in the `PORT` environment variable (skipped entirely in worker mode when `PORT` is omitted or unset).
 
-## Endpoints
+---
+
+## Server Initialization
+
+- **Rust**: Spawns an asynchronous Axum HTTP service bound to `0.0.0.0:<PORT>` in `rust_backend/src/main.rs`.
+- **Python**: Started by `backend/app/core/bot.py::start_health_server()` and bound to `0.0.0.0:<PORT>`.
+
+---
+
+## Endpoints Summary
 
 | Method | Path                      | Auth                        | Description                          |
 | ------ | ------------------------- | --------------------------- | ------------------------------------ |
 | GET    | `/`                       | None                        | Health check (returns `OK`)          |
-| GET    | `/health`                 | None                        | Health check (returns `OK`)          |
+| GET    | `/health`                 | None                        | Liveness probe check (returns `OK`)  |
 | POST   | `/webhook`                | None                        | Telegram update webhook (optional)   |
-| GET    | `/metrics`                | Bearer token (optional)     | JSON metrics                        |
-| GET    | `/metrics/prometheus`     | None                        | Prometheus metrics                   |
+| GET    | `/metrics`                | Bearer token (optional)     | JSON metrics payload                |
+| GET    | `/metrics/prometheus`     | None                        | Prometheus exposition format text    |
 | GET    | `/admin/`                 | HTTP Basic (`admin`)        | Admin dashboard (HTML)               |
 | GET    | `/admin/api/stats`        | HTTP Basic (`admin`)        | System + bot statistics              |
 | GET    | `/admin/api/queues`       | HTTP Basic (`admin`)        | Live queues for active voice chats   |
@@ -26,270 +37,198 @@ The FastAPI server is started by `backend/app/core/bot.py::start_health_server()
 
 ## 1. Health Check
 
-```
+```http
 GET /health
 ```
 
-Returns HTTP 200 with body `OK`. Used by platform health checks (Docker `HEALTHCHECK`, Heroku).
+Returns HTTP `200 OK` with body `OK`. Used by platform liveness checks (Docker `HEALTHCHECK`, Kubernetes probes, Render, Railway, Heroku).
 
 `GET /` behaves identically.
 
 ---
 
-## 2. Telegram Webhook (optional)
+## 2. Telegram Webhook (Optional)
 
-```
+```http
 POST /webhook
 ```
 
-Only registered when `WEBHOOK_URL` is configured. The path can be changed via `WEBHOOK_PATH` (default `/webhook`). The bot forwards Telegram update payloads to its Pyrogram client.
+Only registered when `WEBHOOK_URL` is configured. The endpoint path can be customized via `WEBHOOK_PATH` (default `/webhook`). The bot processes incoming Telegram webhook update payloads.
 
 ---
 
-## 3. JSON Metrics (optional)
+## 3. JSON Metrics (Optional)
 
-```
+```http
 GET /metrics
 ```
 
-Enabled only when `METRICS_HTTP_ENABLED=true`.
+Enabled when `METRICS_HTTP_ENABLED=true`.
 
-**Authentication:**
+### Authentication
 
-- If `METRICS_HTTP_TOKEN` is set, a token is required in either:
-  - `Authorization: Bearer <token>` header
-  - `?token=<token>` query parameter
+If `METRICS_HTTP_TOKEN` is set, requests must pass the token via:
+- `Authorization: Bearer <token>` header, OR
+- `?token=<token>` query parameter
+
+### Response (JSON)
+```json
+{
+  "timestamp": "2026-08-16T12:00:00.000000Z",
+  "uptime_seconds": 86400.0,
+  "active_vcs": 3,
+  "status": "healthy"
+}
+```
+
+---
+
+## 4. Prometheus Metrics (Optional)
+
+```http
+GET /metrics/prometheus
+```
+
+Enabled when `METRICS_PROMETHEUS_ENABLED=true`. Returns `text/plain` formatted for Prometheus scraper collection:
+
+```prometheus
+# HELP musicbot_active_voice_chats Number of active voice chats
+# TYPE musicbot_active_voice_chats gauge
+musicbot_active_voice_chats 3
+musicbot_uptime_seconds 86400
+```
+
+---
+
+## 5. Admin Panel & API
+
+The admin dashboard is mounted at `/admin/`. All admin endpoints require **HTTP Basic Authentication**:
+- **Username**: `admin`
+- **Password**: Set via `ADMIN_PASSWORD` environment variable
+
+> ⚠️ If `ADMIN_PASSWORD` is not configured, admin endpoints return `503 Service Unavailable` or `401 Unauthorized`.
+
+### 5.1 Dashboard UI
+```http
+GET /admin/
+```
+Returns an HTML dashboard page for managing active calls and system health.
+
+### 5.2 System Statistics
+```http
+GET /admin/api/stats
+```
 
 **Response (JSON):**
 ```json
 {
-  "timestamp": "2026-08-13T12:00:00.000000",
-  "uptime_seconds": 86400.0,
-  "total_samples": 205,
-  "stats_by_action": {
-    "play": {
-      "count": 120,
-      "total_time_ms": 40824.0,
-      "avg_time_ms": 340.2,
-      "min_time_ms": 10,
-      "max_time_ms": 900,
-      "cache_hits": 0,
-      "cache_misses": 120,
-      "cache_hit_rate": 0.0
-    }
-  },
-  "recent_metrics": [
-    {
-      "action": "play",
-      "response_time_ms": 340.2,
-      "cache_hit": false,
-      "db_time_ms": 2.1
-    }
-  ]
-}
-```
-
-Note: `stats_by_action` and `recent_metrics` are empty until callbacks are recorded. Fields such as `total_time_ms`, `min_time_ms`, `max_time_ms`, `cache_hits`, and `cache_misses` are present on every action entry.
-
----
-
-## 4. Prometheus Metrics (optional)
-
-```
-GET /metrics/prometheus
-```
-
-Enabled only when `METRICS_PROMETHEUS_ENABLED=true`. Returns `text/plain` in Prometheus exposition format:
-
-```
-# HELP musicbot_callback_total Total callbacks received per action
-# TYPE musicbot_callback_total counter
-musicbot_callback_total{action="play"} 120
-musicbot_callback_avg_ms{action="play"} 340.2
-musicbot_total_samples 205
-```
-
-Note: the `musicbot_callback_avg_ms` line has no `# HELP`/`# TYPE` entry and the `# TYPE musicbot_callback_total counter` line is emitted even when no samples exist yet.
-
----
-
-## 5. Admin Panel
-
-The admin panel is mounted at `/admin`. All admin routes require **HTTP Basic Auth** with username `admin` and password set by `ADMIN_PASSWORD`.
-
-> If `ADMIN_PASSWORD` is not configured, admin routes return `503` (disabled).
-
-### 5.1 Dashboard
-
-```
-GET /admin/
-```
-
-Returns an HTML dashboard page.
-
-### 5.2 Statistics
-
-```
-GET /admin/api/stats
-```
-
-**Response:**
-```json
-{
   "uptime": 86400,
-  "memory_percent": 45.2,
-  "cpu_percent": 12.5,
-  "active_vcs": 1,
-  "total_users": 14,
-  "total_tracks_played": 0,
+  "memory_percent": 15.4,
+  "cpu_percent": 2.1,
+  "active_vcs": 2,
+  "engine": "Rust (Tokio / Axum / Teloxide)",
   "music_microservice": {
     "configured": true,
-    "healthy": true,
-    "endpoints": [
-      {
-        "url": "https://music.example.com/health",
-        "ok": true,
-        "status": 200
-      }
-    ]
-  },
-  "errors": []
-}
-```
-
-### 5.3 Live Queues
-
-```
-GET /admin/api/queues
-```
-
-Returns a map of active voice chat IDs to their current track and queue:
-
-```json
-{
-  "-100123456789": {
-    "current": { "title": "Never Gonna Give You Up", "url": "https://...", "duration": 212, "source": "youtube" },
-    "queue": [
-      { "title": "Together Forever", "url": "https://...", "duration": 180, "source": "youtube" }
-    ]
+    "healthy": true
   }
 }
 ```
 
-### 5.4 Forced Actions
-
+### 5.3 Live Voice Chat Queues
+```http
+GET /admin/api/queues
 ```
+
+Returns a map of active chat IDs to their currently playing track and queued setlist:
+
+```json
+{
+  "-100123456789": {
+    "current": {
+      "title": "Binks' Sake",
+      "url": "https://...",
+      "duration": 210,
+      "source": "youtube",
+      "requested_by": 123456
+    },
+    "queue_len": 4,
+    "loop_mode": "Off",
+    "is_paused": false
+  }
+}
+```
+
+### 5.4 Forced Administrative Actions
+```http
 POST /admin/api/action
 ```
 
-**Request body:**
+**Request Body (JSON):**
 ```json
 {
   "action": "leave_vc",
   "chat_id": -100123456789,
-  "message": "optional"
+  "message": "Maintenance restart"
 }
 ```
 
-**Supported actions:**
+**Supported Actions:**
 
-| Action          | Extra field | Description                        |
+| Action          | Fields | Description |
 | --------------- | ----------- | ---------------------------------- |
-| `restart`       | -           | Restart the bot process            |
-| `clear_caches`  | -           | Clear cache keys                   |
-| `leave_vc`      | `chat_id`   | Force-leave a voice chat           |
-| `broadcast`     | `message`   | Trigger a broadcast                |
-
-Returns `400` with `{"detail": "Invalid action"}` for unknown actions.
-
----
-
-## Error Responses
-
-Standard FastAPI error format:
-
-```json
-{
-  "detail": "Error description"
-}
-```
-
-### Common Error Codes
-
-- `400 Bad Request` - Invalid action or request
-- `401 Unauthorized` - Invalid or missing authentication credentials
-- `503 Service Unavailable` - Admin panel disabled (`ADMIN_PASSWORD` not set)
+| `restart`       | - | Restart the bot process |
+| `clear_caches`  | - | Clear in-memory Moka / Redis caches |
+| `leave_vc`      | `chat_id` | Force-leave a voice chat session |
+| `broadcast`     | `message` | Trigger owner message broadcast |
 
 ---
 
 ## Configuration Reference
 
-| Env var                     | Default      | Effect                                         |
-| --------------------------- | ------------ | ---------------------------------------------- |
-| `PORT`                      | (unset)      | Port for the HTTP server. Unset = worker mode (server skipped) |
-| `ADMIN_PASSWORD`            | (unset)      | Password for `/admin/*`. Unset = admin disabled |
-| `METRICS_HTTP_ENABLED`      | `false`      | Enable `GET /metrics`                          |
-| `METRICS_HTTP_TOKEN`        | (unset)      | Bearer token for `GET /metrics`                |
-| `METRICS_PROMETHEUS_ENABLED`| `false`      | Enable `GET /metrics/prometheus`               |
-| `WEBHOOK_URL`               | (unset)      | Register the Telegram webhook endpoint         |
-| `WEBHOOK_PATH`              | `/webhook`   | Path for the webhook endpoint                  |
+| Environment Variable | Default | Description |
+| :--- | :--- | :--- |
+| `PORT` | (unset) | Port for the HTTP server. Unset = worker mode (server skipped). |
+| `ADMIN_PASSWORD` | (unset) | HTTP Basic Auth password for `/admin/*`. Unset = admin disabled. |
+| `METRICS_HTTP_ENABLED` | `false` | Enable `GET /metrics` JSON endpoint. |
+| `METRICS_HTTP_TOKEN` | (unset) | Bearer token requirement for `GET /metrics`. |
+| `METRICS_PROMETHEUS_ENABLED` | `false` | Enable `GET /metrics/prometheus` endpoint. |
+| `WEBHOOK_URL` | (unset) | Register Telegram webhook endpoint URL. |
+| `WEBHOOK_PATH` | `/webhook` | Path for the webhook endpoint. |
 
 ---
 
-## Usage Examples
+## Code & Usage Examples
 
 ### cURL
 
 ```bash
 # Health check
-curl https://your-bot-url/health
+curl http://localhost:8000/health
 
-# Admin stats (Basic auth)
-curl -u admin:your-password https://your-bot-url/admin/api/stats
+# Admin statistics (Basic Auth)
+curl -u admin:supersecret http://localhost:8000/admin/api/stats
 
-# JSON metrics (Bearer token)
-curl -H "Authorization: Bearer your-token" https://your-bot-url/metrics
-
-# Leave a voice chat
-curl -u admin:your-password \
-  -X POST https://your-bot-url/admin/api/action \
+# Force clear caches
+curl -u admin:supersecret \
+  -X POST http://localhost:8000/admin/api/action \
   -H "Content-Type: application/json" \
-  -d '{"action":"leave_vc","chat_id":-100123456789}'
+  -d '{"action":"clear_caches"}'
 ```
 
-### Python
+### Rust (`reqwest`)
 
-```python
-import requests
+```rust
+use reqwest::Client;
 
-BASE_URL = "https://your-bot-url"
-ADMIN_PASSWORD = "your-password"
-
-# Health check
-print(requests.get(f"{BASE_URL}/health").text)
-
-# Admin stats
-stats = requests.get(f"{BASE_URL}/admin/api/stats", auth=("admin", ADMIN_PASSWORD))
-print(stats.json())
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let client = Client::new();
+    let res = client
+        .get("http://localhost:8000/admin/api/stats")
+        .basic_auth("admin", Some("supersecret"))
+        .send()
+        .await?;
+    println!("Stats: {}", res.text().await?);
+    Ok(())
+}
 ```
-
-### JavaScript
-
-```javascript
-const BASE_URL = "https://your-bot-url";
-
-// Admin stats
-const stats = await fetch(`${BASE_URL}/admin/api/stats`, {
-  headers: { Authorization: `Basic ${btoa("admin:your-password")}` }
-});
-console.log(await stats.json());
-```
-
----
-
-## Notes
-
-- The HTTP server is **optional**: in worker mode (no `PORT` env var) it is skipped entirely.
-- The health check returns plain text `OK` and is the canonical liveness probe.
-- All admin endpoints are disabled until `ADMIN_PASSWORD` is set.
-- Metrics endpoints are disabled by default; enable them via the config flags above.

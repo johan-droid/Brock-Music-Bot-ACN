@@ -65,11 +65,13 @@ env.bak/
 venv.bak/
 
 # Build, Packaging & Distribution
+target/
 build/
 dist/
 *.egg-info/
 pip-wheel-metadata/
 *.egg
+*.rs.bk
 
 # Test, Coverage & Linters
 .coverage
