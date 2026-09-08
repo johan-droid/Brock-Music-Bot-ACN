@@ -382,9 +382,17 @@ async fn main() -> anyhow::Result<()> {
 
     tokio::spawn(async move {
         let addr = SocketAddr::from(([0, 0, 0, 0], port));
-        let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
+        let listener = match tokio::net::TcpListener::bind(addr).await {
+            Ok(l) => l,
+            Err(e) => {
+                tracing::error!(port, error = %e, "Failed to bind HTTP listener");
+                return;
+            }
+        };
         tracing::info!(port, "Soul King Brook Web UI live at http://0.0.0.0:{port}");
-        axum::serve(listener, app).await.unwrap();
+        if let Err(e) = axum::serve(listener, app).await {
+            tracing::error!(error = %e, "Axum HTTP server error");
+        }
     });
 
     // 6. Background In-Group Telegram Progress Ticker

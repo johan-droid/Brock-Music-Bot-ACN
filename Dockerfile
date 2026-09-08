@@ -46,6 +46,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ffmpeg \
     libopus0 \
     libssl3 \
+    libstdc++6 \
+    libgcc-s1 \
     python3 \
     python3-pip \
     && rm -rf /var/lib/apt/lists/*
@@ -68,8 +70,5 @@ USER appuser
 ENV RUST_LOG=info
 ENV RUST_BACKTRACE=1
 EXPOSE 8000
-
-# Debug: check if binary is runnable and log any missing libraries
-RUN ldd /app/brook-music-bot 2>&1 || true
 
 CMD ["/app/brook-music-bot"]
