@@ -316,12 +316,16 @@ impl LazyProviders {
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
+    eprintln!("[BOOT] main() entered");
     init_logger();
     tracing::info!("☠️ Initializing Brook Music Bot (Rust Modular Engine v0.2.0)");
+    eprintln!("[BOOT] logger initialized");
 
     let config = Config::load().await;
+    eprintln!("[BOOT] config loaded");
     let db_repo = Arc::new(MemoryFirstDbRepository::new(config.database_url.clone()));
     db_repo.log_analytics("bot_startup", "Heroku dyno initialized").await?;
+    eprintln!("[BOOT] db repo initialized");
 
     let http_client = reqwest::Client::builder()
         .timeout(Duration::from_secs(15))
@@ -347,6 +351,7 @@ async fn main() -> anyhow::Result<()> {
     ));
 
     let media_engine = Arc::new(MediaEngine::new(queue_repo, transport));
+    eprintln!("[BOOT] media engine created");
 
     let state = Arc::new(AppState {
         config: config.clone(),
@@ -356,6 +361,7 @@ async fn main() -> anyhow::Result<()> {
         db: db_repo.clone(),
     });
 
+    eprintln!("[BOOT] state created, setting up HTTP server on port {}", config.port.unwrap_or(8000));
     // 5. Axum HTTP Server & Web UI — starts immediately, no heavy init blocking.
     let port = config.port.unwrap_or(8000);
     let app_state_api = state.clone();
@@ -395,6 +401,7 @@ async fn main() -> anyhow::Result<()> {
         }
     });
 
+    eprintln!("[BOOT] HTTP server spawned, setting up Telegram dispatcher...");
     // 6. Background In-Group Telegram Progress Ticker
     if let Some(bot_ticker) = bot.clone() {
         let me_ticker = state.media_engine.clone();
@@ -429,6 +436,7 @@ async fn main() -> anyhow::Result<()> {
         });
     }
 
+    eprintln!("[BOOT] entering dispatcher loop");
     // 7. Teloxide Dispatcher
     if let Some(bot) = bot {
         let ai = state.ai.clone();
