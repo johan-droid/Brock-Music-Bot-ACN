@@ -66,6 +66,10 @@ USER appuser
 
 # Worker dynos receive no $PORT from Heroku; the internal Axum HTTP API binds 8000.
 ENV RUST_LOG=info
+ENV RUST_BACKTRACE=1
 EXPOSE 8000
+
+# Debug: check if binary is runnable and log any missing libraries
+RUN ldd /app/brook-music-bot 2>&1 || true
 
 CMD ["/app/brook-music-bot"]
