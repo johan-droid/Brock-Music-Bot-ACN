@@ -62,6 +62,9 @@ WORKDIR /app
 # Copy binary from builder
 COPY --from=builder /app/target/release/brook-music-bot /app/brook-music-bot
 
+# Debug: verify all shared libraries are resolvable
+RUN echo "=== Shared library check ===" && ldd /app/brook-music-bot && echo "=== All OK ==="
+
 # Non-root user for security
 RUN useradd -r -u 1001 -s /sbin/nologin appuser && chown -R appuser:appuser /app
 USER appuser
