@@ -1,0 +1,6 @@
+build:
+  docker:
+    worker: Dockerfile
+run:
+  worker:
+    command: ["/app/brook-music-bot"]
