@@ -526,14 +526,14 @@ impl SourceAdapter for YouTubeResolver {
             });
         }
 
-        // 3. Fallback to local /stream endpoint if available
+        // 3. Normalize via local /stream endpoint to ensure continuous ffmpeg WebM/Opus streaming
         let port = std::env::var("PORT")
             .ok()
             .and_then(|p| p.parse::<u16>().ok())
             .unwrap_or(8000);
         let stream_url = format!("http://127.0.0.1:{port}/stream?yt={video_id}");
 
-        tracing::warn!(video_id = %video_id, stream_url = %stream_url, "Direct resolution failed; falling back to local /stream endpoint");
+        tracing::info!(video_id = %video_id, stream_url = %stream_url, "[RESOLVER] Normalizing YouTube stream through local /stream endpoint");
 
         Ok(ResolvedAudio {
             file_url: stream_url,

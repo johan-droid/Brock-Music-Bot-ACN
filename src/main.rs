@@ -157,16 +157,13 @@ async fn stream_handler(Query(params): Query<HashMap<String, String>>) -> impl I
     struct DropGuard(Option<tokio::process::Child>, Option<tokio::process::Child>);
     impl Drop for DropGuard {
         fn drop(&mut self) {
-            for child in [self.0.take(), self.1.take()].into_iter().flatten() {
-                if let Some(pid) = child.id() {
-                    let _ = std::process::Command::new("kill")
-                        .args(["-9", &pid.to_string()])
-                        .status();
-                }
+            tracing::info!("[STREAM_PIPELINE] Client disconnected or stream ended; cleaning up yt-dlp & ffmpeg processes");
+            for mut child in [self.0.take(), self.1.take()].into_iter().flatten() {
+                let _ = child.start_kill();
             }
         }
     }
-    let guard = DropGuard(Some(ytdlp), Some(ffmpeg));
+    let guard = Arc::new(DropGuard(Some(ytdlp), Some(ffmpeg)));
 
     let stream = ReaderStream::new(ffmpeg_stdout).map(move |chunk| {
         let _ = &guard;
@@ -576,6 +573,25 @@ async fn main() -> anyhow::Result<()> {
                 let active_chats = me_ticker.repo.active_chats();
                 for chat_id in active_chats {
                     if let Ok(st) = me_ticker.state(chat_id).await {
+                        if !st.is_paused
+                            && st.engine_state == crate::media_engine::EngineState::Playing
+                        {
+                            let auto_advance = me_ticker
+                                .repo
+                                .tick_seconds(chat_id, 5)
+                                .await
+                                .unwrap_or(false);
+                            if auto_advance {
+                                tracing::info!(
+                                    chat_id,
+                                    "[WATCHDOG] Track reached duration limit, advancing track"
+                                );
+                                let _ = me_ticker
+                                    .on_natural_end_with_generation(chat_id, st.playback_generation)
+                                    .await;
+                            }
+                        }
+
                         if let (Some(msg_id), Some(curr)) = (st.player_message_id, &st.current) {
                             if !st.is_paused
                                 && st.engine_state == crate::media_engine::EngineState::Playing
@@ -687,8 +703,23 @@ async fn api_voice_diagnostics_handler(
 
     Json(json!({
         "chat_id": chat_id,
-        "tg_api_configured": app.config.tg_api_id.is_some() && app.config.tg_api_hash.is_some(),
-        "assistant_session_configured": app.config.assistant_session_string.as_deref().map(|s| !s.is_empty()).unwrap_or(false) || !app.config.assistant_session.is_empty(),
-        "playback_state": pb.as_ref().map(|s| json!({"is_paused": s.is_paused, "position_secs": s.position_secs, "volume": s.volume, "queue_len": s.queue_len, "loop_mode": format!("{:?}", s.loop_mode)})),
+        "mtproto": {
+            "tg_api_id_configured": app.config.tg_api_id.is_some(),
+            "tg_api_hash_configured": app.config.tg_api_hash.is_some(),
+            "assistant_session_string_set": app.config.assistant_session_string.as_deref().map(|s| !s.is_empty()).unwrap_or(false),
+            "assistant_session_file": app.config.assistant_session,
+        },
+        "playback_state": pb.as_ref().map(|s| json!({
+            "voice_state": s.voice_state.display_text(),
+            "engine_state": s.engine_state.display_text(),
+            "is_paused": s.is_paused,
+            "position_secs": s.position_secs,
+            "volume": s.volume,
+            "queue_len": s.queue_len,
+            "playback_generation": s.playback_generation,
+            "vc_generation": s.vc_generation,
+            "current_track": s.current.as_ref().map(|t| &t.title),
+            "last_error": s.last_error,
+        })),
     }))
 }
