@@ -203,7 +203,6 @@ dependencies = [
  "async-trait",
  "axum",
  "base64 0.22.1",
- "chrono",
  "dashmap 5.5.3",
  "dotenvy",
  "ferogram",
@@ -277,7 +276,6 @@ dependencies = [
  "iana-time-zone",
  "js-sys",
  "num-traits",
- "serde",
  "wasm-bindgen",
  "windows-link",
 ]

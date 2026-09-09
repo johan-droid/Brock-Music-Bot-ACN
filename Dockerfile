@@ -30,11 +30,25 @@ COPY Cargo.toml Cargo.lock ./
 # Create dummy source to build dependencies
 RUN mkdir src && echo "fn main() {}" > src/main.rs
 RUN cargo build --release --locked
-# Remove dummy and copy real source
+# Remove dummy and copy real source (assets/ too: main.rs embeds assets/brook.png
+# at compile time via include_bytes!)
 RUN rm -rf src
 COPY src ./src
-# Build actual binary
-RUN cargo build --release --locked
+COPY assets ./assets
+# Build actual binary.
+#
+# IMPORTANT: Cargo fingerprints source files by mtime, and Docker layer caches can
+# restore `src/` with mtimes older than the cached Cargo fingerprints above. When
+# that happens `cargo build` does NOT recompile — the binary that ships is the
+# dummy `fn main() {}` stub from the dependency-cache step, which runs and exits
+# with status 0 instantly (the dyno "crash"). Force a rebuild deterministically by
+# stamping every source file with an mtime in the far future (touching is done in
+# the builder layer, which Docker does NOT re-normalize).
+RUN find src -name '*.rs' -exec touch -d '2080-01-01T00:00:00Z' {} + \
+    && cargo build --release --locked \
+    && echo "=== Verifying real binary was produced ===" \
+    && /bin/bash -c 'test "$(stat -c%s /app/target/release/brook-music-bot)" -gt 1000000 \
+        || { echo "FATAL: cargo shipped the dummy stub binary (too small); refusing to build."; exit 1; }'
 
 # ---- Runtime stage ----
 FROM debian:bookworm-slim
@@ -62,8 +76,13 @@ WORKDIR /app
 # Copy binary from builder
 COPY --from=builder /app/target/release/brook-music-bot /app/brook-music-bot
 
-# Debug: verify all shared libraries are resolvable
-RUN echo "=== Shared library check ===" && ldd /app/brook-music-bot && echo "=== All OK ==="
+# Debug: verify the binary is the real bot (not the dependency-cache stub) and
+# that all shared libraries are resolvable
+RUN echo "=== Binary size check ===" \
+    && /bin/bash -c 'test "$(stat -c%s /app/brook-music-bot)" -gt 1000000 \
+        || { echo "FATAL: stub binary leaked into runtime image"; exit 1; }' \
+    && ls -l /app/brook-music-bot \
+    && echo "=== Shared library check ===" && ldd /app/brook-music-bot && echo "=== All OK ==="
 
 # Non-root user for security
 RUN useradd -r -u 1001 -s /sbin/nologin appuser && chown -R appuser:appuser /app
