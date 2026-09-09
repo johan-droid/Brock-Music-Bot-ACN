@@ -22,20 +22,25 @@ use axum::extract::Query;
 use axum::response::IntoResponse;
 use axum::routing::get;
 use axum::{Json, Router};
+use futures::StreamExt;
 use serde_json::json;
 use teloxide::prelude::*;
 use tokio_util::io::ReaderStream;
-use futures::StreamExt;
 
 use crate::ai::AiReceiver;
 use crate::commands::{handle_command, BotCommand};
 use crate::config::{init_logger, Config};
 use crate::db::{DbRepository, MemoryFirstDbRepository};
 use crate::media_engine::{
-    connect_voice_transport, InMemoryQueueRepository, MediaEngine, PlaybackTransport, TelegramAudioTransport, VoiceChatTransport,
+    connect_voice_transport, InMemoryQueueRepository, MediaEngine, PlaybackTransport,
+    UnavailableVoiceTransport, VoiceChatTransport,
 };
-use crate::providers::{AppleResolver, DirectResolver, SoundCloudResolver, SpotifyResolver, YouTubeResolver};
-use crate::router::{MusicRouter, Platform, Route, SourceAdapter, TrackResolver, UrlResolver, VideoResolver};
+use crate::providers::{
+    AppleResolver, DirectResolver, SoundCloudResolver, SpotifyResolver, YouTubeResolver,
+};
+use crate::router::{
+    MusicRouter, Platform, Route, SourceAdapter, TrackResolver, UrlResolver, VideoResolver,
+};
 
 async fn stream_handler(Query(params): Query<HashMap<String, String>>) -> impl IntoResponse {
     let video_id = match params.get("yt") {
@@ -63,7 +68,11 @@ async fn stream_handler(Query(params): Query<HashMap<String, String>>) -> impl I
         Ok(c) => c,
         Err(e) => {
             tracing::error!(error = %e, "Failed to spawn yt-dlp audio stream process");
-            return (axum::http::StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to spawn yt-dlp: {e}")).into_response();
+            return (
+                axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+                format!("Failed to spawn yt-dlp: {e}"),
+            )
+                .into_response();
         }
     };
 
@@ -71,20 +80,31 @@ async fn stream_handler(Query(params): Query<HashMap<String, String>>) -> impl I
         Some(s) => s,
         None => {
             let _ = ytdlp.kill().await;
-            return (axum::http::StatusCode::INTERNAL_SERVER_ERROR, "Failed to capture yt-dlp stdout").into_response();
+            return (
+                axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+                "Failed to capture yt-dlp stdout",
+            )
+                .into_response();
         }
     };
 
     let mut ffmpeg = match tokio::process::Command::new("ffmpeg")
         .args([
             "-hide_banner",
-            "-loglevel", "error",
-            "-i", "pipe:0",
-            "-c:a", "libopus",
-            "-b:a", "128k",
-            "-ar", "48000",
-            "-ac", "2",
-            "-f", "webm",
+            "-loglevel",
+            "error",
+            "-i",
+            "pipe:0",
+            "-c:a",
+            "libopus",
+            "-b:a",
+            "128k",
+            "-ar",
+            "48000",
+            "-ac",
+            "2",
+            "-f",
+            "webm",
             "pipe:1",
         ])
         .stdin(Stdio::piped())
@@ -96,7 +116,11 @@ async fn stream_handler(Query(params): Query<HashMap<String, String>>) -> impl I
         Err(e) => {
             tracing::error!(error = %e, "Failed to spawn ffmpeg transcode process");
             let _ = ytdlp.kill().await;
-            return (axum::http::StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to spawn ffmpeg: {e}")).into_response();
+            return (
+                axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+                format!("Failed to spawn ffmpeg: {e}"),
+            )
+                .into_response();
         }
     };
 
@@ -105,7 +129,11 @@ async fn stream_handler(Query(params): Query<HashMap<String, String>>) -> impl I
         None => {
             let _ = ytdlp.kill().await;
             let _ = ffmpeg.kill().await;
-            return (axum::http::StatusCode::INTERNAL_SERVER_ERROR, "Failed to capture ffmpeg stdin").into_response();
+            return (
+                axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+                "Failed to capture ffmpeg stdin",
+            )
+                .into_response();
         }
     };
 
@@ -114,7 +142,11 @@ async fn stream_handler(Query(params): Query<HashMap<String, String>>) -> impl I
         None => {
             let _ = ytdlp.kill().await;
             let _ = ffmpeg.kill().await;
-            return (axum::http::StatusCode::INTERNAL_SERVER_ERROR, "Failed to capture ffmpeg stdout").into_response();
+            return (
+                axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+                "Failed to capture ffmpeg stdout",
+            )
+                .into_response();
         }
     };
 
@@ -150,10 +182,10 @@ async fn stream_handler(Query(params): Query<HashMap<String, String>>) -> impl I
         .unwrap()
 }
 
+use crate::media_engine::{EngineState, LoopMode, PlaybackState, VoiceState};
 use axum::extract::State;
 use axum::routing::post;
 use serde::Deserialize;
-use crate::media_engine::{EngineState, LoopMode, PlaybackState, VoiceState};
 
 async fn index_handler() -> Json<serde_json::Value> {
     Json(json!({"service": "Brock Music Bot", "status": "online", "version": "v0.2.0"}))
@@ -161,7 +193,10 @@ async fn index_handler() -> Json<serde_json::Value> {
 
 async fn brook_image_handler() -> impl IntoResponse {
     (
-        [("Content-Type", "image/png"), ("Cache-Control", "public, max-age=86400")],
+        [
+            ("Content-Type", "image/png"),
+            ("Cache-Control", "public, max-age=86400"),
+        ],
         include_bytes!("../assets/brook.png").as_slice(),
     )
 }
@@ -170,26 +205,33 @@ async fn api_state_handler(
     State(app): State<Arc<AppState>>,
     Query(params): Query<HashMap<String, String>>,
 ) -> Json<serde_json::Value> {
-    let chat_id = params.get("chat_id").and_then(|s| s.parse().ok()).unwrap_or(0);
-    let pb = app.media_engine.state(chat_id).await.unwrap_or_else(|_| PlaybackState {
-        current: None,
-        position_secs: 0,
-        is_paused: false,
-        loop_mode: LoopMode::Off,
-        volume: 100,
-        queue_len: 0,
-        history_len: 0,
-        engine_state: EngineState::Idle,
-        voice_state: VoiceState::Disconnected,
-        playback_generation: 0,
-        vc_generation: 0,
-        owner_user_id: None,
-        owner_user_name: String::new(),
-        session_id: String::new(),
-        last_error: None,
-        player_message_id: None,
-        queue: Vec::new(),
-    });
+    let chat_id = params
+        .get("chat_id")
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(0);
+    let pb = app
+        .media_engine
+        .state(chat_id)
+        .await
+        .unwrap_or_else(|_| PlaybackState {
+            current: None,
+            position_secs: 0,
+            is_paused: false,
+            loop_mode: LoopMode::Off,
+            volume: 100,
+            queue_len: 0,
+            history_len: 0,
+            engine_state: EngineState::Idle,
+            voice_state: VoiceState::Disconnected,
+            playback_generation: 0,
+            vc_generation: 0,
+            owner_user_id: None,
+            owner_user_name: String::new(),
+            session_id: String::new(),
+            last_error: None,
+            player_message_id: None,
+            queue: Vec::new(),
+        });
 
     Json(json!({
         "current": pb.current,
@@ -219,10 +261,18 @@ async fn api_action_handler(
 ) -> Json<serde_json::Value> {
     let chat_id = payload.chat_id.unwrap_or(0);
     match payload.action.as_str() {
-        "pause" => { let _ = app.media_engine.pause(chat_id).await; }
-        "resume" => { let _ = app.media_engine.resume(chat_id).await; }
-        "skip" => { let _ = app.media_engine.skip(chat_id).await; }
-        "stop" => { let _ = app.media_engine.stop(chat_id).await; }
+        "pause" => {
+            let _ = app.media_engine.pause(chat_id).await;
+        }
+        "resume" => {
+            let _ = app.media_engine.resume(chat_id).await;
+        }
+        "skip" => {
+            let _ = app.media_engine.skip(chat_id).await;
+        }
+        "stop" => {
+            let _ = app.media_engine.stop(chat_id).await;
+        }
         "play" => {
             if let Some(q) = payload.query.filter(|s| !s.trim().is_empty()) {
                 let state_me = app.media_engine.clone();
@@ -230,7 +280,10 @@ async fn api_action_handler(
                 let lazy_providers = app.lazy_providers.clone();
                 tokio::spawn(async move {
                     if let Ok(processed) = ai_me.process_query(&q).await {
-                        let live_router = crate::commands::build_live_router(&lazy_providers, &lazy_providers.config);
+                        let live_router = crate::commands::build_live_router(
+                            &lazy_providers,
+                            &lazy_providers.config,
+                        );
                         if let Ok(t) = live_router.search(&processed, 0, "WebUser").await {
                             let _ = state_me.repo.enqueue(chat_id, t.clone()).await;
                             let _ = state_me.play(chat_id, &t).await;
@@ -305,7 +358,8 @@ impl LazyProviders {
                 cfg.yt_dlp_binary.clone(),
                 Duration::from_secs(cfg.yt_dlp_timeout_secs),
             ))
-        }).clone()
+        })
+        .clone()
     }
 
     fn spotify(&self) -> Arc<SpotifyResolver> {
@@ -317,14 +371,19 @@ impl LazyProviders {
                 self.config.spotify_client_secret.clone(),
                 Some(self.youtube()),
             ))
-        }).clone()
+        })
+        .clone()
     }
 
     fn apple(&self) -> Arc<AppleResolver> {
         let mut lock = self.apple.write().unwrap();
         lock.get_or_insert_with(|| {
-            Arc::new(AppleResolver::new(self.http_client.clone(), Some(self.youtube())))
-        }).clone()
+            Arc::new(AppleResolver::new(
+                self.http_client.clone(),
+                Some(self.youtube()),
+            ))
+        })
+        .clone()
     }
 
     fn soundcloud(&self) -> Arc<SoundCloudResolver> {
@@ -335,7 +394,8 @@ impl LazyProviders {
                 self.config.soundcloud_client_id.clone(),
                 Some(self.youtube()),
             ))
-        }).clone()
+        })
+        .clone()
     }
 
     pub fn get_route(&self, platform: Platform) -> Option<Route> {
@@ -344,21 +404,28 @@ impl LazyProviders {
         let apple = self.apple();
         let soundcloud = self.soundcloud();
         match platform {
-            Platform::DirectUrl => self.direct.as_ref().map(|d| Route::new(platform, d.clone())),
+            Platform::DirectUrl => self
+                .direct
+                .as_ref()
+                .map(|d| Route::new(platform, d.clone())),
             Platform::YouTube => Some(Route::new(platform, youtube)),
-            Platform::Spotify =>
-                if self.config.spotify_client_id.is_some() && self.config.spotify_client_secret.is_some() {
+            Platform::Spotify => {
+                if self.config.spotify_client_id.is_some()
+                    && self.config.spotify_client_secret.is_some()
+                {
                     Some(Route::new(platform, spotify))
                 } else {
                     None
-                },
+                }
+            }
             Platform::AppleMusic => Some(Route::new(platform, apple)),
-            Platform::SoundCloud =>
+            Platform::SoundCloud => {
                 if self.config.soundcloud_client_id.is_some() {
                     Some(Route::new(platform, soundcloud))
                 } else {
                     None
-                },
+                }
+            }
         }
     }
 
@@ -366,7 +433,9 @@ impl LazyProviders {
         match platform {
             Platform::YouTube => Some(self.youtube()),
             Platform::Spotify => {
-                if self.config.spotify_client_id.is_some() && self.config.spotify_client_secret.is_some() {
+                if self.config.spotify_client_id.is_some()
+                    && self.config.spotify_client_secret.is_some()
+                {
                     Some(self.spotify())
                 } else {
                     None
@@ -395,7 +464,9 @@ async fn main() -> anyhow::Result<()> {
     let config = Config::load().await;
     eprintln!("[BOOT] config loaded");
     let db_repo = Arc::new(MemoryFirstDbRepository::new(config.database_url.clone()));
-    db_repo.log_analytics("bot_startup", "Heroku dyno initialized").await?;
+    db_repo
+        .log_analytics("bot_startup", "Heroku dyno initialized")
+        .await?;
     eprintln!("[BOOT] db repo initialized");
 
     let http_client = reqwest::Client::builder()
@@ -412,7 +483,10 @@ async fn main() -> anyhow::Result<()> {
     let ai = Arc::new(AiReceiver::new(&config));
 
     // 4. Media Engine — light queue repo, transport deferred until first playback.
-    let queue_repo = Arc::new(InMemoryQueueRepository::new(config.max_queue_size, config.default_volume));
+    let queue_repo = Arc::new(InMemoryQueueRepository::new(
+        config.max_queue_size,
+        config.default_volume,
+    ));
     let bot = config.bot_token.as_ref().map(|t| Bot::new(t.clone()));
 
     // Resolve voice transport eagerly — necessary for voice-chat playback.
@@ -425,7 +499,9 @@ async fn main() -> anyhow::Result<()> {
 
     let transport: Arc<dyn PlaybackTransport> = match &voice_transport {
         Some(vt) => vt.clone(),
-        None => Arc::new(TelegramAudioTransport::new(config.bot_token.as_ref().map(|t| Bot::new(t.clone())))),
+        None => Arc::new(UnavailableVoiceTransport::new(
+            "MTProto assistant session not configured or authorization failed",
+        )),
     };
 
     let media_engine = Arc::new(MediaEngine::new(queue_repo, transport));
@@ -439,7 +515,10 @@ async fn main() -> anyhow::Result<()> {
         db: db_repo.clone(),
     });
 
-    eprintln!("[BOOT] state created, setting up HTTP server on port {}", config.port.unwrap_or(8000));
+    eprintln!(
+        "[BOOT] state created, setting up HTTP server on port {}",
+        config.port.unwrap_or(8000)
+    );
     // 5. Axum HTTP Server & Web UI — starts immediately, no heavy init blocking.
     let port = config.port.unwrap_or(8000);
     let app_state_api = state.clone();
@@ -447,21 +526,28 @@ async fn main() -> anyhow::Result<()> {
     let app = Router::new()
         .route("/", get(index_handler))
         .route("/static/brook.png", get(brook_image_handler))
-        .route("/health", get(|| async { Json(json!({"status": "healthy", "version": "v0.2.0"})) }))
+        .route(
+            "/health",
+            get(|| async { Json(json!({"status": "healthy", "version": "v0.2.0"})) }),
+        )
         .route("/stream", get(stream_handler))
         .route("/api/state", get(api_state_handler))
+        .route("/api/voice_diagnostics", get(api_voice_diagnostics_handler))
         .route("/api/action", post(api_action_handler))
-        .route("/stats", get(move || {
-            let st = app_state_api.clone();
-            async move {
-                let chats = st.media_engine.repo.active_chats().len();
-                Json(json!({
-                    "status": "online",
-                    "active_chats": chats,
-                    "platforms": [&["direct"]]
-                }))
-            }
-        }))
+        .route(
+            "/stats",
+            get(move || {
+                let st = app_state_api.clone();
+                async move {
+                    let chats = st.media_engine.repo.active_chats().len();
+                    Json(json!({
+                        "status": "online",
+                        "active_chats": chats,
+                        "platforms": [&["direct"]]
+                    }))
+                }
+            }),
+        )
         .with_state(state.clone());
 
     tokio::spawn(async move {
@@ -491,7 +577,9 @@ async fn main() -> anyhow::Result<()> {
                 for chat_id in active_chats {
                     if let Ok(st) = me_ticker.state(chat_id).await {
                         if let (Some(msg_id), Some(curr)) = (st.player_message_id, &st.current) {
-                            if !st.is_paused && st.engine_state == crate::media_engine::EngineState::Playing {
+                            if !st.is_paused
+                                && st.engine_state == crate::media_engine::EngineState::Playing
+                            {
                                 let text = crate::commands::SoulKingUI::format_now_playing(
                                     curr,
                                     st.position_secs,
@@ -500,9 +588,14 @@ async fn main() -> anyhow::Result<()> {
                                     st.voice_state,
                                     &st.queue,
                                 );
-                                let keyboard = crate::commands::SoulKingUI::now_playing_keyboard(st.is_paused);
+                                let keyboard =
+                                    crate::commands::SoulKingUI::now_playing_keyboard(st.is_paused);
                                 let _ = bot_ticker
-                                    .edit_message_text(teloxide::types::ChatId(chat_id), teloxide::types::MessageId(msg_id), text)
+                                    .edit_message_text(
+                                        teloxide::types::ChatId(chat_id),
+                                        teloxide::types::MessageId(msg_id),
+                                        text,
+                                    )
                                     .parse_mode(teloxide::types::ParseMode::Html)
                                     .reply_markup(keyboard)
                                     .await;
@@ -522,34 +615,36 @@ async fn main() -> anyhow::Result<()> {
         let media_engine_cb = state.media_engine.clone();
         let lazy_providers = state.lazy_providers.clone();
 
-        let handler = dptree::entry()
-            .branch(
-                Update::filter_message().filter_command::<BotCommand>().endpoint(
-                    move |bot: Bot, msg: Message, cmd: BotCommand| {
-                        let ai = ai.clone();
-                        let media_engine = media_engine.clone();
-                        let lazy_providers = lazy_providers.clone();
-                        async move {
-                            handle_command(bot, msg, cmd, ai, media_engine, lazy_providers).await
-                        }
-                    },
+        let handler =
+            dptree::entry()
+                .branch(
+                    Update::filter_message()
+                        .filter_command::<BotCommand>()
+                        .endpoint(move |bot: Bot, msg: Message, cmd: BotCommand| {
+                            let ai = ai.clone();
+                            let media_engine = media_engine.clone();
+                            let lazy_providers = lazy_providers.clone();
+                            async move {
+                                handle_command(bot, msg, cmd, ai, media_engine, lazy_providers)
+                                    .await
+                            }
+                        }),
                 )
-            )
-            .branch(
-                Update::filter_callback_query().endpoint(
-                    move |bot: Bot, q: teloxide::types::CallbackQuery| {
-                        let media_engine = media_engine_cb.clone();
-                        async move {
-                            crate::commands::handle_callback_query(bot, q, media_engine).await
-                        }
-                    },
+                .branch(
+                    Update::filter_callback_query().endpoint(
+                        move |bot: Bot, q: teloxide::types::CallbackQuery| {
+                            let media_engine = media_engine_cb.clone();
+                            async move {
+                                crate::commands::handle_callback_query(bot, q, media_engine).await
+                            }
+                        },
+                    ),
                 )
-            )
-            .branch(
-                Update::filter_message().endpoint(|_bot: Bot, _msg: Message| async move {
-                    Ok::<(), anyhow::Error>(())
-                })
-            );
+                .branch(
+                    Update::filter_message().endpoint(|_bot: Bot, _msg: Message| async move {
+                        Ok::<(), anyhow::Error>(())
+                    }),
+                );
 
         let mut dispatcher = Dispatcher::builder(bot, handler).build();
         tokio::select! {
@@ -579,4 +674,21 @@ async fn main() -> anyhow::Result<()> {
     }
 
     Ok(())
+}
+async fn api_voice_diagnostics_handler(
+    State(app): State<Arc<AppState>>,
+    Query(params): Query<HashMap<String, String>>,
+) -> Json<serde_json::Value> {
+    let chat_id = params
+        .get("chat_id")
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(0);
+    let pb = app.media_engine.state(chat_id).await.ok();
+
+    Json(json!({
+        "chat_id": chat_id,
+        "tg_api_configured": app.config.tg_api_id.is_some() && app.config.tg_api_hash.is_some(),
+        "assistant_session_configured": app.config.assistant_session_string.as_deref().map(|s| !s.is_empty()).unwrap_or(false) || !app.config.assistant_session.is_empty(),
+        "playback_state": pb.as_ref().map(|s| json!({"is_paused": s.is_paused, "position_secs": s.position_secs, "volume": s.volume, "queue_len": s.queue_len, "loop_mode": format!("{:?}", s.loop_mode)})),
+    }))
 }

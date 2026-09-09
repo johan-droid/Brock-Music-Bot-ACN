@@ -1,7 +1,7 @@
-use std::sync::Arc;
 use async_trait::async_trait;
 use dashmap::DashMap;
 use serde::{Deserialize, Serialize};
+use std::sync::Arc;
 use tokio::sync::RwLock;
 use tracing::info;
 
@@ -90,7 +90,10 @@ impl DbRepository for MemoryFirstDbRepository {
     }
 
     async fn save_user_settings(&self, settings: UserSettings) -> Result<()> {
-        info!("[DATABASE] Saving user settings for user_id={}", settings.user_id);
+        info!(
+            "[DATABASE] Saving user settings for user_id={}",
+            settings.user_id
+        );
         self.settings_cache.insert(settings.user_id, settings);
         Ok(())
     }
@@ -102,7 +105,10 @@ impl DbRepository for MemoryFirstDbRepository {
 
     async fn save_playlist(&self, playlist: Playlist) -> Result<()> {
         let key = format!("{}:{}", playlist.owner_id, playlist.name);
-        info!("[DATABASE] Saving playlist '{}' for user_id={}", playlist.name, playlist.owner_id);
+        info!(
+            "[DATABASE] Saving playlist '{}' for user_id={}",
+            playlist.name, playlist.owner_id
+        );
         self.playlists_cache.insert(key, playlist);
         Ok(())
     }

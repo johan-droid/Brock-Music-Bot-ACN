@@ -1,3 +1,4 @@
+#[allow(clippy::module_inception)]
 #[cfg(test)]
 mod tests {
     use crate::commands::SoulKingUI;
@@ -150,7 +151,10 @@ mod tests {
         for _ in 0..180 {
             q.tick();
         }
-        assert!(q.current.is_some(), "track loop should replay the same track");
+        assert!(
+            q.current.is_some(),
+            "track loop should replay the same track"
+        );
         assert_eq!(q.current.as_ref().unwrap().title, "Binks Sake");
     }
 
@@ -177,7 +181,10 @@ mod tests {
         for _ in 0..UNKNOWN_DURATION_LIMIT_SECS {
             q.tick();
         }
-        assert!(q.current.is_none(), "unknown-duration track should be capped and advanced");
+        assert!(
+            q.current.is_none(),
+            "unknown-duration track should be capped and advanced"
+        );
     }
 
     #[test]
@@ -301,7 +308,9 @@ mod tests {
     async fn test_db_repository_memory_first_user_settings_and_playlists() {
         use crate::db::{DbRepository, MemoryFirstDbRepository, Playlist};
 
-        let db = MemoryFirstDbRepository::new(Some("mongodb+srv://atlas-cluster.example.com/brook".into()));
+        let db = MemoryFirstDbRepository::new(Some(
+            "mongodb+srv://atlas-cluster.example.com/brook".into(),
+        ));
         assert!(db.is_connected());
 
         let settings = db.get_user_settings(42).await.unwrap();
@@ -333,7 +342,9 @@ mod tests {
 
         let db = MemoryFirstDbRepository::new(None);
         assert!(!db.is_connected());
-        db.log_analytics("track_play", "yt:x5jfluo1_Yc").await.unwrap();
+        db.log_analytics("track_play", "yt:x5jfluo1_Yc")
+            .await
+            .unwrap();
     }
 
     #[test]
@@ -376,24 +387,35 @@ mod tests {
 
     #[tokio::test]
     async fn test_multi_track_queue_transition_does_not_clear_queue() {
+        use crate::media_engine::{
+            InMemoryQueueRepository, MediaEngine, MockPlaybackTransport, TransitionReason,
+        };
         use std::sync::Arc;
-        use crate::media_engine::{InMemoryQueueRepository, MediaEngine, TelegramAudioTransport, TransitionReason};
 
         let repo = Arc::new(InMemoryQueueRepository::new(100, 100));
-        let transport = Arc::new(TelegramAudioTransport::new(None));
+        let transport = Arc::new(MockPlaybackTransport::new());
         let me = MediaEngine::new(repo.clone(), transport);
 
         let chat_id = 999;
-        me.enqueue_and_play(chat_id, track("t1", "Track A")).await.unwrap();
-        me.enqueue_and_play(chat_id, track("t2", "Track B")).await.unwrap();
-        me.enqueue_and_play(chat_id, track("t3", "Track C")).await.unwrap();
+        me.enqueue_and_play(chat_id, track("t1", "Track A"))
+            .await
+            .unwrap();
+        me.enqueue_and_play(chat_id, track("t2", "Track B"))
+            .await
+            .unwrap();
+        me.enqueue_and_play(chat_id, track("t3", "Track C"))
+            .await
+            .unwrap();
 
         let st = me.state(chat_id).await.unwrap();
         assert_eq!(st.current.as_ref().unwrap().title, "Track A");
         assert_eq!(st.queue_len, 2);
 
         // Advance Track A (EOF) -> Track B should play, Track C in queue
-        let b = me.advance_to_next_track(chat_id, TransitionReason::Eof).await.unwrap();
+        let b = me
+            .advance_to_next_track(chat_id, TransitionReason::Eof)
+            .await
+            .unwrap();
         assert_eq!(b.as_ref().unwrap().title, "Track B");
         let st2 = me.state(chat_id).await.unwrap();
         assert_eq!(st2.current.as_ref().unwrap().title, "Track B");
@@ -401,14 +423,20 @@ mod tests {
         assert_eq!(st2.queue[0].title, "Track C");
 
         // Advance Track B (EOF) -> Track C should play, queue empty
-        let c = me.advance_to_next_track(chat_id, TransitionReason::Eof).await.unwrap();
+        let c = me
+            .advance_to_next_track(chat_id, TransitionReason::Eof)
+            .await
+            .unwrap();
         assert_eq!(c.as_ref().unwrap().title, "Track C");
         let st3 = me.state(chat_id).await.unwrap();
         assert_eq!(st3.current.as_ref().unwrap().title, "Track C");
         assert_eq!(st3.queue_len, 0);
 
         // Advance Track C (EOF) -> Idle
-        let done = me.advance_to_next_track(chat_id, TransitionReason::Eof).await.unwrap();
+        let done = me
+            .advance_to_next_track(chat_id, TransitionReason::Eof)
+            .await
+            .unwrap();
         assert!(done.is_none());
         let st4 = me.state(chat_id).await.unwrap();
         assert!(st4.current.is_none());
@@ -417,23 +445,32 @@ mod tests {
 
     #[tokio::test]
     async fn test_duplicate_title_requests_have_unique_track_ids() {
+        use crate::media_engine::{
+            InMemoryQueueRepository, MediaEngine, MockPlaybackTransport, TransitionReason,
+        };
         use std::sync::Arc;
-        use crate::media_engine::{InMemoryQueueRepository, MediaEngine, TelegramAudioTransport, TransitionReason};
 
         let repo = Arc::new(InMemoryQueueRepository::new(100, 100));
-        let transport = Arc::new(TelegramAudioTransport::new(None));
+        let transport = Arc::new(MockPlaybackTransport::new());
         let me = MediaEngine::new(repo.clone(), transport);
 
         let chat_id = 888;
-        me.enqueue_and_play(chat_id, track("same_id", "Believer")).await.unwrap();
-        me.enqueue_and_play(chat_id, track("same_id", "Believer")).await.unwrap();
+        me.enqueue_and_play(chat_id, track("same_id", "Believer"))
+            .await
+            .unwrap();
+        me.enqueue_and_play(chat_id, track("same_id", "Believer"))
+            .await
+            .unwrap();
 
         let st = me.state(chat_id).await.unwrap();
         assert_eq!(st.current.as_ref().unwrap().title, "Believer");
         assert_eq!(st.queue_len, 1);
         assert_ne!(st.current.as_ref().unwrap().id, st.queue[0].id);
 
-        let next = me.advance_to_next_track(chat_id, TransitionReason::Eof).await.unwrap();
+        let next = me
+            .advance_to_next_track(chat_id, TransitionReason::Eof)
+            .await
+            .unwrap();
         assert_eq!(next.as_ref().unwrap().title, "Believer");
         let st2 = me.state(chat_id).await.unwrap();
         assert_eq!(st2.queue_len, 0);
@@ -454,8 +491,8 @@ mod tests {
 
     #[test]
     fn test_prune_inactive_sessions_evicts_idle_chats() {
-        use std::time::Duration;
         use crate::media_engine::InMemoryQueueRepository;
+        use std::time::Duration;
 
         let repo = InMemoryQueueRepository::new(100, 100);
         let _ = repo.get_or_create(111); // Empty idle chat
@@ -473,45 +510,83 @@ mod tests {
 
     #[tokio::test]
     async fn test_authorization_manager_permissions() {
-        use std::sync::Arc;
         use crate::commands::{AuthorizationManager, BotCommand};
-        use crate::media_engine::{InMemoryQueueRepository, MediaEngine, TelegramAudioTransport};
+        use crate::media_engine::{InMemoryQueueRepository, MediaEngine, MockPlaybackTransport};
+        use std::sync::Arc;
 
         let repo = Arc::new(InMemoryQueueRepository::new(100, 100));
-        let transport = Arc::new(TelegramAudioTransport::new(None));
+        let transport = Arc::new(MockPlaybackTransport::new());
         let me = MediaEngine::new(repo.clone(), transport);
 
         let chat_id = 777;
         let user_a = 123;
         let user_b = 200;
 
-        me.enqueue_and_play(chat_id, track("t1", "User A Song")).await.unwrap();
-        me.repo.set_session_owner(chat_id, user_a, "User A").await.unwrap();
+        me.enqueue_and_play(chat_id, track("t1", "User A Song"))
+            .await
+            .unwrap();
+        me.repo
+            .set_session_owner(chat_id, user_a, "User A")
+            .await
+            .unwrap();
 
         let st = me.state(chat_id).await.unwrap();
         assert_eq!(st.owner_user_id, Some(user_a));
 
         // Public commands authorized for anyone
-        assert!(AuthorizationManager::authorize(&BotCommand::Help, user_b, chat_id, &st, None, false).is_ok());
-        assert!(AuthorizationManager::authorize(&BotCommand::Queue, user_b, chat_id, &st, None, false).is_ok());
+        assert!(AuthorizationManager::authorize(
+            &BotCommand::Help,
+            user_b,
+            chat_id,
+            &st,
+            None,
+            false
+        )
+        .is_ok());
+        assert!(AuthorizationManager::authorize(
+            &BotCommand::Queue,
+            user_b,
+            chat_id,
+            &st,
+            None,
+            false
+        )
+        .is_ok());
 
         // Session Controller commands authorized for User A (Owner) and Admins
-        assert!(AuthorizationManager::authorize(&BotCommand::Skip, user_a, chat_id, &st, None, false).is_ok());
-        assert!(AuthorizationManager::authorize(&BotCommand::Skip, user_b, chat_id, &st, None, true).is_ok());
+        assert!(AuthorizationManager::authorize(
+            &BotCommand::Skip,
+            user_a,
+            chat_id,
+            &st,
+            None,
+            false
+        )
+        .is_ok());
+        assert!(AuthorizationManager::authorize(
+            &BotCommand::Skip,
+            user_b,
+            chat_id,
+            &st,
+            None,
+            true
+        )
+        .is_ok());
 
         // Session Controller commands DENIED for User B (Non-owner, non-admin)
-        let denied = AuthorizationManager::authorize(&BotCommand::Skip, user_b, chat_id, &st, None, false);
+        let denied =
+            AuthorizationManager::authorize(&BotCommand::Skip, user_b, chat_id, &st, None, false);
         assert!(denied.is_err());
     }
 
     #[tokio::test]
     async fn test_playback_interruption_protection_enqueues_safely() {
-        use std::sync::Arc;
         use crate::commands::AuthorizationManager;
-        use crate::media_engine::{InMemoryQueueRepository, MediaEngine, TelegramAudioTransport};
+        use crate::media_engine::{InMemoryQueueRepository, MediaEngine, MockPlaybackTransport};
+        use std::sync::Arc;
 
         let repo = Arc::new(InMemoryQueueRepository::new(100, 100));
-        let transport = Arc::new(TelegramAudioTransport::new(None));
+        let transport = Arc::new(MockPlaybackTransport::new());
         let me = MediaEngine::new(repo.clone(), transport);
 
         let chat_id = 666;
@@ -551,7 +626,14 @@ mod tests {
         assert_eq!(st1.owner_user_id, Some(user_a));
 
         // User B attempts to skip (Unauthorized) -> Denied
-        let denied = AuthorizationManager::authorize(&crate::commands::BotCommand::Skip, user_b, chat_id, &st1, None, false);
+        let denied = AuthorizationManager::authorize(
+            &crate::commands::BotCommand::Skip,
+            user_b,
+            chat_id,
+            &st1,
+            None,
+            false,
+        );
         assert!(denied.is_err());
 
         // User B attempts /play Track 2 -> Safely enqueued at position 1 without interrupting User A

@@ -7,7 +7,9 @@ use tracing_subscriber::{fmt, EnvFilter};
 
 pub fn init_logger() {
     let filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| {
-        EnvFilter::new("info,brook_music_bot=debug,h2=warn,rustls=warn,reqwest=warn,hyper=warn,sqlx=warn")
+        EnvFilter::new(
+            "info,brook_music_bot=debug,h2=warn,rustls=warn,reqwest=warn,hyper=warn,sqlx=warn",
+        )
     });
 
     fmt()
@@ -85,7 +87,10 @@ impl std::fmt::Debug for Config {
                 "metrics_http_token",
                 &self.metrics_http_token.as_ref().map(|_| "[REDACTED]"),
             )
-            .field("metrics_prometheus_enabled", &self.metrics_prometheus_enabled)
+            .field(
+                "metrics_prometheus_enabled",
+                &self.metrics_prometheus_enabled,
+            )
             .field("music_microservice_url", &self.music_microservice_url)
             .field(
                 "spotify_client_id",
@@ -100,7 +105,10 @@ impl std::fmt::Debug for Config {
                 &self.soundcloud_client_id.as_ref().map(|_| "[REDACTED]"),
             )
             .field("invidious_instances", &self.invidious_instances)
-            .field("active_invidious_instances", &self.active_invidious_instances)
+            .field(
+                "active_invidious_instances",
+                &self.active_invidious_instances,
+            )
             .field("piped_instances", &self.piped_instances)
             .field("active_piped_instances", &self.active_piped_instances)
             .field("resolver_cache_ttl_secs", &self.resolver_cache_ttl_secs)
@@ -114,7 +122,10 @@ impl std::fmt::Debug for Config {
             .field("max_queue_size", &self.max_queue_size)
             .field("default_volume", &self.default_volume)
             .field("command_cooldown", &self.command_cooldown)
-            .field("max_concurrent_resolutions", &self.max_concurrent_resolutions)
+            .field(
+                "max_concurrent_resolutions",
+                &self.max_concurrent_resolutions,
+            )
             .field("tg_api_id", &self.tg_api_id)
             .field(
                 "tg_api_hash",
@@ -161,28 +172,45 @@ impl Config {
 
         // Fast-boot: skip the expensive instance health-check ping at startup.
         // Instances are checked lazily on first use instead.
-        let _skip_instance_check = env::var("SKIP_INSTANCE_CHECK").unwrap_or_default().parse().unwrap_or(false);
+        let _skip_instance_check = env::var("SKIP_INSTANCE_CHECK")
+            .unwrap_or_default()
+            .parse()
+            .unwrap_or(false);
 
-        let owner_id = env::var("OWNER_ID").ok().and_then(|v| v.parse::<i64>().ok());
+        let owner_id = env::var("OWNER_ID")
+            .ok()
+            .and_then(|v| v.parse::<i64>().ok());
         let admin_password = env::var("ADMIN_PASSWORD").ok().filter(|v| !v.is_empty());
         let port = env::var("PORT").ok().and_then(|v| v.parse::<u16>().ok());
 
-        let metrics_http_enabled = env::var("METRICS_HTTP_ENABLED").unwrap_or_default().parse().unwrap_or(false);
-        let metrics_http_token = env::var("METRICS_HTTP_TOKEN").ok().filter(|v| !v.is_empty());
-        let metrics_prometheus_enabled = env::var("METRICS_PROMETHEUS_ENABLED").unwrap_or_default().parse().unwrap_or(false);
-
-        let music_microservice_url = env::var("MUSIC_MICROSERVICE_URL")
+        let metrics_http_enabled = env::var("METRICS_HTTP_ENABLED")
+            .unwrap_or_default()
+            .parse()
+            .unwrap_or(false);
+        let metrics_http_token = env::var("METRICS_HTTP_TOKEN")
             .ok()
-            .filter(|v| {
-                !v.is_empty()
-                    && !v.contains("your_")
-                    && !v.contains("example.com")
-                    && !v.contains("replace")
-            });
+            .filter(|v| !v.is_empty());
+        let metrics_prometheus_enabled = env::var("METRICS_PROMETHEUS_ENABLED")
+            .unwrap_or_default()
+            .parse()
+            .unwrap_or(false);
 
-        let spotify_client_id = env::var("SPOTIFY_CLIENT_ID").ok().filter(|v| !v.is_empty() && !v.contains("your_"));
-        let spotify_client_secret = env::var("SPOTIFY_CLIENT_SECRET").ok().filter(|v| !v.is_empty() && !v.contains("your_"));
-        let soundcloud_client_id = env::var("SOUNDCLOUD_CLIENT_ID").ok().filter(|v| !v.is_empty() && !v.contains("your_"));
+        let music_microservice_url = env::var("MUSIC_MICROSERVICE_URL").ok().filter(|v| {
+            !v.is_empty()
+                && !v.contains("your_")
+                && !v.contains("example.com")
+                && !v.contains("replace")
+        });
+
+        let spotify_client_id = env::var("SPOTIFY_CLIENT_ID")
+            .ok()
+            .filter(|v| !v.is_empty() && !v.contains("your_"));
+        let spotify_client_secret = env::var("SPOTIFY_CLIENT_SECRET")
+            .ok()
+            .filter(|v| !v.is_empty() && !v.contains("your_"));
+        let soundcloud_client_id = env::var("SOUNDCLOUD_CLIENT_ID")
+            .ok()
+            .filter(|v| !v.is_empty() && !v.contains("your_"));
 
         let invidious_instances = env::var("INVIDIOUS_INSTANCES")
             .unwrap_or_else(|_| "invidious.flokinet.to,invidious.snopyta.org,invidious.bkp.snopyta.org,invidious.privacydev.net,yt.artemislena.eu,invidious.lunar.icu,invidious.privacydev.net,inv.vern.cc,invidious.kavin.rocks,invidious.projectsegfau.lt,invidious.nerdvpn.de,vid.puffyan.us,inv.nadeko.net,invidious.f5.si,iv.ggtyler.dev".to_string())
@@ -198,13 +226,31 @@ impl Config {
             .filter(|s| !s.is_empty())
             .collect();
 
-        let resolver_cache_ttl_secs = env::var("RESOLVER_CACHE_TTL_SECS").ok().and_then(|v| v.parse().ok()).unwrap_or(300);
-        let stream_cache_ttl_secs = env::var("RESOLVER_STREAM_CACHE_TTL_SECS").ok().and_then(|v| v.parse().ok()).unwrap_or(60);
-        let youtube_enabled = env::var("YOUTUBE_ENABLED").unwrap_or_else(|_| "true".to_string()).parse().unwrap_or(true);
-        let yt_dlp_enabled = env::var("YT_DLP_ENABLED").unwrap_or_else(|_| "true".to_string()).parse().unwrap_or(true);
+        let resolver_cache_ttl_secs = env::var("RESOLVER_CACHE_TTL_SECS")
+            .ok()
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(300);
+        let stream_cache_ttl_secs = env::var("RESOLVER_STREAM_CACHE_TTL_SECS")
+            .ok()
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(60);
+        let youtube_enabled = env::var("YOUTUBE_ENABLED")
+            .unwrap_or_else(|_| "true".to_string())
+            .parse()
+            .unwrap_or(true);
+        let yt_dlp_enabled = env::var("YT_DLP_ENABLED")
+            .unwrap_or_else(|_| "true".to_string())
+            .parse()
+            .unwrap_or(true);
         let yt_dlp_binary = env::var("YT_DLP_BINARY").unwrap_or_else(|_| "yt-dlp".to_string());
-        let yt_dlp_timeout_secs = env::var("YT_DLP_TIMEOUT_SECS").ok().and_then(|v| v.parse().ok()).unwrap_or(20);
-        let max_direct_stream_mb = env::var("MAX_DIRECT_STREAM_MB").ok().and_then(|v| v.parse().ok()).unwrap_or(100);
+        let yt_dlp_timeout_secs = env::var("YT_DLP_TIMEOUT_SECS")
+            .ok()
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(20);
+        let max_direct_stream_mb = env::var("MAX_DIRECT_STREAM_MB")
+            .ok()
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(100);
 
         let allowed_direct_hosts = env::var("ALLOWED_DIRECT_HOSTS")
             .unwrap_or_default()
@@ -213,15 +259,34 @@ impl Config {
             .filter(|s| !s.is_empty())
             .collect();
 
-        let max_queue_size = env::var("MAX_QUEUE_SIZE").ok().and_then(|v| v.parse().ok()).unwrap_or(100);
-        let default_volume = env::var("DEFAULT_VOLUME").ok().and_then(|v| v.parse().ok()).unwrap_or(100);
-        let command_cooldown = env::var("COMMAND_COOLDOWN").ok().and_then(|v| v.parse().ok()).unwrap_or(3);
-        let max_concurrent_resolutions = env::var("MAX_CONCURRENT_RESOLUTIONS").ok().and_then(|v| v.parse().ok()).unwrap_or(4);
+        let max_queue_size = env::var("MAX_QUEUE_SIZE")
+            .ok()
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(100);
+        let default_volume = env::var("DEFAULT_VOLUME")
+            .ok()
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(100);
+        let command_cooldown = env::var("COMMAND_COOLDOWN")
+            .ok()
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(3);
+        let max_concurrent_resolutions = env::var("MAX_CONCURRENT_RESOLUTIONS")
+            .ok()
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(4);
 
-        let tg_api_id = env::var("TG_API_ID").ok().and_then(|v| v.parse::<i32>().ok());
-        let tg_api_hash = env::var("TG_API_HASH").ok().filter(|v| !v.is_empty() && !v.contains("your_"));
-        let assistant_session = env::var("ASSISTANT_SESSION").unwrap_or_else(|_| "assistant.session".to_string());
-        let assistant_session_string = env::var("ASSISTANT_SESSION_STRING").ok().filter(|v| !v.is_empty());
+        let tg_api_id = env::var("TG_API_ID")
+            .ok()
+            .and_then(|v| v.parse::<i32>().ok());
+        let tg_api_hash = env::var("TG_API_HASH")
+            .ok()
+            .filter(|v| !v.is_empty() && !v.contains("your_"));
+        let assistant_session =
+            env::var("ASSISTANT_SESSION").unwrap_or_else(|_| "assistant.session".to_string());
+        let assistant_session_string = env::var("ASSISTANT_SESSION_STRING")
+            .ok()
+            .filter(|v| !v.is_empty());
 
         let nvidia_nim_api_key = env::var("NVIDIA_NIM_API_KEY")
             .or_else(|_| env::var("NVIDIA_API_KEY"))
@@ -280,7 +345,11 @@ impl Config {
         // Instances are also checked lazily on first use when SKIP_INSTANCE_CHECK is set.
         let cfg_mutex = tokio::sync::Mutex::new(config.clone());
         tokio::spawn(async move {
-            if env::var("SKIP_INSTANCE_CHECK").unwrap_or_default().parse().unwrap_or(false) {
+            if env::var("SKIP_INSTANCE_CHECK")
+                .unwrap_or_default()
+                .parse()
+                .unwrap_or(false)
+            {
                 return;
             }
             let mut cfg = cfg_mutex.lock().await;

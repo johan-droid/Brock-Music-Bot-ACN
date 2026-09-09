@@ -5,9 +5,12 @@ use teloxide::utils::command::BotCommands;
 
 use crate::ai::AiReceiver;
 use crate::media_engine::{LoopMode, MediaEngine};
-use crate::router::{MusicRouter, Platform, Route, Track, SourceAdapter};
+use crate::router::{MusicRouter, Platform, Route, SourceAdapter, Track};
 
-pub fn build_live_router(lazy: &crate::LazyProviders, config: &crate::config::Config) -> MusicRouter {
+pub fn build_live_router(
+    lazy: &crate::LazyProviders,
+    config: &crate::config::Config,
+) -> MusicRouter {
     let youtube = lazy.youtube();
     let spotify = lazy.spotify();
     let apple = lazy.apple();
@@ -56,7 +59,11 @@ pub struct SoulKingUI;
 impl SoulKingUI {
     pub fn build_progress_bar(current_secs: u64, total_secs: u64, length: usize) -> String {
         if total_secs == 0 {
-            return format!("[{}{}] 00:00 / 00:00", "▓".repeat(length / 2), "░".repeat(length - length / 2));
+            return format!(
+                "[{}{}] 00:00 / 00:00",
+                "▓".repeat(length / 2),
+                "░".repeat(length - length / 2)
+            );
         }
 
         let progress = (current_secs as f64 / total_secs as f64).min(1.0);
@@ -80,7 +87,11 @@ impl SoulKingUI {
         voice_state: crate::media_engine::VoiceState,
         queue: &[Track],
     ) -> String {
-        let status = if is_paused { "⏸️ PAUSED" } else { "🎸 PERFORMING LIVE" };
+        let status = if is_paused {
+            "⏸️ PAUSED"
+        } else {
+            "🎸 PERFORMING LIVE"
+        };
         let loop_status = match loop_mode {
             LoopMode::Off => "Off ➡️",
             LoopMode::Track => "Repeat Track 🔂",
@@ -239,9 +250,10 @@ impl SoulKingUI {
             InlineKeyboardButton::callback("🛡️ Permissions", "help_permissions"),
             InlineKeyboardButton::callback("⚙️ Settings", "help_settings"),
         ];
-        let row3 = vec![
-            InlineKeyboardButton::callback("ℹ️ Information", "help_info"),
-        ];
+        let row3 = vec![InlineKeyboardButton::callback(
+            "ℹ️ Information",
+            "help_info",
+        )];
         InlineKeyboardMarkup::new(vec![row1, row2, row3])
     }
 
@@ -364,9 +376,11 @@ pub struct AuthorizationManager;
 impl AuthorizationManager {
     pub fn required_permission(cmd: &BotCommand) -> PermissionLevel {
         match cmd {
-            BotCommand::Start | BotCommand::Help | BotCommand::Queue | BotCommand::Now | BotCommand::PlayerDebug => {
-                PermissionLevel::Public
-            }
+            BotCommand::Start
+            | BotCommand::Help
+            | BotCommand::Queue
+            | BotCommand::Now
+            | BotCommand::PlayerDebug => PermissionLevel::Public,
             BotCommand::Play(_) | BotCommand::Vplay(_) => PermissionLevel::Public,
             BotCommand::Pause
             | BotCommand::Resume
@@ -482,17 +496,26 @@ pub async fn handle_command(
     let chat_id = msg.chat.id.0;
     let pb_state = media_engine.reconcile_session(chat_id).await?;
     let user_id = msg.from.as_ref().map(|u| u.id.0 as i64).unwrap_or(0);
-    let user_name = msg.from.as_ref().map(|u| u.first_name.clone()).unwrap_or_else(|| "User".into());
+    let user_name = msg
+        .from
+        .as_ref()
+        .map(|u| u.first_name.clone())
+        .unwrap_or_else(|| "User".into());
 
-    if let Err(e) = AuthorizationManager::authorize(&cmd, user_id, chat_id, &pb_state, None, false) {
-        bot.send_message(msg.chat.id, format!("❌ <b>{e}</b>")).parse_mode(ParseMode::Html).await?;
+    if let Err(e) = AuthorizationManager::authorize(&cmd, user_id, chat_id, &pb_state, None, false)
+    {
+        bot.send_message(msg.chat.id, format!("❌ <b>{e}</b>"))
+            .parse_mode(ParseMode::Html)
+            .await?;
         return Ok(());
     }
 
     match cmd {
         BotCommand::Start => {
             let text = SoulKingUI::format_start(&user_name);
-            bot.send_message(msg.chat.id, text).parse_mode(ParseMode::Html).await?;
+            bot.send_message(msg.chat.id, text)
+                .parse_mode(ParseMode::Html)
+                .await?;
         }
         BotCommand::Help => {
             let text = SoulKingUI::format_help_main();
@@ -504,158 +527,281 @@ pub async fn handle_command(
         }
         BotCommand::Play(query) => {
             if query.trim().is_empty() {
-                bot.send_message(msg.chat.id, "Please specify a song title or URL e.g. <code>/play Binks Sake</code>").parse_mode(ParseMode::Html).await?;
+                bot.send_message(
+                    msg.chat.id,
+                    "Please specify a song title or URL e.g. <code>/play Binks Sake</code>",
+                )
+                .parse_mode(ParseMode::Html)
+                .await?;
                 return Ok(());
             }
 
             let track_result = if Platform::from_url(&query).is_some() {
                 let live_router = build_live_router(&lazy_providers, &lazy_providers.config);
-                live_router.execute_search(&query, user_id, &user_name).await
+                live_router
+                    .execute_search(&query, user_id, &user_name)
+                    .await
             } else {
                 let processed_query = ai.process_query(&query).await?;
                 let live_router = build_live_router(&lazy_providers, &lazy_providers.config);
-                live_router.execute_search(&processed_query, user_id, &user_name).await
+                live_router
+                    .execute_search(&processed_query, user_id, &user_name)
+                    .await
             };
 
             match track_result {
                 Ok(track) => {
-                    let maybe_pos = media_engine.enqueue_and_play(chat_id, track.clone()).await?;
+                    let maybe_pos = media_engine
+                        .enqueue_and_play(chat_id, track.clone())
+                        .await?;
                     let pb_state = media_engine.state(chat_id).await?;
 
                     if let Some(pos) = maybe_pos {
                         let text = SoulKingUI::format_enqueued(&track, pos);
-                        bot.send_message(msg.chat.id, text).parse_mode(ParseMode::Html).await?;
+                        bot.send_message(msg.chat.id, text)
+                            .parse_mode(ParseMode::Html)
+                            .await?;
                     } else if let Some(curr) = &pb_state.current {
-                        let text = SoulKingUI::format_now_playing(curr, 0, false, &pb_state.loop_mode, pb_state.voice_state, &pb_state.queue);
-                        let sent = bot.send_message(msg.chat.id, text)
+                        let text = SoulKingUI::format_now_playing(
+                            curr,
+                            0,
+                            false,
+                            &pb_state.loop_mode,
+                            pb_state.voice_state,
+                            &pb_state.queue,
+                        );
+                        let sent = bot
+                            .send_message(msg.chat.id, text)
                             .parse_mode(ParseMode::Html)
                             .reply_markup(SoulKingUI::now_playing_keyboard(false))
                             .await?;
-                        let _ = media_engine.repo.set_player_message_id(chat_id, Some(sent.id.0)).await;
+                        let _ = media_engine
+                            .repo
+                            .set_player_message_id(chat_id, Some(sent.id.0))
+                            .await;
                     }
                 }
                 Err(e) => {
-                    bot.send_message(msg.chat.id, format!("❌ <b>Search failed:</b> {e}")).parse_mode(ParseMode::Html).await?;
+                    bot.send_message(msg.chat.id, format!("❌ <b>Search failed:</b> {e}"))
+                        .parse_mode(ParseMode::Html)
+                        .await?;
                 }
             }
         }
         BotCommand::Vplay(query) => {
             if query.trim().is_empty() {
-                bot.send_message(msg.chat.id, "Please specify a video title or URL e.g. <code>/vplay video title</code>").parse_mode(ParseMode::Html).await?;
+                bot.send_message(
+                    msg.chat.id,
+                    "Please specify a video title or URL e.g. <code>/vplay video title</code>",
+                )
+                .parse_mode(ParseMode::Html)
+                .await?;
                 return Ok(());
             }
 
             let live_router = build_live_router(&lazy_providers, &lazy_providers.config);
-            match live_router.execute_search(&query, user_id, &user_name).await {
+            match live_router
+                .execute_search(&query, user_id, &user_name)
+                .await
+            {
                 Ok(track) => {
-                    let maybe_pos = media_engine.enqueue_and_play(chat_id, track.clone()).await?;
+                    let maybe_pos = media_engine
+                        .enqueue_and_play(chat_id, track.clone())
+                        .await?;
                     let pb_state = media_engine.state(chat_id).await?;
 
                     if let Some(pos) = maybe_pos {
                         let text = SoulKingUI::format_enqueued(&track, pos);
-                        bot.send_message(msg.chat.id, text).parse_mode(ParseMode::Html).await?;
+                        bot.send_message(msg.chat.id, text)
+                            .parse_mode(ParseMode::Html)
+                            .await?;
                     } else if let Some(curr) = &pb_state.current {
-                        let text = SoulKingUI::format_now_playing(curr, 0, false, &pb_state.loop_mode, pb_state.voice_state, &pb_state.queue);
-                        let sent = bot.send_message(msg.chat.id, text)
+                        let text = SoulKingUI::format_now_playing(
+                            curr,
+                            0,
+                            false,
+                            &pb_state.loop_mode,
+                            pb_state.voice_state,
+                            &pb_state.queue,
+                        );
+                        let sent = bot
+                            .send_message(msg.chat.id, text)
                             .parse_mode(ParseMode::Html)
                             .reply_markup(SoulKingUI::now_playing_keyboard(false))
                             .await?;
-                        let _ = media_engine.repo.set_player_message_id(chat_id, Some(sent.id.0)).await;
+                        let _ = media_engine
+                            .repo
+                            .set_player_message_id(chat_id, Some(sent.id.0))
+                            .await;
                     }
                 }
                 Err(e) => {
-                    bot.send_message(msg.chat.id, format!("❌ <b>Video resolution failed:</b> {e}")).parse_mode(ParseMode::Html).await?;
+                    bot.send_message(
+                        msg.chat.id,
+                        format!("❌ <b>Video resolution failed:</b> {e}"),
+                    )
+                    .parse_mode(ParseMode::Html)
+                    .await?;
                 }
             }
         }
         BotCommand::Pause => {
             media_engine.pause(chat_id).await?;
-            bot.send_message(msg.chat.id, "⏸️ <b>Playback Paused</b>").parse_mode(ParseMode::Html).await?;
+            bot.send_message(msg.chat.id, "⏸️ <b>Playback Paused</b>")
+                .parse_mode(ParseMode::Html)
+                .await?;
         }
         BotCommand::Resume => {
             media_engine.resume(chat_id).await?;
-            bot.send_message(msg.chat.id, "▶️ <b>Playback Resumed</b>").parse_mode(ParseMode::Html).await?;
+            bot.send_message(msg.chat.id, "▶️ <b>Playback Resumed</b>")
+                .parse_mode(ParseMode::Html)
+                .await?;
         }
         BotCommand::Skip => {
             let pb_state = media_engine.state(chat_id).await?;
             match media_engine.skip(chat_id).await {
                 Ok(Some(next)) => {
-                    let text = SoulKingUI::format_now_playing(&next, 0, false, &LoopMode::Off, pb_state.voice_state, &pb_state.queue);
-                    let sent = bot.send_message(msg.chat.id, text)
+                    let text = SoulKingUI::format_now_playing(
+                        &next,
+                        0,
+                        false,
+                        &LoopMode::Off,
+                        pb_state.voice_state,
+                        &pb_state.queue,
+                    );
+                    let sent = bot
+                        .send_message(msg.chat.id, text)
                         .parse_mode(ParseMode::Html)
                         .reply_markup(SoulKingUI::now_playing_keyboard(false))
                         .await?;
-                    let _ = media_engine.repo.set_player_message_id(chat_id, Some(sent.id.0)).await;
+                    let _ = media_engine
+                        .repo
+                        .set_player_message_id(chat_id, Some(sent.id.0))
+                        .await;
                 }
                 Ok(None) => {
-                    bot.send_message(msg.chat.id, "⏹️ <b>End of Queue — Stage Cleared</b>").parse_mode(ParseMode::Html).await?;
+                    bot.send_message(msg.chat.id, "⏹️ <b>End of Queue — Stage Cleared</b>")
+                        .parse_mode(ParseMode::Html)
+                        .await?;
                     let _ = media_engine.repo.set_player_message_id(chat_id, None).await;
                 }
                 Err(e) => {
-                    bot.send_message(msg.chat.id, format!("⚠️ <b>{e}</b>")).parse_mode(ParseMode::Html).await?;
+                    bot.send_message(msg.chat.id, format!("⚠️ <b>{e}</b>"))
+                        .parse_mode(ParseMode::Html)
+                        .await?;
                 }
             }
         }
         BotCommand::Prev => {
             let pb_state = media_engine.state(chat_id).await?;
             if let Some(prev) = media_engine.prev(chat_id).await? {
-                let text = SoulKingUI::format_now_playing(&prev, 0, false, &LoopMode::Off, pb_state.voice_state, &pb_state.queue);
-                let sent = bot.send_message(msg.chat.id, text)
+                let text = SoulKingUI::format_now_playing(
+                    &prev,
+                    0,
+                    false,
+                    &LoopMode::Off,
+                    pb_state.voice_state,
+                    &pb_state.queue,
+                );
+                let sent = bot
+                    .send_message(msg.chat.id, text)
                     .parse_mode(ParseMode::Html)
                     .reply_markup(SoulKingUI::now_playing_keyboard(false))
                     .await?;
-                let _ = media_engine.repo.set_player_message_id(chat_id, Some(sent.id.0)).await;
+                let _ = media_engine
+                    .repo
+                    .set_player_message_id(chat_id, Some(sent.id.0))
+                    .await;
             } else {
-                bot.send_message(msg.chat.id, "⚠️ <b>No previous track in history</b>").parse_mode(ParseMode::Html).await?;
+                bot.send_message(msg.chat.id, "⚠️ <b>No previous track in history</b>")
+                    .parse_mode(ParseMode::Html)
+                    .await?;
             }
         }
         BotCommand::Stop => {
             media_engine.stop(chat_id).await?;
             let _ = media_engine.repo.set_player_message_id(chat_id, None).await;
-            bot.send_message(msg.chat.id, "⏹️ <b>Playback Stopped & Stage Cleared</b>").parse_mode(ParseMode::Html).await?;
+            bot.send_message(msg.chat.id, "⏹️ <b>Playback Stopped & Stage Cleared</b>")
+                .parse_mode(ParseMode::Html)
+                .await?;
         }
         BotCommand::Seek(secs) => {
             media_engine.seek(chat_id, secs).await?;
-            bot.send_message(msg.chat.id, format!("⏩ <b>Seeked to {secs}s</b>")).parse_mode(ParseMode::Html).await?;
+            bot.send_message(msg.chat.id, format!("⏩ <b>Seeked to {secs}s</b>"))
+                .parse_mode(ParseMode::Html)
+                .await?;
         }
         BotCommand::Volume(vol) => {
             media_engine.set_volume(chat_id, vol).await?;
-            bot.send_message(msg.chat.id, format!("🔊 <b>Volume set to {vol}%</b>")).parse_mode(ParseMode::Html).await?;
+            bot.send_message(msg.chat.id, format!("🔊 <b>Volume set to {vol}%</b>"))
+                .parse_mode(ParseMode::Html)
+                .await?;
         }
         BotCommand::Queue => {
             let state = media_engine.state(chat_id).await?;
-            let text = SoulKingUI::format_queue(state.current.as_ref(), &state.queue, &state.loop_mode);
-            bot.send_message(msg.chat.id, text).parse_mode(ParseMode::Html).await?;
+            let text =
+                SoulKingUI::format_queue(state.current.as_ref(), &state.queue, &state.loop_mode);
+            bot.send_message(msg.chat.id, text)
+                .parse_mode(ParseMode::Html)
+                .await?;
         }
         BotCommand::Now => {
             let state = media_engine.state(chat_id).await?;
             if let Some(curr) = state.current {
-                let text = SoulKingUI::format_now_playing(&curr, state.position_secs, state.is_paused, &state.loop_mode, state.voice_state, &state.queue);
-                let sent = bot.send_message(msg.chat.id, text)
+                let text = SoulKingUI::format_now_playing(
+                    &curr,
+                    state.position_secs,
+                    state.is_paused,
+                    &state.loop_mode,
+                    state.voice_state,
+                    &state.queue,
+                );
+                let sent = bot
+                    .send_message(msg.chat.id, text)
                     .parse_mode(ParseMode::Html)
                     .reply_markup(SoulKingUI::now_playing_keyboard(state.is_paused))
                     .await?;
-                let _ = media_engine.repo.set_player_message_id(chat_id, Some(sent.id.0)).await;
+                let _ = media_engine
+                    .repo
+                    .set_player_message_id(chat_id, Some(sent.id.0))
+                    .await;
             } else {
-                bot.send_message(msg.chat.id, "⏸️ <b>No track currently playing</b>").parse_mode(ParseMode::Html).await?;
+                bot.send_message(msg.chat.id, "⏸️ <b>No track currently playing</b>")
+                    .parse_mode(ParseMode::Html)
+                    .await?;
             }
         }
         BotCommand::Loop => {
             let mode = media_engine.repo.cycle_loop_mode(chat_id).await?;
-            bot.send_message(msg.chat.id, format!("🔁 <b>Loop Mode: {}</b>", mode.display_text())).parse_mode(ParseMode::Html).await?;
+            bot.send_message(
+                msg.chat.id,
+                format!("🔁 <b>Loop Mode: {}</b>", mode.display_text()),
+            )
+            .parse_mode(ParseMode::Html)
+            .await?;
         }
         BotCommand::Shuffle => {
             media_engine.repo.shuffle(chat_id).await?;
-            bot.send_message(msg.chat.id, "🔀 <b>Queue Shuffled</b>").parse_mode(ParseMode::Html).await?;
+            bot.send_message(msg.chat.id, "🔀 <b>Queue Shuffled</b>")
+                .parse_mode(ParseMode::Html)
+                .await?;
         }
         BotCommand::PlayerDebug => {
             let state = media_engine.state(chat_id).await?;
-            let curr_title = state.current.as_ref().map(|t| t.title.as_str()).unwrap_or("None");
+            let curr_title = state
+                .current
+                .as_ref()
+                .map(|t| t.title.as_str())
+                .unwrap_or("None");
             let last_err = state.last_error.as_deref().unwrap_or("None");
             let controller = if state.owner_user_name.is_empty() {
                 "None".into()
             } else {
-                format!("{} ({})", state.owner_user_name, state.owner_user_id.unwrap_or(0))
+                format!(
+                    "{} ({})",
+                    state.owner_user_name,
+                    state.owner_user_id.unwrap_or(0)
+                )
             };
             let text = format!(
                 "🛠️ <b>Player Debug Diagnostics</b>\n\
@@ -685,7 +831,9 @@ pub async fn handle_command(
                 state.volume,
                 last_err
             );
-            bot.send_message(msg.chat.id, text).parse_mode(ParseMode::Html).await?;
+            bot.send_message(msg.chat.id, text)
+                .parse_mode(ParseMode::Html)
+                .await?;
         }
     }
     Ok(())
@@ -696,7 +844,9 @@ pub async fn handle_callback_query(
     q: teloxide::types::CallbackQuery,
     media_engine: Arc<MediaEngine>,
 ) -> anyhow::Result<()> {
-    let Some(msg) = q.message else { return Ok(()); };
+    let Some(msg) = q.message else {
+        return Ok(());
+    };
     let chat_id = msg.chat().id.0;
     let msg_id = msg.id();
     let user_id = q.from.id.0 as i64;
@@ -707,7 +857,8 @@ pub async fn handle_callback_query(
     if data.starts_with("help_") {
         let text = SoulKingUI::format_help_category(data);
         let keyboard = SoulKingUI::help_keyboard();
-        let _ = bot.edit_message_text(msg.chat().id, msg_id, text)
+        let _ = bot
+            .edit_message_text(msg.chat().id, msg_id, text)
             .parse_mode(ParseMode::Html)
             .reply_markup(keyboard)
             .await;
@@ -716,7 +867,13 @@ pub async fn handle_callback_query(
     }
 
     let mapped_cmd = match data {
-        "cb_toggle_pause" => if pb_state.is_paused { BotCommand::Resume } else { BotCommand::Pause },
+        "cb_toggle_pause" => {
+            if pb_state.is_paused {
+                BotCommand::Resume
+            } else {
+                BotCommand::Pause
+            }
+        }
         "cb_skip" => BotCommand::Skip,
         "cb_stop" => BotCommand::Stop,
         "cb_loop" => BotCommand::Loop,
@@ -724,8 +881,14 @@ pub async fn handle_callback_query(
         _ => return Ok(()),
     };
 
-    if let Err(e) = AuthorizationManager::authorize(&mapped_cmd, user_id, chat_id, &pb_state, None, false) {
-        let _ = bot.answer_callback_query(&q.id).text(format!("⛔ {e}")).show_alert(true).await;
+    if let Err(e) =
+        AuthorizationManager::authorize(&mapped_cmd, user_id, chat_id, &pb_state, None, false)
+    {
+        let _ = bot
+            .answer_callback_query(&q.id)
+            .text(format!("⛔ {e}"))
+            .show_alert(true)
+            .await;
         return Ok(());
     }
 
@@ -733,28 +896,46 @@ pub async fn handle_callback_query(
         "cb_toggle_pause" => {
             if pb_state.is_paused {
                 let _ = media_engine.resume(chat_id).await;
-                let _ = bot.answer_callback_query(&q.id).text("▶️ Playback Resumed").await;
+                let _ = bot
+                    .answer_callback_query(&q.id)
+                    .text("▶️ Playback Resumed")
+                    .await;
             } else {
                 let _ = media_engine.pause(chat_id).await;
-                let _ = bot.answer_callback_query(&q.id).text("⏸️ Playback Paused").await;
+                let _ = bot
+                    .answer_callback_query(&q.id)
+                    .text("⏸️ Playback Paused")
+                    .await;
             }
         }
         "cb_skip" => {
             let _ = media_engine.skip(chat_id).await;
-            let _ = bot.answer_callback_query(&q.id).text("⏭️ Track Skipped").await;
+            let _ = bot
+                .answer_callback_query(&q.id)
+                .text("⏭️ Track Skipped")
+                .await;
         }
         "cb_stop" => {
             let _ = media_engine.stop(chat_id).await;
             let _ = media_engine.repo.set_player_message_id(chat_id, None).await;
-            let _ = bot.answer_callback_query(&q.id).text("⏹️ Playback Stopped").await;
+            let _ = bot
+                .answer_callback_query(&q.id)
+                .text("⏹️ Playback Stopped")
+                .await;
         }
         "cb_loop" => {
             let mode = media_engine.repo.cycle_loop_mode(chat_id).await?;
-            let _ = bot.answer_callback_query(&q.id).text(format!("🔁 Loop Mode: {}", mode.display_text())).await;
+            let _ = bot
+                .answer_callback_query(&q.id)
+                .text(format!("🔁 Loop Mode: {}", mode.display_text()))
+                .await;
         }
         "cb_shuffle" => {
             let _ = media_engine.repo.shuffle(chat_id).await;
-            let _ = bot.answer_callback_query(&q.id).text("🔀 Queue Shuffled").await;
+            let _ = bot
+                .answer_callback_query(&q.id)
+                .text("🔀 Queue Shuffled")
+                .await;
         }
         _ => {}
     }
@@ -770,7 +951,8 @@ pub async fn handle_callback_query(
                 &state.queue,
             );
             let keyboard = SoulKingUI::now_playing_keyboard(state.is_paused);
-            let _ = bot.edit_message_text(msg.chat().id, msg_id, text)
+            let _ = bot
+                .edit_message_text(msg.chat().id, msg_id, text)
                 .parse_mode(ParseMode::Html)
                 .reply_markup(keyboard)
                 .await;
