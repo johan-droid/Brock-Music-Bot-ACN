@@ -89,7 +89,7 @@ RUN useradd -r -u 1001 -s /sbin/nologin appuser && chown -R appuser:appuser /app
 USER appuser
 
 # Worker dynos receive no $PORT from Heroku; the internal Axum HTTP API binds 8000.
-ENV RUST_LOG=debug
+ENV RUST_LOG=info,brook_music_bot=debug,h2=warn,rustls=warn,reqwest=warn,hyper=warn,sqlx=warn
 ENV RUST_BACKTRACE=1
 EXPOSE 8000
 

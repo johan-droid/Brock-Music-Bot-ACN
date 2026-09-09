@@ -30,7 +30,9 @@ use crate::ai::AiReceiver;
 use crate::commands::{handle_command, BotCommand};
 use crate::config::{init_logger, Config};
 use crate::db::{DbRepository, MemoryFirstDbRepository};
-use crate::media_engine::{InMemoryQueueRepository, MediaEngine, PlaybackTransport, TelegramAudioTransport, VoiceChatTransport};
+use crate::media_engine::{
+    connect_voice_transport, InMemoryQueueRepository, MediaEngine, PlaybackTransport, TelegramAudioTransport, VoiceChatTransport,
+};
 use crate::providers::{AppleResolver, DirectResolver, SoundCloudResolver, SpotifyResolver, YouTubeResolver};
 use crate::router::{MusicRouter, Platform, Route, SourceAdapter, TrackResolver, UrlResolver, VideoResolver};
 
@@ -344,11 +346,18 @@ async fn main() -> anyhow::Result<()> {
     let queue_repo = Arc::new(InMemoryQueueRepository::new(config.max_queue_size, config.default_volume));
     let bot = config.bot_token.as_ref().map(|t| Bot::new(t.clone()));
 
-    // Defer voice transport — connect only when first track is played.
-    let _voice_transport: Option<Arc<VoiceChatTransport>> = None;
-    let transport: Arc<dyn PlaybackTransport> = Arc::new(TelegramAudioTransport::new(
-        config.bot_token.as_ref().map(|t| Bot::new(t.clone()))
-    ));
+    // Resolve voice transport eagerly — necessary for voice-chat playback.
+    // Falls back to the inert TelegramAudioTransport only if MTProto auth fails.
+    let live_router = Arc::new(crate::commands::build_live_router(&lazy, &config));
+    let voice_transport: Option<Arc<VoiceChatTransport>> =
+        connect_voice_transport(&config, bot.clone(), live_router.clone())
+            .await
+            .map(Arc::new);
+
+    let transport: Arc<dyn PlaybackTransport> = match &voice_transport {
+        Some(vt) => vt.clone(),
+        None => Arc::new(TelegramAudioTransport::new(config.bot_token.as_ref().map(|t| Bot::new(t.clone())))),
+    };
 
     let media_engine = Arc::new(MediaEngine::new(queue_repo, transport));
     eprintln!("[BOOT] media engine created");
@@ -478,6 +487,9 @@ async fn main() -> anyhow::Result<()> {
             _ = dispatcher.dispatch() => {},
             _ = tokio::signal::ctrl_c() => {
                 tracing::info!("Received shutdown signal, cleaning up streams...");
+                if let Some(vt) = &voice_transport {
+                    vt.shutdown_all().await;
+                }
             }
         }
     } else {
@@ -490,6 +502,9 @@ async fn main() -> anyhow::Result<()> {
         tokio::select! {
             _ = tokio::signal::ctrl_c() => {
                 tracing::info!("Received shutdown signal, cleaning up streams...");
+                if let Some(vt) = &voice_transport {
+                    vt.shutdown_all().await;
+                }
             }
         }
     }
