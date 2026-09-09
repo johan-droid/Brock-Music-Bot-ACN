@@ -206,6 +206,7 @@ dependencies = [
  "dashmap 5.5.3",
  "dotenvy",
  "ferogram",
+ "futures",
  "rand 0.8.7",
  "reqwest 0.12.28",
  "serde",
