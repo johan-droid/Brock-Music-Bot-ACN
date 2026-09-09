@@ -55,7 +55,9 @@ where
         match operation().await {
             Ok(value) => return Ok(value),
             Err(err) if attempt < config.max_retries && should_retry(&err) => {
-                let jitter = delay.as_secs_f64() * config.jitter_factor * (rand::random::<f64>() * 2.0 - 1.0);
+                let jitter = delay.as_secs_f64()
+                    * config.jitter_factor
+                    * (rand::random::<f64>() * 2.0 - 1.0);
                 let delay_with_jitter = delay + Duration::from_secs_f64(jitter.max(0.0));
                 warn!(
                     attempt = attempt + 1,
@@ -82,7 +84,10 @@ pub fn is_retryable_reqwest_error(err: &reqwest::Error) -> bool {
     err.is_timeout()
         || err.is_connect()
         || err.is_request()
-        || err.status().map(|s| s.is_server_error() || s.as_u16() == 429).unwrap_or(false)
+        || err
+            .status()
+            .map(|s| s.is_server_error() || s.as_u16() == 429)
+            .unwrap_or(false)
 }
 
 // --- YouTube Resolver (InnerTube + yt-dlp) ---
@@ -231,9 +236,12 @@ impl YouTubeResolver {
 
     fn extract_stream_url_from_player_json(data: &Value) -> Option<String> {
         let streaming_data = data.get("streamingData")?;
-        
+
         // 1. Search adaptiveFormats first (best audio quality)
-        if let Some(formats) = streaming_data.get("adaptiveFormats").and_then(|v| v.as_array()) {
+        if let Some(formats) = streaming_data
+            .get("adaptiveFormats")
+            .and_then(|v| v.as_array())
+        {
             for f in formats {
                 let ty = f.get("mimeType").and_then(|v| v.as_str()).unwrap_or("");
                 if ty.starts_with("audio/") {
@@ -367,7 +375,11 @@ impl YouTubeResolver {
             None
         }
         fn parse_renderer(rend: &Value) -> Option<YtSearchHit> {
-            let video_id = rend.get("videoId").and_then(|v| v.as_str())?.trim().to_string();
+            let video_id = rend
+                .get("videoId")
+                .and_then(|v| v.as_str())?
+                .trim()
+                .to_string();
             let title = rend
                 .get("title")
                 .and_then(|t| t.get("runs"))
@@ -476,11 +488,14 @@ impl SourceAdapter for YouTubeResolver {
                 source: SourceKind::YouTube,
                 external_id: Some(hit.video_id),
             };
-            self.search_cache.insert(key, (Instant::now(), track.clone()));
+            self.search_cache
+                .insert(key, (Instant::now(), track.clone()));
             return Ok(track);
         }
 
-        Err(BotError::NotFound(format!("YouTube track not found for '{query}'")))
+        Err(BotError::NotFound(format!(
+            "YouTube track not found for '{query}'"
+        )))
     }
 
     async fn resolve(&self, track: &Track) -> Result<ResolvedAudio> {
@@ -491,13 +506,34 @@ impl SourceAdapter for YouTubeResolver {
             .or(extracted.as_deref())
             .ok_or_else(|| BotError::NotFound("Track missing YouTube videoId".to_string()))?;
 
+        // 1. Try Innertube direct audio URL
+        if let Some(direct_url) = self.innertube_resolve(video_id).await {
+            tracing::info!(video_id = %video_id, stream_url = %direct_url, "Resolved YouTube track to direct HTTPS Innertube audio URL");
+            return Ok(ResolvedAudio {
+                file_url: direct_url,
+                headers: None,
+                is_direct: true,
+            });
+        }
+
+        // 2. Try yt-dlp direct audio URL
+        if let Some(direct_url) = self.ytdlp_resolve(video_id).await {
+            tracing::info!(video_id = %video_id, stream_url = %direct_url, "Resolved YouTube track to direct HTTPS yt-dlp audio URL");
+            return Ok(ResolvedAudio {
+                file_url: direct_url,
+                headers: None,
+                is_direct: true,
+            });
+        }
+
+        // 3. Fallback to local /stream endpoint if available
         let port = std::env::var("PORT")
             .ok()
             .and_then(|p| p.parse::<u16>().ok())
             .unwrap_or(8000);
         let stream_url = format!("http://127.0.0.1:{port}/stream?yt={video_id}");
 
-        tracing::info!(video_id = %video_id, stream_url = %stream_url, "Resolved YouTube track to real-time piped audio stream URL");
+        tracing::warn!(video_id = %video_id, stream_url = %stream_url, "Direct resolution failed; falling back to local /stream endpoint");
 
         Ok(ResolvedAudio {
             file_url: stream_url,
@@ -540,7 +576,11 @@ impl SpotifyResolver {
     async fn ensure_token(&self) -> Result<String> {
         let (id, secret) = match (&self.client_id, &self.client_secret) {
             (Some(id), Some(sec)) if !id.is_empty() && !sec.is_empty() => (id, sec),
-            _ => return Err(BotError::PlatformConfig("Spotify credentials not configured".into())),
+            _ => {
+                return Err(BotError::PlatformConfig(
+                    "Spotify credentials not configured".into(),
+                ))
+            }
         };
 
         if let Ok(guard) = self.token_cache.lock() {
@@ -556,7 +596,10 @@ impl SpotifyResolver {
             .client
             .post(Self::TOKEN_URL)
             .header(reqwest::header::AUTHORIZATION, format!("Basic {basic}"))
-            .header(reqwest::header::CONTENT_TYPE, "application/x-www-form-urlencoded")
+            .header(
+                reqwest::header::CONTENT_TYPE,
+                "application/x-www-form-urlencoded",
+            )
             .body("grant_type=client_credentials")
             .send()
             .await?
@@ -566,10 +609,15 @@ impl SpotifyResolver {
         let token = json
             .get("access_token")
             .and_then(|t| t.as_str())
-            .ok_or_else(|| BotError::Internal("Spotify token response missing access_token".into()))?
+            .ok_or_else(|| {
+                BotError::Internal("Spotify token response missing access_token".into())
+            })?
             .to_string();
 
-        let expires_in = json.get("expires_in").and_then(|e| e.as_u64()).unwrap_or(3600);
+        let expires_in = json
+            .get("expires_in")
+            .and_then(|e| e.as_u64())
+            .unwrap_or(3600);
         let expires_at = Instant::now() + Duration::from_secs(expires_in);
 
         if let Ok(mut guard) = self.token_cache.lock() {
@@ -590,9 +638,18 @@ impl SourceAdapter for SpotifyResolver {
         Platform::Spotify
     }
 
-    async fn search(&self, query: &str, requested_by: i64, requested_by_name: &str) -> Result<Track> {
+    async fn search(
+        &self,
+        query: &str,
+        requested_by: i64,
+        requested_by_name: &str,
+    ) -> Result<Track> {
         let token = self.ensure_token().await?;
-        let url = format!("{}/search?q={}&type=track&limit=1", Self::API_BASE, urlencoding::encode(query));
+        let url = format!(
+            "{}/search?q={}&type=track&limit=1",
+            Self::API_BASE,
+            urlencoding::encode(query)
+        );
         let resp = self
             .client
             .get(&url)
@@ -606,13 +663,24 @@ impl SourceAdapter for SpotifyResolver {
             .pointer("/tracks/items/0")
             .ok_or_else(|| BotError::NotFound(format!("Spotify: no track found for '{query}'")))?;
 
-        let track_name = item.get("name").and_then(|n| n.as_str()).unwrap_or("Unknown").to_string();
+        let track_name = item
+            .get("name")
+            .and_then(|n| n.as_str())
+            .unwrap_or("Unknown")
+            .to_string();
         let artist_name = item
             .pointer("/artists/0/name")
             .and_then(|a| a.as_str())
             .map(|s| s.to_string());
-        let duration_ms = item.get("duration_ms").and_then(|d| d.as_u64()).unwrap_or(0);
-        let track_id = item.get("id").and_then(|i| i.as_str()).unwrap_or("").to_string();
+        let duration_ms = item
+            .get("duration_ms")
+            .and_then(|d| d.as_u64())
+            .unwrap_or(0);
+        let track_id = item
+            .get("id")
+            .and_then(|i| i.as_str())
+            .unwrap_or("")
+            .to_string();
 
         Ok(Track {
             id: TrackId::new(format!("spotify:{track_id}")),
@@ -620,7 +688,10 @@ impl SourceAdapter for SpotifyResolver {
             artist: artist_name,
             url: format!("https://open.spotify.com/track/{track_id}"),
             duration_secs: duration_ms / 1000,
-            thumbnail_url: item.pointer("/album/images/0/url").and_then(|u| u.as_str()).map(|s| s.to_string()),
+            thumbnail_url: item
+                .pointer("/album/images/0/url")
+                .and_then(|u| u.as_str())
+                .map(|s| s.to_string()),
             requested_by,
             requested_by_name: requested_by_name.to_string(),
             source: SourceKind::Spotify,
@@ -630,13 +701,17 @@ impl SourceAdapter for SpotifyResolver {
 
     async fn resolve(&self, track: &Track) -> Result<ResolvedAudio> {
         let yt = self.yt.as_ref().ok_or_else(|| {
-            BotError::Internal("Spotify adapter requires YouTube fallback resolver for audio".into())
+            BotError::Internal(
+                "Spotify adapter requires YouTube fallback resolver for audio".into(),
+            )
         })?;
         let query = match &track.artist {
             Some(artist) => format!("{} {}", track.title, artist),
             None => track.title.clone(),
         };
-        let yt_track = yt.search_track(&query, track.requested_by, &track.requested_by_name).await?;
+        let yt_track = yt
+            .search_track(&query, track.requested_by, &track.requested_by_name)
+            .await?;
         yt.resolve(&yt_track).await
     }
 }
@@ -665,21 +740,40 @@ impl SourceAdapter for AppleResolver {
         Platform::AppleMusic
     }
 
-    async fn search(&self, query: &str, requested_by: i64, requested_by_name: &str) -> Result<Track> {
+    async fn search(
+        &self,
+        query: &str,
+        requested_by: i64,
+        requested_by_name: &str,
+    ) -> Result<Track> {
         let url = format!(
             "https://itunes.apple.com/search?term={}&entity=song&limit=1",
             urlencoding::encode(query)
         );
         let resp = self.client.get(&url).send().await?.error_for_status()?;
         let json: Value = resp.json().await?;
-        let item = json
-            .pointer("/results/0")
-            .ok_or_else(|| BotError::NotFound(format!("Apple Music: no song found for '{query}'")))?;
+        let item = json.pointer("/results/0").ok_or_else(|| {
+            BotError::NotFound(format!("Apple Music: no song found for '{query}'"))
+        })?;
 
-        let track_name = item.get("trackName").and_then(|n| n.as_str()).unwrap_or("Unknown").to_string();
-        let artist_name = item.get("artistName").and_then(|a| a.as_str()).map(|s| s.to_string());
-        let duration_ms = item.get("trackTimeMillis").and_then(|d| d.as_u64()).unwrap_or(0);
-        let track_id = item.get("trackId").and_then(|i| i.as_u64()).map(|i| i.to_string()).unwrap_or_default();
+        let track_name = item
+            .get("trackName")
+            .and_then(|n| n.as_str())
+            .unwrap_or("Unknown")
+            .to_string();
+        let artist_name = item
+            .get("artistName")
+            .and_then(|a| a.as_str())
+            .map(|s| s.to_string());
+        let duration_ms = item
+            .get("trackTimeMillis")
+            .and_then(|d| d.as_u64())
+            .unwrap_or(0);
+        let track_id = item
+            .get("trackId")
+            .and_then(|i| i.as_u64())
+            .map(|i| i.to_string())
+            .unwrap_or_default();
 
         Ok(Track {
             id: TrackId::new(format!("apple:{track_id}")),
@@ -687,7 +781,10 @@ impl SourceAdapter for AppleResolver {
             artist: artist_name,
             url: format!("https://music.apple.com/us/song/{track_id}"),
             duration_secs: duration_ms / 1000,
-            thumbnail_url: item.get("artworkUrl100").and_then(|u| u.as_str()).map(|s| s.to_string()),
+            thumbnail_url: item
+                .get("artworkUrl100")
+                .and_then(|u| u.as_str())
+                .map(|s| s.to_string()),
             requested_by,
             requested_by_name: requested_by_name.to_string(),
             source: SourceKind::AppleMusic,
@@ -697,13 +794,17 @@ impl SourceAdapter for AppleResolver {
 
     async fn resolve(&self, track: &Track) -> Result<ResolvedAudio> {
         let yt = self.yt.as_ref().ok_or_else(|| {
-            BotError::Internal("Apple Music adapter requires YouTube fallback resolver for audio".into())
+            BotError::Internal(
+                "Apple Music adapter requires YouTube fallback resolver for audio".into(),
+            )
         })?;
         let query = match &track.artist {
             Some(artist) => format!("{} {}", track.title, artist),
             None => track.title.clone(),
         };
-        let yt_track = yt.search_track(&query, track.requested_by, &track.requested_by_name).await?;
+        let yt_track = yt
+            .search_track(&query, track.requested_by, &track.requested_by_name)
+            .await?;
         yt.resolve(&yt_track).await
     }
 }
@@ -723,7 +824,11 @@ impl SoundCloudResolver {
         client_id: Option<String>,
         yt: Option<Arc<YouTubeResolver>>,
     ) -> Self {
-        Self { client, client_id, yt }
+        Self {
+            client,
+            client_id,
+            yt,
+        }
     }
 }
 
@@ -737,11 +842,15 @@ impl SourceAdapter for SoundCloudResolver {
         Platform::SoundCloud
     }
 
-    async fn search(&self, query: &str, requested_by: i64, requested_by_name: &str) -> Result<Track> {
-        let client_id = self
-            .client_id
-            .as_deref()
-            .ok_or_else(|| BotError::PlatformConfig("SOUNDCLOUD_CLIENT_ID not configured".into()))?;
+    async fn search(
+        &self,
+        query: &str,
+        requested_by: i64,
+        requested_by_name: &str,
+    ) -> Result<Track> {
+        let client_id = self.client_id.as_deref().ok_or_else(|| {
+            BotError::PlatformConfig("SOUNDCLOUD_CLIENT_ID not configured".into())
+        })?;
 
         let url = format!(
             "https://api-v2.soundcloud.com/search/tracks?q={}&client_id={}&limit=1",
@@ -750,22 +859,40 @@ impl SourceAdapter for SoundCloudResolver {
         );
         let resp = self.client.get(&url).send().await?.error_for_status()?;
         let json: Value = resp.json().await?;
-        let item = json
-            .pointer("/collection/0")
-            .ok_or_else(|| BotError::NotFound(format!("SoundCloud: no track found for '{query}'")))?;
+        let item = json.pointer("/collection/0").ok_or_else(|| {
+            BotError::NotFound(format!("SoundCloud: no track found for '{query}'"))
+        })?;
 
-        let track_id = item.get("id").and_then(|i| i.as_u64()).map(|i| i.to_string()).unwrap_or_default();
-        let title = item.get("title").and_then(|t| t.as_str()).unwrap_or("Unknown").to_string();
-        let artist = item.pointer("/user/username").and_then(|u| u.as_str()).map(|s| s.to_string());
+        let track_id = item
+            .get("id")
+            .and_then(|i| i.as_u64())
+            .map(|i| i.to_string())
+            .unwrap_or_default();
+        let title = item
+            .get("title")
+            .and_then(|t| t.as_str())
+            .unwrap_or("Unknown")
+            .to_string();
+        let artist = item
+            .pointer("/user/username")
+            .and_then(|u| u.as_str())
+            .map(|s| s.to_string());
         let duration_ms = item.get("duration").and_then(|d| d.as_u64()).unwrap_or(0);
 
         Ok(Track {
             id: TrackId::new(format!("sc:{track_id}")),
             title,
             artist,
-            url: item.get("permalink_url").and_then(|u| u.as_str()).unwrap_or("").to_string(),
+            url: item
+                .get("permalink_url")
+                .and_then(|u| u.as_str())
+                .unwrap_or("")
+                .to_string(),
             duration_secs: duration_ms / 1000,
-            thumbnail_url: item.get("artwork_url").and_then(|u| u.as_str()).map(|s| s.to_string()),
+            thumbnail_url: item
+                .get("artwork_url")
+                .and_then(|u| u.as_str())
+                .map(|s| s.to_string()),
             requested_by,
             requested_by_name: requested_by_name.to_string(),
             source: SourceKind::SoundCloud,
@@ -779,13 +906,18 @@ impl SourceAdapter for SoundCloudResolver {
                 Some(artist) => format!("{} {}", track.title, artist),
                 None => track.title.clone(),
             };
-            if let Ok(yt_track) = yt.search_track(&query, track.requested_by, &track.requested_by_name).await {
+            if let Ok(yt_track) = yt
+                .search_track(&query, track.requested_by, &track.requested_by_name)
+                .await
+            {
                 if let Ok(audio) = yt.resolve(&yt_track).await {
                     return Ok(audio);
                 }
             }
         }
-        Err(BotError::NotFound("SoundCloud stream resolution unavailable".into()))
+        Err(BotError::NotFound(
+            "SoundCloud stream resolution unavailable".into(),
+        ))
     }
 }
 
@@ -847,7 +979,9 @@ impl DirectResolver {
             .collect();
         for addr in addrs {
             if is_blocked_ip(addr.ip()) {
-                return Err(BotError::NotFound(format!("host '{host}' resolves to private IP")));
+                return Err(BotError::NotFound(format!(
+                    "host '{host}' resolves to private IP"
+                )));
             }
         }
         Ok(())
@@ -973,7 +1107,12 @@ impl SourceAdapter for DirectResolver {
         Platform::DirectUrl
     }
 
-    async fn search(&self, query: &str, requested_by: i64, requested_by_name: &str) -> Result<Track> {
+    async fn search(
+        &self,
+        query: &str,
+        requested_by: i64,
+        requested_by_name: &str,
+    ) -> Result<Track> {
         let query = query.trim();
         if !query.starts_with("http://") && !query.starts_with("https://") {
             return Err(BotError::NotFound("Not a direct audio URL".into()));
@@ -1024,14 +1163,20 @@ mod tests {
             "fe80::1",
             "::ffff:10.0.0.5",
         ] {
-            assert!(is_blocked_ip(IpAddr::from_str(ip).unwrap()), "{ip} must be blocked");
+            assert!(
+                is_blocked_ip(IpAddr::from_str(ip).unwrap()),
+                "{ip} must be blocked"
+            );
         }
     }
 
     #[test]
     fn allows_public_ips() {
         for ip in ["8.8.8.8", "1.1.1.1", "2606:4700:4700::1111"] {
-            assert!(!is_blocked_ip(IpAddr::from_str(ip).unwrap()), "{ip} must be allowed");
+            assert!(
+                !is_blocked_ip(IpAddr::from_str(ip).unwrap()),
+                "{ip} must be allowed"
+            );
         }
     }
 

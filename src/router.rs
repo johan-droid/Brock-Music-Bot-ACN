@@ -143,7 +143,12 @@ impl Platform {
 pub trait SourceAdapter: Send + Sync {
     fn name(&self) -> &'static str;
     fn platform(&self) -> Platform;
-    async fn search(&self, query: &str, requested_by: i64, requested_by_name: &str) -> Result<Track>;
+    async fn search(
+        &self,
+        query: &str,
+        requested_by: i64,
+        requested_by_name: &str,
+    ) -> Result<Track>;
     async fn resolve(&self, track: &Track) -> Result<ResolvedAudio>;
 }
 
@@ -226,7 +231,12 @@ impl Route {
 /// Core Trait for resolving tracks.
 #[async_trait]
 pub trait TrackResolver: Send + Sync {
-    async fn search(&self, query: &str, requested_by: i64, requested_by_name: &str) -> Result<Track>;
+    async fn search(
+        &self,
+        query: &str,
+        requested_by: i64,
+        requested_by_name: &str,
+    ) -> Result<Track>;
     async fn resolve(&self, track: &Track) -> Result<ResolvedAudio>;
     async fn invalidate(&self, track: &Track);
 }
@@ -262,8 +272,8 @@ impl MusicRouter {
                 .chain(search_chain.iter().map(|a| a.name())),
         );
 
-        let resolve_cache_ttl = Duration::from_secs(config.stream_cache_ttl_secs)
-            .min(Self::MAX_STREAM_CACHE_TTL);
+        let resolve_cache_ttl =
+            Duration::from_secs(config.stream_cache_ttl_secs).min(Self::MAX_STREAM_CACHE_TTL);
 
         Self {
             routes,
@@ -332,7 +342,10 @@ impl MusicRouter {
 
         let mut last_err = None;
         for adapter in ranked {
-            debug!(provider = adapter.name(), query, "Trying provider in search chain");
+            debug!(
+                provider = adapter.name(),
+                query, "Trying provider in search chain"
+            );
             match adapter.search(query, requested_by, requested_by_name).await {
                 Ok(track) => {
                     self.health.record_success(adapter.name());
@@ -347,9 +360,8 @@ impl MusicRouter {
             }
         }
 
-        Err(last_err.unwrap_or_else(|| {
-            BotError::NotFound(format!("No tracks found for query '{query}'"))
-        }))
+        Err(last_err
+            .unwrap_or_else(|| BotError::NotFound(format!("No tracks found for query '{query}'"))))
     }
 }
 
@@ -377,7 +389,10 @@ impl TrackResolver for MusicRouter {
 
         // 2. In-flight Request Deduplication (SingleFlight)
         if let Some(notify) = self.in_flight.get(&key).map(|r| r.value().clone()) {
-            debug!(query, "Concurrent duplicate query detected; awaiting in-flight result");
+            debug!(
+                query,
+                "Concurrent duplicate query detected; awaiting in-flight result"
+            );
             notify.notified().await;
             if let Some((_, cached)) = self.search_cache.get(&key).as_deref() {
                 let mut hit = cached.clone();
@@ -390,14 +405,18 @@ impl TrackResolver for MusicRouter {
         let notify = Arc::new(tokio::sync::Notify::new());
         self.in_flight.insert(key.clone(), notify.clone());
 
-        let res = self.execute_search(query, requested_by, requested_by_name).await;
+        let res = self
+            .execute_search(query, requested_by, requested_by_name)
+            .await;
 
         if let Ok(ref track) = res {
             if self.search_cache.len() > 500 {
                 let ttl = self.search_cache_ttl;
-                self.search_cache.retain(|_, (inserted, _)| inserted.elapsed() < ttl);
+                self.search_cache
+                    .retain(|_, (inserted, _)| inserted.elapsed() < ttl);
             }
-            self.search_cache.insert(key.clone(), (Instant::now(), track.clone()));
+            self.search_cache
+                .insert(key.clone(), (Instant::now(), track.clone()));
         }
 
         self.in_flight.remove(&key);
@@ -416,7 +435,10 @@ impl TrackResolver for MusicRouter {
         }
 
         let route = self.route_for_source(&track.source).ok_or_else(|| {
-            BotError::Internal(format!("No route registered for source kind {:?}", track.source))
+            BotError::Internal(format!(
+                "No route registered for source kind {:?}",
+                track.source
+            ))
         })?;
 
         let res = route.adapter.resolve(track).await;
@@ -424,7 +446,8 @@ impl TrackResolver for MusicRouter {
         if let Ok(audio) = &res {
             if self.resolve_cache.len() > 500 {
                 let ttl = self.resolve_cache_ttl;
-                self.resolve_cache.retain(|_, (inserted, _)| inserted.elapsed() < ttl);
+                self.resolve_cache
+                    .retain(|_, (inserted, _)| inserted.elapsed() < ttl);
             }
             self.resolve_cache
                 .insert(track.id.0.clone(), (Instant::now(), audio.clone()));
@@ -449,8 +472,15 @@ impl UrlResolver {
         Self { router }
     }
 
-    pub async fn resolve_url(&self, url: &str, requested_by: i64, requested_by_name: &str) -> Result<Track> {
-        self.router.search(url, requested_by, requested_by_name).await
+    pub async fn resolve_url(
+        &self,
+        url: &str,
+        requested_by: i64,
+        requested_by_name: &str,
+    ) -> Result<Track> {
+        self.router
+            .search(url, requested_by, requested_by_name)
+            .await
     }
 }
 
@@ -466,8 +496,15 @@ impl VideoResolver {
         Self { router }
     }
 
-    pub async fn resolve_video(&self, query: &str, requested_by: i64, requested_by_name: &str) -> Result<Track> {
-        self.router.search(query, requested_by, requested_by_name).await
+    pub async fn resolve_video(
+        &self,
+        query: &str,
+        requested_by: i64,
+        requested_by_name: &str,
+    ) -> Result<Track> {
+        self.router
+            .search(query, requested_by, requested_by_name)
+            .await
     }
 }
 
@@ -477,35 +514,68 @@ mod tests {
 
     #[test]
     fn classifies_youtube_urls() {
-        assert_eq!(Platform::from_url("https://youtu.be/dQw4w9WgXcQ"), Some(Platform::YouTube));
-        assert_eq!(Platform::from_url("https://www.youtube.com/watch?v=dQw4w9WgXcQ"), Some(Platform::YouTube));
-        assert_eq!(Platform::from_url("https://music.youtube.com/watch?v=abc"), Some(Platform::YouTube));
+        assert_eq!(
+            Platform::from_url("https://youtu.be/dQw4w9WgXcQ"),
+            Some(Platform::YouTube)
+        );
+        assert_eq!(
+            Platform::from_url("https://www.youtube.com/watch?v=dQw4w9WgXcQ"),
+            Some(Platform::YouTube)
+        );
+        assert_eq!(
+            Platform::from_url("https://music.youtube.com/watch?v=abc"),
+            Some(Platform::YouTube)
+        );
     }
 
     #[test]
     fn classifies_spotify_urls() {
-        assert_eq!(Platform::from_url("https://open.spotify.com/track/4uLU6hMCjMI75M1A2tKUQC"), Some(Platform::Spotify));
-        assert_eq!(Platform::from_url("https://spotify.link/abcd"), Some(Platform::Spotify));
+        assert_eq!(
+            Platform::from_url("https://open.spotify.com/track/4uLU6hMCjMI75M1A2tKUQC"),
+            Some(Platform::Spotify)
+        );
+        assert_eq!(
+            Platform::from_url("https://spotify.link/abcd"),
+            Some(Platform::Spotify)
+        );
     }
 
     #[test]
     fn classifies_apple_and_soundcloud() {
-        assert_eq!(Platform::from_url("https://music.apple.com/us/song/1440935467"), Some(Platform::AppleMusic));
-        assert_eq!(Platform::from_url("https://soundcloud.com/artist/song"), Some(Platform::SoundCloud));
-        assert_eq!(Platform::from_url("https://snd.sc/abcd"), Some(Platform::SoundCloud));
+        assert_eq!(
+            Platform::from_url("https://music.apple.com/us/song/1440935467"),
+            Some(Platform::AppleMusic)
+        );
+        assert_eq!(
+            Platform::from_url("https://soundcloud.com/artist/song"),
+            Some(Platform::SoundCloud)
+        );
+        assert_eq!(
+            Platform::from_url("https://snd.sc/abcd"),
+            Some(Platform::SoundCloud)
+        );
     }
 
     #[test]
     fn classifies_direct_links_and_plain_queries() {
-        assert_eq!(Platform::from_url("https://cdn.example.com/song.mp3"), Some(Platform::DirectUrl));
-        assert_eq!(Platform::from_url("https://radio.example.com/stream"), Some(Platform::DirectUrl));
+        assert_eq!(
+            Platform::from_url("https://cdn.example.com/song.mp3"),
+            Some(Platform::DirectUrl)
+        );
+        assert_eq!(
+            Platform::from_url("https://radio.example.com/stream"),
+            Some(Platform::DirectUrl)
+        );
         assert_eq!(Platform::from_url("binks sake soul king"), None);
     }
 
     #[test]
     fn source_kind_mapping_roundtrips() {
         for platform in Platform::all() {
-            assert_eq!(Platform::from_source_kind(&platform.source_kind()), Some(platform));
+            assert_eq!(
+                Platform::from_source_kind(&platform.source_kind()),
+                Some(platform)
+            );
         }
         assert_eq!(Platform::from_source_kind(&SourceKind::TelegramFile), None);
     }

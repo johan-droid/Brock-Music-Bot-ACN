@@ -48,7 +48,9 @@ pub enum VoiceState {
     Disconnected,
     Connecting,
     Connected,
+    Streaming,
     Leaving,
+    Failed,
 }
 
 impl VoiceState {
@@ -57,7 +59,9 @@ impl VoiceState {
             VoiceState::Disconnected => "DISCONNECTED 🔴",
             VoiceState::Connecting => "CONNECTING 🟡",
             VoiceState::Connected => "CONNECTED 🟢",
+            VoiceState::Streaming => "STREAMING 🔊",
             VoiceState::Leaving => "LEAVING 🟠",
+            VoiceState::Failed => "FAILED ⚠️",
         }
     }
 }
@@ -183,7 +187,10 @@ impl ChatQueueState {
 
     pub fn set_session_owner(&mut self, user_id: i64, user_name: &str) {
         if self.owner_user_id.is_none() {
-            info!("[SESSION] Assigned session controller: user_id={}, name='{}'", user_id, user_name);
+            info!(
+                "[SESSION] Assigned session controller: user_id={}, name='{}'",
+                user_id, user_name
+            );
             self.owner_user_id = Some(user_id);
             self.owner_user_name = user_name.to_string();
         }
@@ -191,7 +198,10 @@ impl ChatQueueState {
 
     pub fn begin_transition(&mut self, target_state: EngineState) -> bool {
         if self.transition_in_progress {
-            info!("[PLAYBACK] transition already in progress, ignoring duplicate transition to {:?}", target_state);
+            info!(
+                "[PLAYBACK] transition already in progress, ignoring duplicate transition to {:?}",
+                target_state
+            );
             return false;
         }
         let prev = self.engine_state;
@@ -228,14 +238,18 @@ impl ChatQueueState {
 
     pub fn reconcile(&mut self) {
         if self.voice_state == VoiceState::Disconnected
-            && (self.engine_state == EngineState::Playing || self.engine_state == EngineState::Paused)
+            && (self.engine_state == EngineState::Playing
+                || self.engine_state == EngineState::Paused)
         {
             info!("[RECONCILE] Playing/Paused state contradiction detected while VC is Disconnected; invalidating generation and resetting runtime state");
             self.playback_generation += 1;
             self.transition_in_progress = false;
             self.is_paused = false;
             if let Some(curr) = self.current.take() {
-                info!("[RECONCILE] preserving interrupted active track '{}' at queue head", curr.title);
+                info!(
+                    "[RECONCILE] preserving interrupted active track '{}' at queue head",
+                    curr.title
+                );
                 self.queue.push_front(curr);
             }
             self.position_secs = 0;
@@ -246,7 +260,11 @@ impl ChatQueueState {
             };
         }
 
-        if self.current.is_none() && self.queue.is_empty() && self.engine_state != EngineState::Idle && self.engine_state != EngineState::WaitingForVc {
+        if self.current.is_none()
+            && self.queue.is_empty()
+            && self.engine_state != EngineState::Idle
+            && self.engine_state != EngineState::WaitingForVc
+        {
             info!("[RECONCILE] empty queue and no active track detected; resetting engine_state to IDLE");
             self.engine_state = EngineState::Idle;
             self.transition_in_progress = false;
@@ -271,7 +289,9 @@ impl ChatQueueState {
     }
 
     pub fn tick_seconds(&mut self, secs: u64) -> bool {
-        let Some(track) = self.current.as_ref() else { return false; };
+        let Some(track) = self.current.as_ref() else {
+            return false;
+        };
         if self.is_paused {
             return false;
         }
@@ -311,7 +331,11 @@ impl ChatQueueState {
 
         if let Some(ref t) = next {
             self.engine_state = EngineState::Playing;
-            info!("[PLAYBACK] state: -> PLAYING, current: '{}', remaining queue: {}", t.title, self.queue.len());
+            info!(
+                "[PLAYBACK] state: -> PLAYING, current: '{}', remaining queue: {}",
+                t.title,
+                self.queue.len()
+            );
         } else {
             self.engine_state = EngineState::Idle;
             info!("[PLAYBACK] state: -> IDLE, queue empty");
@@ -323,7 +347,9 @@ impl ChatQueueState {
         self.playback_generation += 1;
         if self.current.is_none() && self.queue.is_empty() {
             info!("[COMMAND] /skip called when no track is playing or queued; queue unchanged");
-            return Err(BotError::NotFound("Nothing is currently playing or queued".to_string()));
+            return Err(BotError::NotFound(
+                "Nothing is currently playing or queued".to_string(),
+            ));
         }
 
         if !self.begin_transition(EngineState::Skipping) {
@@ -353,7 +379,11 @@ impl ChatQueueState {
         self.position_secs = 0;
 
         let final_state = if let Some(ref t) = next {
-            info!("[QUEUE] next track: '{}', remaining queue: {}", t.title, self.queue.len());
+            info!(
+                "[QUEUE] next track: '{}', remaining queue: {}",
+                t.title,
+                self.queue.len()
+            );
             EngineState::Playing
         } else {
             info!("[QUEUE] queue empty, state settling to IDLE");
@@ -369,9 +399,12 @@ impl ChatQueueState {
         self.voice_state = VoiceState::Disconnected;
         self.playback_generation += 1;
         self.transition_in_progress = false;
-        
+
         if let Some(curr) = self.current.take() {
-            info!("[VOICE] preserving disconnected active track '{}' at head of queue", curr.title);
+            info!(
+                "[VOICE] preserving disconnected active track '{}' at head of queue",
+                curr.title
+            );
             self.queue.push_front(curr);
         }
         self.position_secs = 0;
@@ -503,7 +536,10 @@ impl InMemoryQueueRepository {
                 if is_active {
                     true
                 } else {
-                    info!(chat_id, "[PRUNE] Evicting inactive idle chat session from memory");
+                    info!(
+                        chat_id,
+                        "[PRUNE] Evicting inactive idle chat session from memory"
+                    );
                     false
                 }
             } else {
@@ -515,7 +551,12 @@ impl InMemoryQueueRepository {
     pub fn get_or_create(&self, chat_id: i64) -> Arc<RwLock<ChatQueueState>> {
         self.queues
             .entry(chat_id)
-            .or_insert_with(|| Arc::new(RwLock::new(ChatQueueState::new(self.max_queue_size, self.default_volume))))
+            .or_insert_with(|| {
+                Arc::new(RwLock::new(ChatQueueState::new(
+                    self.max_queue_size,
+                    self.default_volume,
+                )))
+            })
             .clone()
     }
 
@@ -622,7 +663,12 @@ impl InMemoryQueueRepository {
         Ok(())
     }
 
-    pub async fn set_session_owner(&self, chat_id: i64, user_id: i64, user_name: &str) -> Result<()> {
+    pub async fn set_session_owner(
+        &self,
+        chat_id: i64,
+        user_id: i64,
+        user_name: &str,
+    ) -> Result<()> {
         let state = self.get_or_create(chat_id);
         let mut lock = state.write().await;
         lock.set_session_owner(user_id, user_name);
@@ -729,41 +775,73 @@ pub async fn connect_voice_transport(
     bot: Option<Bot>,
     resolver: Arc<dyn TrackResolver>,
 ) -> Option<VoiceChatTransport> {
+    info!("[VOICE] Initializing MTProto assistant");
     let (Some(api_id), Some(api_hash)) = (config.tg_api_id, config.tg_api_hash.as_deref()) else {
-        warn!("Voice transport disabled: TG_API_ID / TG_API_HASH not set.");
+        warn!("[VOICE] Voice transport disabled: TG_API_ID or TG_API_HASH not set");
         return None;
     };
+    info!("[VOICE] API credentials loaded (api_id: {})", api_id);
 
-    let builder = ferogram::Client::builder().api_id(api_id).api_hash(api_hash);
-    let builder = if let Some(s) = config.assistant_session_string.as_deref().filter(|s| !s.is_empty()) {
+    let builder = ferogram::Client::builder()
+        .api_id(api_id)
+        .api_hash(api_hash);
+    let builder = if let Some(s) = config
+        .assistant_session_string
+        .as_deref()
+        .filter(|s| !s.is_empty())
+    {
+        info!("[VOICE] Assistant session loaded from string");
         builder.session_string(s)
     } else {
+        info!(
+            "[VOICE] Assistant session loaded from file path: {}",
+            config.assistant_session
+        );
         builder.session(&config.assistant_session)
     };
 
     let (client, shutdown) = match builder.connect().await {
-        Ok(pair) => pair,
+        Ok(pair) => {
+            info!("[VOICE] MTProto connected successfully");
+            pair
+        }
         Err(e) => {
-            warn!(error = %e, "MTProto connect failed; voice transport disabled");
+            warn!(error = %e, "[VOICE] MTProto connect failed; voice transport disabled");
             return None;
         }
     };
 
-    if !matches!(client.is_authorized().await, Ok(true)) {
-        warn!("Assistant session not authorized.");
-        return None;
+    match client.is_authorized().await {
+        Ok(true) => {
+            info!("[VOICE] Authorization confirmed");
+        }
+        Ok(false) => {
+            warn!("[VOICE] Assistant session is NOT authorized");
+            return None;
+        }
+        Err(e) => {
+            warn!(error = %e, "[VOICE] Failed to check authorization state");
+            return None;
+        }
     }
 
-    info!("Voice chat transport ready (assistant connected over MTProto)");
+    info!("[VOICE] tgcalls transport initialized");
     let calls = Calls::with_concurrency_limit(client, 1);
+    info!("[VOICE] Voice transport READY");
     Some(VoiceChatTransport::new(calls, bot, resolver, shutdown))
 }
 
 fn map_voice_err(e: TgCallsError, _chat_id: i64) -> BotError {
     match &e {
-        TgCallsError::NotJoined => BotError::NotFound("not connected to the voice chat".to_string()),
-        TgCallsError::NoActiveGroupCall => BotError::NotFound("no active voice chat in this group".to_string()),
-        TgCallsError::TooManyConcurrentCalls(limit) => BotError::RateLimited(format!("assistant already streaming in {limit} voice chat(s)")),
+        TgCallsError::NotJoined => {
+            BotError::NotFound("not connected to the voice chat".to_string())
+        }
+        TgCallsError::NoActiveGroupCall => {
+            BotError::NotFound("no active voice chat in this group".to_string())
+        }
+        TgCallsError::TooManyConcurrentCalls(limit) => BotError::RateLimited(format!(
+            "assistant already streaming in {limit} voice chat(s)"
+        )),
         _ => BotError::Internal(format!("voice chat error: {e}")),
     }
 }
@@ -783,11 +861,17 @@ impl PlaybackTransport for VoiceChatTransport {
     }
 
     async fn pause(&self, chat_id: i64) -> Result<()> {
-        self.calls.pause(chat_id).await.map_err(|e| map_voice_err(e, chat_id))
+        self.calls
+            .pause(chat_id)
+            .await
+            .map_err(|e| map_voice_err(e, chat_id))
     }
 
     async fn resume(&self, chat_id: i64) -> Result<()> {
-        self.calls.resume(chat_id).await.map_err(|e| map_voice_err(e, chat_id))
+        self.calls
+            .resume(chat_id)
+            .await
+            .map_err(|e| map_voice_err(e, chat_id))
     }
 
     async fn stop(&self, chat_id: i64) -> Result<()> {
@@ -799,7 +883,14 @@ impl PlaybackTransport for VoiceChatTransport {
 
     async fn seek(&self, chat_id: i64, track: &Track, seconds: u64) -> Result<()> {
         let resolved = self.resolver.resolve(track).await?;
-        let seek_res = self.calls.seek(chat_id, resolved.file_url.clone(), Duration::from_secs(seconds)).await;
+        let seek_res = self
+            .calls
+            .seek(
+                chat_id,
+                resolved.file_url.clone(),
+                Duration::from_secs(seconds),
+            )
+            .await;
         if let Err(e) = seek_res {
             self.resolver.invalidate(track).await;
             return Err(map_voice_err(e, chat_id));
@@ -812,26 +903,84 @@ impl PlaybackTransport for VoiceChatTransport {
     }
 }
 
-pub struct TelegramAudioTransport {
-    _bot: Option<Bot>,
+/// Unavailable Voice Transport: Explicitly fails when no MTProto voice transport is connected.
+pub struct UnavailableVoiceTransport {
+    reason: String,
 }
 
-impl TelegramAudioTransport {
-    pub fn new(bot: Option<Bot>) -> Self {
-        Self { _bot: bot }
+impl UnavailableVoiceTransport {
+    pub fn new(reason: impl Into<String>) -> Self {
+        Self {
+            reason: reason.into(),
+        }
     }
 }
 
 #[async_trait]
-impl PlaybackTransport for TelegramAudioTransport {
+impl PlaybackTransport for UnavailableVoiceTransport {
+    async fn deliver(&self, _chat_id: i64, _track: &Track) -> Result<DeliveryReceipt> {
+        Err(BotError::Internal(format!(
+            "Voice transport unavailable: {}",
+            self.reason
+        )))
+    }
+    async fn pause(&self, _chat_id: i64) -> Result<()> {
+        Err(BotError::Internal(format!(
+            "Voice transport unavailable: {}",
+            self.reason
+        )))
+    }
+    async fn resume(&self, _chat_id: i64) -> Result<()> {
+        Err(BotError::Internal(format!(
+            "Voice transport unavailable: {}",
+            self.reason
+        )))
+    }
+    async fn stop(&self, _chat_id: i64) -> Result<()> {
+        Ok(())
+    }
+    async fn seek(&self, _chat_id: i64, _track: &Track, _seconds: u64) -> Result<()> {
+        Err(BotError::Internal(format!(
+            "Voice transport unavailable: {}",
+            self.reason
+        )))
+    }
+    async fn set_volume(&self, _chat_id: i64, _volume: u32) -> Result<()> {
+        Ok(())
+    }
+}
+
+/// Mock Playback Transport: For unit tests that verify queue/engine logic without voice calls.
+#[allow(dead_code)]
+pub struct MockPlaybackTransport;
+
+#[allow(dead_code)]
+impl MockPlaybackTransport {
+    pub fn new() -> Self {
+        Self
+    }
+}
+
+#[async_trait]
+impl PlaybackTransport for MockPlaybackTransport {
     async fn deliver(&self, _chat_id: i64, _track: &Track) -> Result<DeliveryReceipt> {
         Ok(DeliveryReceipt { message_id: None })
     }
-    async fn pause(&self, _chat_id: i64) -> Result<()> { Ok(()) }
-    async fn resume(&self, _chat_id: i64) -> Result<()> { Ok(()) }
-    async fn stop(&self, _chat_id: i64) -> Result<()> { Ok(()) }
-    async fn seek(&self, _chat_id: i64, _track: &Track, _seconds: u64) -> Result<()> { Ok(()) }
-    async fn set_volume(&self, _chat_id: i64, _volume: u32) -> Result<()> { Ok(()) }
+    async fn pause(&self, _chat_id: i64) -> Result<()> {
+        Ok(())
+    }
+    async fn resume(&self, _chat_id: i64) -> Result<()> {
+        Ok(())
+    }
+    async fn stop(&self, _chat_id: i64) -> Result<()> {
+        Ok(())
+    }
+    async fn seek(&self, _chat_id: i64, _track: &Track, _seconds: u64) -> Result<()> {
+        Ok(())
+    }
+    async fn set_volume(&self, _chat_id: i64, _volume: u32) -> Result<()> {
+        Ok(())
+    }
 }
 
 // --- Media Engine ---
@@ -855,23 +1004,37 @@ impl MediaEngine {
         self.repo.get_playback_state(chat_id).await
     }
 
-    pub async fn set_session_owner(&self, chat_id: i64, user_id: i64, user_name: &str) -> Result<()> {
-        self.repo.set_session_owner(chat_id, user_id, user_name).await
+    pub async fn set_session_owner(
+        &self,
+        chat_id: i64,
+        user_id: i64,
+        user_name: &str,
+    ) -> Result<()> {
+        self.repo
+            .set_session_owner(chat_id, user_id, user_name)
+            .await
     }
 
     pub async fn enqueue_and_play(&self, chat_id: i64, track: Track) -> Result<Option<usize>> {
-        let _ = self.repo.set_session_owner(chat_id, track.requested_by, &track.requested_by_name).await;
+        let _ = self
+            .repo
+            .set_session_owner(chat_id, track.requested_by, &track.requested_by_name)
+            .await;
 
         let is_idle = {
             let state = self.repo.get_or_create(chat_id);
             let lock = state.read().await;
-            lock.current.is_none() && lock.engine_state != EngineState::Playing && lock.engine_state != EngineState::Loading
+            lock.current.is_none()
+                && lock.engine_state != EngineState::Playing
+                && lock.engine_state != EngineState::Loading
         };
 
         let pos = self.repo.enqueue(chat_id, track).await?;
 
         if is_idle {
-            let _ = self.advance_to_next_track(chat_id, TransitionReason::UserAction).await?;
+            let _ = self
+                .advance_to_next_track(chat_id, TransitionReason::UserAction)
+                .await?;
             Ok(None)
         } else {
             Ok(pos)
@@ -881,7 +1044,10 @@ impl MediaEngine {
     pub async fn play(&self, chat_id: i64, track: &Track) -> Result<()> {
         match self.transport.deliver(chat_id, track).await {
             Ok(_) => {
-                let _ = self.repo.set_voice_state(chat_id, VoiceState::Connected).await;
+                let _ = self
+                    .repo
+                    .set_voice_state(chat_id, VoiceState::Connected)
+                    .await;
                 Ok(())
             }
             Err(e) => {
@@ -917,7 +1083,11 @@ impl MediaEngine {
         let mut lock = state.write().await;
 
         if lock.transition_in_progress {
-            info!(chat_id, ?reason, "[TRANSITION] transition already in progress, ignoring duplicate request");
+            info!(
+                chat_id,
+                ?reason,
+                "[TRANSITION] transition already in progress, ignoring duplicate request"
+            );
             return Ok(lock.current.clone());
         }
 
@@ -998,7 +1168,8 @@ impl MediaEngine {
     }
 
     pub async fn skip(&self, chat_id: i64) -> Result<Option<Track>> {
-        self.advance_to_next_track(chat_id, TransitionReason::Skip).await
+        self.advance_to_next_track(chat_id, TransitionReason::Skip)
+            .await
     }
 
     pub async fn on_natural_end_with_generation(
@@ -1012,16 +1183,23 @@ impl MediaEngine {
             lock.playback_generation
         };
         if gen != expected_generation {
-            info!(chat_id, expected = expected_generation, current = gen, "[PLAYBACK] generation token mismatch; discarding stale EOF callback");
+            info!(
+                chat_id,
+                expected = expected_generation,
+                current = gen,
+                "[PLAYBACK] generation token mismatch; discarding stale EOF callback"
+            );
             let state = self.repo.get_or_create(chat_id);
             let lock = state.read().await;
             return Ok(lock.current.clone());
         }
-        self.advance_to_next_track(chat_id, TransitionReason::Eof).await
+        self.advance_to_next_track(chat_id, TransitionReason::Eof)
+            .await
     }
 
     pub async fn on_natural_end(&self, chat_id: i64) -> Result<Option<Track>> {
-        self.advance_to_next_track(chat_id, TransitionReason::Eof).await
+        self.advance_to_next_track(chat_id, TransitionReason::Eof)
+            .await
     }
 
     pub async fn prev(&self, chat_id: i64) -> Result<Option<Track>> {
@@ -1038,9 +1216,11 @@ impl MediaEngine {
     }
 
     pub async fn seek(&self, chat_id: i64, seconds: u64) -> Result<()> {
-        let track = self.repo.get_current(chat_id).await?.ok_or_else(|| {
-            BotError::NotFound("No track currently playing".to_string())
-        })?;
+        let track = self
+            .repo
+            .get_current(chat_id)
+            .await?
+            .ok_or_else(|| BotError::NotFound("No track currently playing".to_string()))?;
         self.transport.seek(chat_id, &track, seconds).await?;
         self.repo.set_position(chat_id, seconds).await
     }

@@ -62,7 +62,10 @@ impl AiReceiver {
     /// Call NVIDIA NIM OpenAI-compatible API endpoint to interpret human search intent.
     async fn infer_nvidia_nim(&self, raw_query: &str) -> Option<String> {
         let api_key = self.nvidia_api_key.as_ref()?;
-        let endpoint = format!("{}/chat/completions", self.nvidia_base_url.trim_end_matches('/'));
+        let endpoint = format!(
+            "{}/chat/completions",
+            self.nvidia_base_url.trim_end_matches('/')
+        );
 
         let body = json!({
             "model": self.nvidia_model,
