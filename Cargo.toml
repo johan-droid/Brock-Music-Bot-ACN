@@ -24,6 +24,7 @@ urlencoding = "2.1"
 base64 = "0.22"
 async-trait = "0.1"
 tokio-util = { version = "0.7", features = ["io"] }
+futures = "0.3"
 ferogram = "0.6.5"
 tgcalls = "0.2"
 uuid = { version = "1.8", features = ["v4"] }

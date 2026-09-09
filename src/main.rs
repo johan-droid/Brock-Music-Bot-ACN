@@ -25,6 +25,7 @@ use axum::{Json, Router};
 use serde_json::json;
 use teloxide::prelude::*;
 use tokio_util::io::ReaderStream;
+use futures::StreamExt;
 
 use crate::ai::AiReceiver;
 use crate::commands::{handle_command, BotCommand};
@@ -45,17 +46,12 @@ async fn stream_handler(Query(params): Query<HashMap<String, String>>) -> impl I
     let url = format!("https://www.youtube.com/watch?v={video_id}");
     tracing::info!(video_id = %video_id, "Piping yt-dlp real-time audio stream over HTTP");
 
-    let child = match tokio::process::Command::new("yt-dlp")
+    let mut ytdlp = match tokio::process::Command::new("yt-dlp")
         .args([
             "--no-warnings",
             "--no-playlist",
             "--format",
             "bestaudio",
-            "--extract-audio",
-            "--audio-format",
-            "opus",
-            "--audio-quality",
-            "0",
             "-o",
             "-",
             &url,
@@ -71,12 +67,80 @@ async fn stream_handler(Query(params): Query<HashMap<String, String>>) -> impl I
         }
     };
 
-    let stdout = match child.stdout {
+    let mut ytdlp_stdout = match ytdlp.stdout.take() {
         Some(s) => s,
-        None => return (axum::http::StatusCode::INTERNAL_SERVER_ERROR, "Failed to capture stdout").into_response(),
+        None => {
+            let _ = ytdlp.kill().await;
+            return (axum::http::StatusCode::INTERNAL_SERVER_ERROR, "Failed to capture yt-dlp stdout").into_response();
+        }
     };
 
-    let stream = ReaderStream::new(stdout);
+    let mut ffmpeg = match tokio::process::Command::new("ffmpeg")
+        .args([
+            "-hide_banner",
+            "-loglevel", "error",
+            "-i", "pipe:0",
+            "-c:a", "libopus",
+            "-b:a", "128k",
+            "-ar", "48000",
+            "-ac", "2",
+            "-f", "webm",
+            "pipe:1",
+        ])
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null())
+        .spawn()
+    {
+        Ok(c) => c,
+        Err(e) => {
+            tracing::error!(error = %e, "Failed to spawn ffmpeg transcode process");
+            let _ = ytdlp.kill().await;
+            return (axum::http::StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to spawn ffmpeg: {e}")).into_response();
+        }
+    };
+
+    let mut ffmpeg_stdin = match ffmpeg.stdin.take() {
+        Some(s) => s,
+        None => {
+            let _ = ytdlp.kill().await;
+            let _ = ffmpeg.kill().await;
+            return (axum::http::StatusCode::INTERNAL_SERVER_ERROR, "Failed to capture ffmpeg stdin").into_response();
+        }
+    };
+
+    let ffmpeg_stdout = match ffmpeg.stdout.take() {
+        Some(s) => s,
+        None => {
+            let _ = ytdlp.kill().await;
+            let _ = ffmpeg.kill().await;
+            return (axum::http::StatusCode::INTERNAL_SERVER_ERROR, "Failed to capture ffmpeg stdout").into_response();
+        }
+    };
+
+    tokio::spawn(async move {
+        let _ = tokio::io::copy(&mut ytdlp_stdout, &mut ffmpeg_stdin).await;
+    });
+
+    struct DropGuard(Option<tokio::process::Child>, Option<tokio::process::Child>);
+    impl Drop for DropGuard {
+        fn drop(&mut self) {
+            for child in [self.0.take(), self.1.take()].into_iter().flatten() {
+                if let Some(pid) = child.id() {
+                    let _ = std::process::Command::new("kill")
+                        .args(["-9", &pid.to_string()])
+                        .status();
+                }
+            }
+        }
+    }
+    let guard = DropGuard(Some(ytdlp), Some(ffmpeg));
+
+    let stream = ReaderStream::new(ffmpeg_stdout).map(move |chunk| {
+        let _ = &guard;
+        chunk
+    });
+
     let body = Body::from_stream(stream);
 
     axum::response::Response::builder()
