@@ -814,6 +814,19 @@ pub async fn connect_voice_transport(
     match client.is_authorized().await {
         Ok(true) => {
             info!("[VOICE] Authorization confirmed");
+            match client.get_me().await {
+                Ok(me) => {
+                    info!(
+                        assistant_id = me.id,
+                        username = me.username.as_deref().unwrap_or("none"),
+                        first_name = me.first_name.as_deref().unwrap_or("none"),
+                        "[VOICE_ASSISTANT_IDENTITY] MTProto assistant identity verified"
+                    );
+                }
+                Err(e) => {
+                    warn!(error = %e, "[VOICE_ASSISTANT_IDENTITY] Failed to fetch assistant profile via get_me");
+                }
+            }
         }
         Ok(false) => {
             warn!("[VOICE] Assistant session is NOT authorized");
@@ -827,7 +840,36 @@ pub async fn connect_voice_transport(
 
     info!("[VOICE] tgcalls transport initialized");
     let calls = Calls::with_concurrency_limit(client, 1);
-    info!("[VOICE] Voice transport READY");
+
+    calls.on_event(|chat_id, event| match event {
+        tgcalls::CallEvent::StreamEnded(st, dev) => {
+            info!(chat_id, ?st, ?dev, "[TGCALLS_EVENT] Stream reached EOF");
+        }
+        tgcalls::CallEvent::ParticipantUpdate {
+            user_id,
+            action,
+            is_self,
+        } => {
+            info!(
+                chat_id,
+                user_id,
+                ?action,
+                is_self,
+                "[TGCALLS_EVENT] Group call participant update"
+            );
+        }
+        tgcalls::CallEvent::Left => {
+            warn!(
+                chat_id,
+                "[TGCALLS_EVENT] Assistant left or was removed from voice chat"
+            );
+        }
+        tgcalls::CallEvent::Ended => {
+            warn!(chat_id, "[TGCALLS_EVENT] Group call ended for everyone");
+        }
+    });
+
+    info!("[VOICE] Voice transport READY with event handlers wired");
     Some(VoiceChatTransport::new(calls, bot, resolver, shutdown))
 }
 
@@ -849,14 +891,55 @@ fn map_voice_err(e: TgCallsError, _chat_id: i64) -> BotError {
 #[async_trait]
 impl PlaybackTransport for VoiceChatTransport {
     async fn deliver(&self, chat_id: i64, track: &Track) -> Result<DeliveryReceipt> {
+        info!(chat_id, track_id = %track.id, title = %track.title, "[PLAYBACK] Resolution started");
         let resolved = self.resolver.resolve(track).await?;
-        info!(chat_id, track_id = %track.id, file_url = %resolved.file_url, "Streaming direct URL into voice chat");
 
+        let parsed_url = url::Url::parse(&resolved.file_url).ok();
+        let scheme = parsed_url.as_ref().map(|u| u.scheme()).unwrap_or("unknown");
+        let host = parsed_url
+            .as_ref()
+            .and_then(|u| u.host_str())
+            .unwrap_or("unknown");
+        let path_type = if resolved.file_url.contains("/stream") {
+            "local_pipe"
+        } else if host.contains("googlevideo.com") {
+            "youtube_cdn"
+        } else {
+            "remote_direct"
+        };
+
+        info!(
+            chat_id,
+            track_id = %track.id,
+            scheme = %scheme,
+            host = %host,
+            path_type = %path_type,
+            duration_secs = track.duration_secs,
+            "[AUDIO_SOURCE_METADATA] Resolved audio stream metadata"
+        );
+
+        info!(chat_id, track_id = %track.id, "[TGCALLS] Play requested");
         let play_res = self.calls.play(chat_id, resolved.file_url.clone()).await;
         if let Err(e) = play_res {
+            warn!(chat_id, track_id = %track.id, error = %e, "[TGCALLS] Play request rejected");
             self.resolver.invalidate(track).await;
             return Err(map_voice_err(e, chat_id));
         }
+
+        info!(chat_id, track_id = %track.id, "[TGCALLS] Play request accepted by tgcalls worker");
+
+        if let Ok(st) = self.calls.status(chat_id).await {
+            info!(
+                chat_id,
+                joined = st.joined,
+                muted = st.muted,
+                call_type = ?st.call_type,
+                conn_mode = ?st.connection_mode,
+                elapsed_secs = st.progress.elapsed.as_secs(),
+                "[TGCALLS_STATUS] Voice chat call status snapshot"
+            );
+        }
+
         Ok(DeliveryReceipt { message_id: None })
     }
 
@@ -1046,7 +1129,7 @@ impl MediaEngine {
             Ok(_) => {
                 let _ = self
                     .repo
-                    .set_voice_state(chat_id, VoiceState::Connected)
+                    .set_voice_state(chat_id, VoiceState::Streaming)
                     .await;
                 Ok(())
             }
@@ -1146,9 +1229,10 @@ impl MediaEngine {
                 let mut lock = state.write().await;
                 if lock.playback_generation == gen {
                     lock.engine_state = EngineState::Playing;
-                    lock.voice_state = VoiceState::Connected;
+                    lock.voice_state = VoiceState::Streaming;
+                    lock.last_error = None;
                     lock.transition_in_progress = false;
-                    info!(chat_id, track = %track_to_deliver.title, "[TRANSITION] delivery success, state -> PLAYING");
+                    info!(chat_id, track = %track_to_deliver.title, "[TRANSITION] delivery success & streaming confirmed, engine_state -> PLAYING, voice_state -> STREAMING");
                 } else {
                     info!(chat_id, "[TRANSITION] generation token changed during delivery; discarding state update");
                 }
