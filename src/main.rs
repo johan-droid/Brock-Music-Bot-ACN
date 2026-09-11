@@ -1,3 +1,4 @@
+mod federation;
 mod ai;
 mod commands;
 mod config;
@@ -300,6 +301,7 @@ pub struct AppState {
     pub ai: Arc<AiReceiver>,
     pub lazy_providers: Arc<LazyProviders>,
     pub db: Arc<MemoryFirstDbRepository>,
+    pub fed_service: Arc<crate::federation::FederationService>,
 }
 
 /// Lazy provider factory — providers are created on first use, not at startup.
@@ -461,6 +463,7 @@ async fn main() -> anyhow::Result<()> {
     let config = Config::load().await;
     eprintln!("[BOOT] config loaded");
     let db_repo = Arc::new(MemoryFirstDbRepository::new(config.database_url.clone()));
+
     db_repo
         .log_analytics("bot_startup", "Heroku dyno initialized")
         .await?;
@@ -485,6 +488,8 @@ async fn main() -> anyhow::Result<()> {
         config.default_volume,
     ));
     let bot = config.bot_token.as_ref().map(|t| Bot::new(t.clone()));
+    let fed_repo = Arc::new(crate::federation::MemoryFirstFederationRepository::new());
+    let fed_service = Arc::new(crate::federation::FederationService::new(fed_repo, bot.clone()));
 
     // Resolve voice transport eagerly — necessary for voice-chat playback.
     // Falls back to the inert TelegramAudioTransport only if MTProto auth fails.
@@ -510,6 +515,7 @@ async fn main() -> anyhow::Result<()> {
         ai,
         lazy_providers: lazy,
         db: db_repo.clone(),
+        fed_service: fed_service.clone(),
     });
 
     eprintln!(
@@ -559,6 +565,19 @@ async fn main() -> anyhow::Result<()> {
         tracing::info!(port, "Soul King Brook Web UI live at http://0.0.0.0:{port}");
         if let Err(e) = axum::serve(listener, app).await {
             tracing::error!(error = %e, "Axum HTTP server error");
+        }
+    });
+
+    // Background Federation Enforcement Worker
+    let worker_fed_service = fed_service.clone();
+    let worker_repo = worker_fed_service.repository().clone();
+    let worker_bot = bot.clone();
+    tokio::spawn(async move {
+        let worker = crate::federation::EnforcementWorker::new(worker_repo, worker_bot);
+        let mut interval = tokio::time::interval(Duration::from_secs(2));
+        loop {
+            interval.tick().await;
+            let _ = worker.process_pending_jobs().await;
         }
     });
 
@@ -631,6 +650,9 @@ async fn main() -> anyhow::Result<()> {
         let media_engine_cb = state.media_engine.clone();
         let lazy_providers = state.lazy_providers.clone();
 
+        let fed_service_cmd = state.fed_service.clone();
+        let fed_service_msg = state.fed_service.clone();
+
         let handler =
             dptree::entry()
                 .branch(
@@ -640,11 +662,25 @@ async fn main() -> anyhow::Result<()> {
                             let ai = ai.clone();
                             let media_engine = media_engine.clone();
                             let lazy_providers = lazy_providers.clone();
+                            let fed_service = fed_service_cmd.clone();
                             async move {
-                                handle_command(bot, msg, cmd, ai, media_engine, lazy_providers)
+                                handle_command(bot, msg, cmd, ai, media_engine, lazy_providers, fed_service)
                                     .await
                             }
                         }),
+                )
+                .branch(
+                    Update::filter_message().endpoint(move |_bot: Bot, msg: Message| {
+                        let fed_service = fed_service_msg.clone();
+                        async move {
+                            if let Some(user) = &msg.from {
+                                let chat_id = msg.chat.id.0;
+                                let user_id = user.id.0 as i64;
+                                let _ = fed_service.process_passive_presence_and_enforce(chat_id, user_id).await;
+                            }
+                            Ok::<(), anyhow::Error>(())
+                        }
+                    }),
                 )
                 .branch(
                     Update::filter_callback_query().endpoint(
