@@ -391,6 +391,26 @@ impl AuthorizationManager {
             | BotCommand::Volume(_)
             | BotCommand::Loop
             | BotCommand::Shuffle => PermissionLevel::SessionController,
+            BotCommand::NewFed(_)
+            | BotCommand::DelFed(_)
+            | BotCommand::FedInfo(_)
+            | BotCommand::JoinFed(_)
+            | BotCommand::LeaveFed
+            | BotCommand::FBan(_)
+            | BotCommand::UnFBan(_)
+            | BotCommand::SubFed(_)
+            | BotCommand::UnSubFed(_)
+            | BotCommand::FedSubs(_)
+            | BotCommand::QuietFed(_)
+            | BotCommand::FedStat(_)
+            | BotCommand::FBanStat(_)
+            | BotCommand::Feds
+            | BotCommand::FedPromote(_)
+            | BotCommand::FedDemote(_)
+            | BotCommand::FBanList(_)
+            | BotCommand::FedReason(_)
+            | BotCommand::SetFedLog(_)
+            | BotCommand::UnsetFedLog(_) => PermissionLevel::Public,
         }
     }
 
@@ -482,6 +502,46 @@ pub enum BotCommand {
     Shuffle,
     #[command(description = "Show player debug diagnostics", rename = "playerdebug")]
     PlayerDebug,
+    #[command(description = "Create a new federation", rename = "newfed")]
+    NewFed(String),
+    #[command(description = "Delete a federation", rename = "delfed")]
+    DelFed(String),
+    #[command(description = "Get federation information", rename = "fedinfo")]
+    FedInfo(String),
+    #[command(description = "Join a federation", rename = "joinfed")]
+    JoinFed(String),
+    #[command(description = "Leave current federation", rename = "leavefed")]
+    LeaveFed,
+    #[command(description = "Issue a federation ban", rename = "fban")]
+    FBan(String),
+    #[command(description = "Remove a federation ban", rename = "unfban")]
+    UnFBan(String),
+    #[command(description = "Subscribe to a federation", rename = "subfed")]
+    SubFed(String),
+    #[command(description = "Unsubscribe from a federation", rename = "unsubfed")]
+    UnSubFed(String),
+    #[command(description = "List federation subscriptions", rename = "fedsubs")]
+    FedSubs(String),
+    #[command(description = "Toggle quiet mode in group", rename = "quietfed")]
+    QuietFed(String),
+    #[command(description = "Show user federation status", rename = "fedstat")]
+    FedStat(String),
+    #[command(description = "Check fban status in fed", rename = "fbanstat")]
+    FBanStat(String),
+    #[command(description = "List public federations", rename = "feds")]
+    Feds,
+    #[command(description = "Promote federation admin", rename = "fedpromote")]
+    FedPromote(String),
+    #[command(description = "Demote federation admin", rename = "feddemote")]
+    FedDemote(String),
+    #[command(description = "Export federation ban list", rename = "fbanlist")]
+    FBanList(String),
+    #[command(description = "Toggle mandatory reason setting", rename = "fedreason")]
+    FedReason(String),
+    #[command(description = "Set federation log channel/group", rename = "setfedlog")]
+    SetFedLog(String),
+    #[command(description = "Unset federation log channel/group", rename = "unsetfedlog")]
+    UnsetFedLog(String),
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -492,6 +552,7 @@ pub async fn handle_command(
     ai: Arc<AiReceiver>,
     media_engine: Arc<MediaEngine>,
     lazy_providers: Arc<crate::LazyProviders>,
+    fed_service: Arc<crate::federation::FederationService>,
 ) -> anyhow::Result<()> {
     let chat_id = msg.chat.id.0;
     let pb_state = media_engine.reconcile_session(chat_id).await?;
@@ -834,6 +895,588 @@ pub async fn handle_command(
             bot.send_message(msg.chat.id, text)
                 .parse_mode(ParseMode::Html)
                 .await?;
+        }
+
+
+        BotCommand::NewFed(args) => {
+            let name = args.trim().to_string();
+            if name.is_empty() {
+                bot.send_message(msg.chat.id, "Please specify a federation name: <code>/newfed <name></code>")
+                    .parse_mode(ParseMode::Html)
+                    .await?;
+                return Ok(());
+            }
+            match fed_service.create_federation(name.clone(), user_id, None).await {
+                Ok(fed) => {
+                    let text = format!(
+                        "🏛️ <b>Federation Created Successfully</b>\n\n\
+                         <b>Name:</b> {}\n\
+                         <b>FedID:</b> <code>{}</code>\n\n\
+                         <i>Save this FedID! Group admins will need it to join using <code>/joinfed {}</code></i>",
+                        escape_html(&fed.name),
+                        fed.id,
+                        fed.id
+                    );
+                    bot.send_message(msg.chat.id, text).parse_mode(ParseMode::Html).await?;
+                }
+                Err(e) => {
+                    bot.send_message(msg.chat.id, format!("❌ <b>Failed to create federation:</b> {e}"))
+                        .parse_mode(ParseMode::Html)
+                        .await?;
+                }
+            }
+        }
+        BotCommand::DelFed(args) => {
+            let fed_id = args.trim();
+            if fed_id.is_empty() {
+                bot.send_message(msg.chat.id, "Please specify a federation ID: <code>/delfed <FedID></code>")
+                    .parse_mode(ParseMode::Html)
+                    .await?;
+                return Ok(());
+            }
+            match fed_service.delete_federation(fed_id, user_id).await {
+                Ok(_) => {
+                    bot.send_message(msg.chat.id, format!("🗑️ <b>Federation <code>{fed_id}</code> deleted.</b>"))
+                        .parse_mode(ParseMode::Html)
+                        .await?;
+                }
+                Err(e) => {
+                    bot.send_message(msg.chat.id, format!("❌ {e}"))
+                        .parse_mode(ParseMode::Html)
+                        .await?;
+                }
+            }
+        }
+        BotCommand::FedInfo(args) => {
+            let fed_id = args.trim();
+            if fed_id.is_empty() {
+                bot.send_message(msg.chat.id, "Please specify a federation ID: <code>/fedinfo <FedID></code>")
+                    .parse_mode(ParseMode::Html)
+                    .await?;
+                return Ok(());
+            }
+            match fed_service.get_federation_info(fed_id).await {
+                Ok(fed) => {
+                    let chats = fed_service.repository().list_federation_chats(&fed.id).await?.len();
+                    let bans = fed_service.repository().list_bans(&fed.id).await?.len();
+                    let subs = fed_service.repository().list_subscriptions(&fed.id).await?.len();
+                    let text = format!(
+                        "ℹ️ <b>Federation Information</b>\n\n\
+                         <b>Name:</b> {}\n\
+                         <b>ID:</b> <code>{}</code>\n\
+                         <b>Owner ID:</b> <code>{}</code>\n\
+                         <b>Participating Chats:</b> {}\n\
+                         <b>Active Fedbans:</b> {}\n\
+                         <b>Subscribed Federations:</b> {}\n\
+                         <b>Require Reason:</b> {}",
+                        escape_html(&fed.name),
+                        fed.id,
+                        fed.owner_user_id,
+                        chats,
+                        bans,
+                        subs,
+                        if fed.settings.require_reason { "Yes" } else { "No" }
+                    );
+                    bot.send_message(msg.chat.id, text).parse_mode(ParseMode::Html).await?;
+                }
+                Err(e) => {
+                    bot.send_message(msg.chat.id, format!("❌ {e}"))
+                        .parse_mode(ParseMode::Html)
+                        .await?;
+                }
+            }
+        }
+        BotCommand::JoinFed(args) => {
+            let fed_id = args.trim();
+            if fed_id.is_empty() {
+                bot.send_message(msg.chat.id, "Please specify a federation ID: <code>/joinfed <FedID></code>")
+                    .parse_mode(ParseMode::Html)
+                    .await?;
+                return Ok(());
+            }
+            match fed_service.join_chat(fed_id, chat_id, user_id).await {
+                Ok(_) => {
+                    bot.send_message(msg.chat.id, format!("✅ Chat successfully joined federation <code>{fed_id}</code>."))
+                        .parse_mode(ParseMode::Html)
+                        .await?;
+                }
+                Err(e) => {
+                    bot.send_message(msg.chat.id, format!("❌ {e}"))
+                        .parse_mode(ParseMode::Html)
+                        .await?;
+                }
+            }
+        }
+        BotCommand::LeaveFed => {
+            match fed_service.leave_chat(chat_id, user_id).await {
+                Ok(fed_id) => {
+                    bot.send_message(msg.chat.id, format!("🚪 Chat successfully left federation <code>{fed_id}</code>."))
+                        .parse_mode(ParseMode::Html)
+                        .await?;
+                }
+                Err(e) => {
+                    bot.send_message(msg.chat.id, format!("❌ {e}"))
+                        .parse_mode(ParseMode::Html)
+                        .await?;
+                }
+            }
+        }
+        BotCommand::FBan(args) => {
+            let parts: Vec<&str> = args.trim().splitn(3, ' ').collect();
+            let mut fed_id_opt = None;
+            let mut target_str_opt = None;
+            let mut reason_opt = None;
+
+            if msg.reply_to_message().is_some() {
+                // Reply form: /fban <fed_id> [reason]
+                if let Some(f_id) = parts.first().filter(|s| !s.is_empty()) {
+                    fed_id_opt = Some(*f_id);
+                    if parts.len() > 1 {
+                        reason_opt = Some(parts[1..].join(" "));
+                    }
+                }
+            } else if parts.len() >= 2 {
+                // Direct form: /fban <fed_id> <user_id|@username> [reason]
+                fed_id_opt = Some(parts[0]);
+                target_str_opt = Some(parts[1]);
+                if parts.len() > 2 {
+                    reason_opt = Some(parts[2].to_string());
+                }
+            }
+
+            let Some(fed_id) = fed_id_opt else {
+                bot.send_message(
+                    msg.chat.id,
+                    "Usage:\nDirect: <code>/fban <FedID> <user_id|@username> [reason]</code>\nReply: <code>/fban <FedID> [reason]</code>",
+                )
+                .parse_mode(ParseMode::Html)
+                .await?;
+                return Ok(());
+            };
+
+            let mut target_user_id = 0i64;
+            let mut target_username = None;
+
+            if let Some(reply) = msg.reply_to_message() {
+                if let Some(user) = &reply.from {
+                    target_user_id = user.id.0 as i64;
+                    target_username = user.username.clone();
+                }
+            } else if let Some(target_str) = target_str_opt {
+                if target_str.starts_with('@') {
+                    target_username = Some(target_str.trim_start_matches('@').to_string());
+                    // Assign placeholder ID if username without numeric resolution
+                    target_user_id = target_str.bytes().fold(0i64, |acc, b| acc.wrapping_add(b as i64));
+                } else if let Ok(parsed_id) = target_str.parse::<i64>() {
+                    target_user_id = parsed_id;
+                }
+            }
+
+            if target_user_id == 0 {
+                bot.send_message(msg.chat.id, "❌ Could not resolve target user ID.")
+                    .parse_mode(ParseMode::Html)
+                    .await?;
+                return Ok(());
+            }
+
+            let reason = reason_opt.unwrap_or_default();
+
+            match fed_service.fban(fed_id, target_user_id, target_username, reason, user_id).await {
+                Ok((ban, _total, relevant)) => {
+                    let text = format!(
+                        "🚫 <b>Federation Ban Issued</b>\n\n\
+                         <b>Target User ID:</b> <code>{}</code>\n\
+                         <b>Federation ID:</b> <code>{}</code>\n\
+                         <b>Reason:</b> {}\n\
+                         <b>Active Enforcement:</b> Queued in {} relevant chat(s)",
+                        ban.user_id,
+                        ban.federation_id,
+                        escape_html(&ban.reason),
+                        relevant
+                    );
+                    bot.send_message(msg.chat.id, text).parse_mode(ParseMode::Html).await?;
+                }
+                Err(e) => {
+                    bot.send_message(msg.chat.id, format!("❌ {e}"))
+                        .parse_mode(ParseMode::Html)
+                        .await?;
+                }
+            }
+        }
+        BotCommand::UnFBan(args) => {
+            let parts: Vec<&str> = args.trim().split_whitespace().collect();
+            let mut fed_id_opt = None;
+            let mut target_str_opt = None;
+
+            if msg.reply_to_message().is_some() {
+                if let Some(f_id) = parts.first() {
+                    fed_id_opt = Some(*f_id);
+                }
+            } else if parts.len() >= 2 {
+                fed_id_opt = Some(parts[0]);
+                target_str_opt = Some(parts[1]);
+            }
+
+            let Some(fed_id) = fed_id_opt else {
+                bot.send_message(
+                    msg.chat.id,
+                    "Usage:\nDirect: <code>/unfban <FedID> <user_id></code>\nReply: <code>/unfban <FedID></code>",
+                )
+                .parse_mode(ParseMode::Html)
+                .await?;
+                return Ok(());
+            };
+
+            let mut target_user_id = 0i64;
+            if let Some(reply) = msg.reply_to_message() {
+                if let Some(user) = &reply.from {
+                    target_user_id = user.id.0 as i64;
+                }
+            } else if let Some(target_str) = target_str_opt {
+                if let Ok(parsed) = target_str.parse::<i64>() {
+                    target_user_id = parsed;
+                }
+            }
+
+            if target_user_id == 0 {
+                bot.send_message(msg.chat.id, "❌ Could not resolve target user ID.")
+                    .parse_mode(ParseMode::Html)
+                    .await?;
+                return Ok(());
+            }
+
+            match fed_service.unfban(fed_id, target_user_id, user_id).await {
+                Ok(_) => {
+                    bot.send_message(msg.chat.id, format!("✅ User <code>{target_user_id}</code> has been unfbanned from federation <code>{fed_id}</code>."))
+                        .parse_mode(ParseMode::Html)
+                        .await?;
+                }
+                Err(e) => {
+                    bot.send_message(msg.chat.id, format!("❌ {e}"))
+                        .parse_mode(ParseMode::Html)
+                        .await?;
+                }
+            }
+        }
+        BotCommand::SubFed(args) => {
+            let parts: Vec<&str> = args.trim().split_whitespace().collect();
+            if parts.len() < 2 {
+                bot.send_message(msg.chat.id, "Usage: <code>/subfed <SourceFedID> <TargetFedID></code>")
+                    .parse_mode(ParseMode::Html)
+                    .await?;
+                return Ok(());
+            }
+            match fed_service.add_subscription(parts[0], parts[1], user_id).await {
+                Ok(_) => {
+                    bot.send_message(msg.chat.id, format!("🔗 Federation <code>{}</code> subscribed to <code>{}</code>.", parts[0], parts[1]))
+                        .parse_mode(ParseMode::Html)
+                        .await?;
+                }
+                Err(e) => {
+                    bot.send_message(msg.chat.id, format!("❌ {e}"))
+                        .parse_mode(ParseMode::Html)
+                        .await?;
+                }
+            }
+        }
+        BotCommand::UnSubFed(args) => {
+            let parts: Vec<&str> = args.trim().split_whitespace().collect();
+            if parts.len() < 2 {
+                bot.send_message(msg.chat.id, "Usage: <code>/unsubfed <SourceFedID> <TargetFedID></code>")
+                    .parse_mode(ParseMode::Html)
+                    .await?;
+                return Ok(());
+            }
+            match fed_service.remove_subscription(parts[0], parts[1], user_id).await {
+                Ok(removed) => {
+                    if removed {
+                        bot.send_message(msg.chat.id, format!("✂️ Unsubscribed federation <code>{}</code> from <code>{}</code>.", parts[0], parts[1]))
+                            .parse_mode(ParseMode::Html)
+                            .await?;
+                    } else {
+                        bot.send_message(msg.chat.id, "⚠️ Subscription not found.")
+                            .parse_mode(ParseMode::Html)
+                            .await?;
+                    }
+                }
+                Err(e) => {
+                    bot.send_message(msg.chat.id, format!("❌ {e}"))
+                        .parse_mode(ParseMode::Html)
+                        .await?;
+                }
+            }
+        }
+        BotCommand::FedSubs(args) => {
+            let fed_id = args.trim();
+            if fed_id.is_empty() {
+                bot.send_message(msg.chat.id, "Usage: <code>/fedsubs <FedID></code>")
+                    .parse_mode(ParseMode::Html)
+                    .await?;
+                return Ok(());
+            }
+            match fed_service.repository().list_subscriptions(fed_id).await {
+                Ok(subs) => {
+                    if subs.is_empty() {
+                        bot.send_message(msg.chat.id, format!("No active subscriptions for federation <code>{fed_id}</code>."))
+                            .parse_mode(ParseMode::Html)
+                            .await?;
+                    } else {
+                        let mut text = format!("🔗 <b>Subscriptions for Federation <code>{fed_id}</code>:</b>\n\n");
+                        for s in subs {
+                            text.push_str(&format!("• <code>{}</code>\n", s.target_fed_id));
+                        }
+                        bot.send_message(msg.chat.id, text).parse_mode(ParseMode::Html).await?;
+                    }
+                }
+                Err(e) => {
+                    bot.send_message(msg.chat.id, format!("❌ {e}"))
+                        .parse_mode(ParseMode::Html)
+                        .await?;
+                }
+            }
+        }
+        BotCommand::QuietFed(args) => {
+            let mode = args.trim().to_lowercase();
+            let quiet = match mode.as_str() {
+                "on" | "true" | "yes" | "1" => true,
+                "off" | "false" | "no" | "0" => false,
+                _ => {
+                    bot.send_message(msg.chat.id, "Usage: <code>/quietfed on|off</code>")
+                        .parse_mode(ParseMode::Html)
+                        .await?;
+                    return Ok(());
+                }
+            };
+            match fed_service.set_quiet_mode(chat_id, quiet).await {
+                Ok(_) => {
+                    bot.send_message(msg.chat.id, format!("🤫 <b>Quiet Mode set to: {}</b>", if quiet { "ON" } else { "OFF" }))
+                        .parse_mode(ParseMode::Html)
+                        .await?;
+                }
+                Err(e) => {
+                    bot.send_message(msg.chat.id, format!("❌ {e}"))
+                        .parse_mode(ParseMode::Html)
+                        .await?;
+                }
+            }
+        }
+        BotCommand::FedStat(args) => {
+            let target_user_id = if let Ok(parsed) = args.trim().parse::<i64>() {
+                parsed
+            } else if let Some(reply) = msg.reply_to_message() {
+                reply.from.as_ref().map(|u| u.id.0 as i64).unwrap_or(user_id)
+            } else {
+                user_id
+            };
+
+            match fed_service.repository().list_bans_for_user(target_user_id).await {
+                Ok(bans) => {
+                    if bans.is_empty() {
+                        bot.send_message(msg.chat.id, format!("✅ User <code>{target_user_id}</code> has no active federation bans."))
+                            .parse_mode(ParseMode::Html)
+                            .await?;
+                    } else {
+                        let mut text = format!("🚫 <b>Federation Bans for User <code>{target_user_id}</code>:</b>\n\n");
+                        for b in bans {
+                            let fed_name = fed_service.repository().get_federation(&b.federation_id).await?.map(|f| f.name).unwrap_or(b.federation_id);
+                            text.push_str(&format!("• <b>{}</b>\n  Reason: {}\n\n", escape_html(&fed_name), escape_html(&b.reason)));
+                        }
+                        bot.send_message(msg.chat.id, text).parse_mode(ParseMode::Html).await?;
+                    }
+                }
+                Err(e) => {
+                    bot.send_message(msg.chat.id, format!("❌ {e}"))
+                        .parse_mode(ParseMode::Html)
+                        .await?;
+                }
+            }
+        }
+        BotCommand::FBanStat(args) => {
+            let fed_id = args.trim();
+            if fed_id.is_empty() {
+                bot.send_message(msg.chat.id, "Usage: <code>/fbanstat <FedID></code>")
+                    .parse_mode(ParseMode::Html)
+                    .await?;
+                return Ok(());
+            }
+            match fed_service.repository().get_ban(fed_id, user_id).await {
+                Ok(Some(ban)) => {
+                    let text = format!(
+                        "🚫 <b>Federation Ban Status</b>\n\n\
+                         <b>Federation:</b> <code>{}</code>\n\
+                         <b>Status:</b> BANNED\n\
+                         <b>Reason:</b> {}",
+                        fed_id,
+                        escape_html(&ban.reason)
+                    );
+                    bot.send_message(msg.chat.id, text).parse_mode(ParseMode::Html).await?;
+                }
+                _ => {
+                    bot.send_message(msg.chat.id, format!("✅ You are NOT banned in federation <code>{fed_id}</code>."))
+                        .parse_mode(ParseMode::Html)
+                        .await?;
+                }
+            }
+        }
+        BotCommand::Feds => {
+            match fed_service.list_public_federations().await {
+                Ok(feds) => {
+                    if feds.is_empty() {
+                        bot.send_message(msg.chat.id, "No public federations registered.")
+                            .parse_mode(ParseMode::Html)
+                            .await?;
+                    } else {
+                        let mut text = String::from("🏛️ <b>Public Federations:</b>\n\n");
+                        for f in feds {
+                            text.push_str(&format!("• <b>{}</b> (ID: <code>{}</code>)\n", escape_html(&f.name), f.id));
+                        }
+                        bot.send_message(msg.chat.id, text).parse_mode(ParseMode::Html).await?;
+                    }
+                }
+                Err(e) => {
+                    bot.send_message(msg.chat.id, format!("❌ {e}"))
+                        .parse_mode(ParseMode::Html)
+                        .await?;
+                }
+            }
+        }
+        BotCommand::FedPromote(args) => {
+            let parts: Vec<&str> = args.trim().split_whitespace().collect();
+            if parts.len() < 2 {
+                bot.send_message(msg.chat.id, "Usage: <code>/fedpromote <FedID> <user_id></code>")
+                    .parse_mode(ParseMode::Html)
+                    .await?;
+                return Ok(());
+            }
+            if let Ok(target_id) = parts[1].parse::<i64>() {
+                match fed_service.add_admin(parts[0], target_id, user_id).await {
+                    Ok(_) => {
+                        bot.send_message(msg.chat.id, format!("👤 User <code>{target_id}</code> promoted to admin in federation <code>{}</code>.", parts[0]))
+                            .parse_mode(ParseMode::Html)
+                            .await?;
+                    }
+                    Err(e) => {
+                        bot.send_message(msg.chat.id, format!("❌ {e}"))
+                            .parse_mode(ParseMode::Html)
+                            .await?;
+                    }
+                }
+            }
+        }
+        BotCommand::FedDemote(args) => {
+            let parts: Vec<&str> = args.trim().split_whitespace().collect();
+            if parts.len() < 2 {
+                bot.send_message(msg.chat.id, "Usage: <code>/feddemote <FedID> <user_id></code>")
+                    .parse_mode(ParseMode::Html)
+                    .await?;
+                return Ok(());
+            }
+            if let Ok(target_id) = parts[1].parse::<i64>() {
+                match fed_service.remove_admin(parts[0], target_id, user_id).await {
+                    Ok(_) => {
+                        bot.send_message(msg.chat.id, format!("👤 User <code>{target_id}</code> demoted in federation <code>{}</code>.", parts[0]))
+                            .parse_mode(ParseMode::Html)
+                            .await?;
+                    }
+                    Err(e) => {
+                        bot.send_message(msg.chat.id, format!("❌ {e}"))
+                            .parse_mode(ParseMode::Html)
+                            .await?;
+                    }
+                }
+            }
+        }
+        BotCommand::FBanList(args) => {
+            let parts: Vec<&str> = args.trim().split_whitespace().collect();
+            if parts.is_empty() {
+                bot.send_message(msg.chat.id, "Usage: <code>/fbanlist <FedID> [csv|json|jsonl]</code>")
+                    .parse_mode(ParseMode::Html)
+                    .await?;
+                return Ok(());
+            }
+            let fed_id = parts[0];
+            let format = parts.get(1).copied().unwrap_or("csv");
+            match fed_service.export_fban_list(fed_id, format).await {
+                Ok(content) => {
+                    let file = teloxide::types::InputFile::memory(content.into_bytes()).file_name(format!("fbanlist_{fed_id}.{format}"));
+                    bot.send_document(msg.chat.id, file).await?;
+                }
+                Err(e) => {
+                    bot.send_message(msg.chat.id, format!("❌ {e}"))
+                        .parse_mode(ParseMode::Html)
+                        .await?;
+                }
+            }
+        }
+        BotCommand::FedReason(args) => {
+            let parts: Vec<&str> = args.trim().split_whitespace().collect();
+            if parts.len() < 2 {
+                bot.send_message(msg.chat.id, "Usage: <code>/fedreason <FedID> on|off</code>")
+                    .parse_mode(ParseMode::Html)
+                    .await?;
+                return Ok(());
+            }
+            let required = match parts[1].to_lowercase().as_str() {
+                "on" | "true" | "1" => true,
+                "off" | "false" | "0" => false,
+                _ => false,
+            };
+            match fed_service.set_reason_required(parts[0], required, user_id).await {
+                Ok(_) => {
+                    bot.send_message(msg.chat.id, format!("⚙️ Mandatory reason for federation <code>{}</code> set to: <b>{}</b>", parts[0], if required { "ON" } else { "OFF" }))
+                        .parse_mode(ParseMode::Html)
+                        .await?;
+                }
+                Err(e) => {
+                    bot.send_message(msg.chat.id, format!("❌ {e}"))
+                        .parse_mode(ParseMode::Html)
+                        .await?;
+                }
+            }
+        }
+        BotCommand::SetFedLog(args) => {
+            let parts: Vec<&str> = args.trim().split_whitespace().collect();
+            if parts.len() < 2 {
+                bot.send_message(msg.chat.id, "Usage: <code>/setfedlog <FedID> <log_chat_id></code>")
+                    .parse_mode(ParseMode::Html)
+                    .await?;
+                return Ok(());
+            }
+            if let Ok(log_id) = parts[1].parse::<i64>() {
+                match fed_service.set_log_chat(parts[0], Some(log_id), user_id).await {
+                    Ok(_) => {
+                        bot.send_message(msg.chat.id, format!("🪵 Log channel for federation <code>{}</code> set to <code>{log_id}</code>.", parts[0]))
+                            .parse_mode(ParseMode::Html)
+                            .await?;
+                    }
+                    Err(e) => {
+                        bot.send_message(msg.chat.id, format!("❌ {e}"))
+                            .parse_mode(ParseMode::Html)
+                            .await?;
+                    }
+                }
+            }
+        }
+        BotCommand::UnsetFedLog(args) => {
+            let fed_id = args.trim();
+            if fed_id.is_empty() {
+                bot.send_message(msg.chat.id, "Usage: <code>/unsetfedlog <FedID></code>")
+                    .parse_mode(ParseMode::Html)
+                    .await?;
+                return Ok(());
+            }
+            match fed_service.set_log_chat(fed_id, None, user_id).await {
+                Ok(_) => {
+                    bot.send_message(msg.chat.id, format!("🪵 Log channel for federation <code>{fed_id}</code> unset."))
+                        .parse_mode(ParseMode::Html)
+                        .await?;
+                }
+                Err(e) => {
+                    bot.send_message(msg.chat.id, format!("❌ {e}"))
+                        .parse_mode(ParseMode::Html)
+                        .await?;
+                }
+            }
         }
     }
     Ok(())
